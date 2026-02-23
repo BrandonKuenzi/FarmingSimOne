@@ -275,3 +275,45 @@ export type ForestGenConfig = {
 };
 
 export type BarnTier = 1 | 2 | 3 | 4 | 5;
+
+export type PlayerState = Position & {
+	emoji: string;
+	stamina: number;
+	staminaMax: number;
+	money: number;
+};
+
+export type WorldState = {
+	day: number;
+	weather: WeatherId;
+	plots: Record<string, Plot>;
+	animals: Animal[];
+	inventory: Inventory;
+	tools: ToolLevels;
+	barnTier: BarnTier;
+};
+
+export type DungeonState = {
+	forestLevel: number;
+	caveLevel: number;
+	forestLockedToday: boolean;
+	caveLockedToday: boolean;
+};
+
+export type ProgressionState = {
+	currentDayEarned: number;
+	previousDayEarned: number;
+	totalEarned: number;
+	ownedWardrobeLooks: string[];
+	hasTractor: boolean;
+	hasHeadlamp: boolean;
+	ownedPet: PetEmoji | null;
+};
+
+export type SaveGameData = {
+	version: number;
+	player: PlayerState;
+	world: WorldState;
+	dungeons: DungeonState;
+	progression: ProgressionState;
+};

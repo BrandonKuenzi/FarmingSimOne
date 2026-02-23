@@ -81,12 +81,7 @@ import {
 	standardCropIds,
 } from "./game/content/catalog";
 import { makeGaryBottleMessage } from "./game/content/garyBottle";
-import {
-	collectBeachTiles,
-	rollBeachBottleSpawn,
-	rollBeachShellDrops,
-	type XY,
-} from "./game/world/beach";
+import { rollBeachBottleSpawn, rollBeachShellDrops } from "./game/world/beach";
 import {
 	BARN_EXTERIOR_ENTRY_XS,
 	BARN_EXTERIOR_ENTRY_Y,
@@ -137,13 +132,14 @@ import {
 	TRADER_POS,
 } from "./game/world/npcs";
 import { generateDailyNewspaper, generatePriceChange } from "./game/systems/news";
+import { nextAnimalTile, nextBoatTile, nextTownNpcTile } from "./game/systems/movement";
 import {
 	CORAL_FRUIT_SELL_PRICE,
-	GEM_SELL_PRICES,
 	generateSketchyMerchantStock,
 	generateTraderTrades,
 	getDealBadge,
-	getSeedSellbackPrice,
+	getMarketBasePrice,
+	getMarketSellPrice,
 } from "./game/systems/commerce";
 import { evolveFarmWeeds, generateInitialFarmWeedField } from "./game/systems/weeds";
 import { randomWeather, weatherEmojiById } from "./game/systems/weather";
@@ -153,11 +149,15 @@ import {
 	isRippleWaterTile,
 } from "./game/systems/ambient";
 import {
+	countOpenBarnTilesInBounds,
+	getEggDropNearChicken as getEggDropNearChickenCandidate,
+	nextOpenBarnTileInBounds,
+} from "./game/systems/animals";
+import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
 	getFishingRodMaxWaitSeconds,
 	getFishingRodUiText,
-	getHoeShape,
 	getRandomCropId,
 	getSmashAxeActionCost,
 	getSmashAxeIronChance,
@@ -216,536 +216,42 @@ import type {
 	TractorImplement,
 	TraderTradeEntry,
 	VendorKey,
-	VisualCell,
 	Warp,
 	WeatherId,
 } from "./game/shared/types";
 import { keyForPos } from "./game/shared/coords";
-import { clampMin, randomInt } from "./game/shared/random";
-
-const STARTER_CHEST_POS = { x: 7, y: 8 };
-const TRACTOR_PARK_POS = { x: 14, y: 8 };
-const TRACTOR_PRICE = 10000;
-const TRACTOR_IRON_COST = 50;
-const HEADLAMP_PRICE = 1000;
-
-const FARM_FOREST_BLOCKER_POSITIONS = [
-	{ x: FARM_WIDTH - 2, y: FOREST_GATE_Y },
-	{ x: FARM_WIDTH - 2, y: FOREST_GATE_Y + 1 },
-];
-const FARM_CAVE_BLOCKER_POSITIONS = [
-	{ x: 1, y: CAVE_GATE_Y },
-	{ x: 1, y: CAVE_GATE_Y + 1 },
-];
-
-
-
-const starterWardrobeLooks = ["🧑‍🌾", "👨‍🌾", "👩‍🌾"] as const; // starter farmers
-const purchasableClassicLooks = [
-	"🙂",
-	"😎",
-	"🥸",
-	"👱",
-	"🧔",
-	"🧑‍🦰",
-	"🧑‍🦱",
-	"🧑‍🦳",
-	"🧑‍🦲",
-	"🧓",
-	"🙍‍♀️",
-	"🙎‍♀️",
-	"👩",
-	"🧔‍♀️",
-	"👩‍🦰",
-	"👩‍🦱",
-	"👩‍🦳",
-	"👩‍🦲",
-] as const;
-const purchasableFunnyLooks = [
-	"🐸",
-	"🐄",
-	"🐟",
-	"🛸",
-	"🐙",
-	"🐧",
-	"🦊",
-	"🐵",
-	"🐼",
-	"🦖",
-	"💡",
-] as const;
-const clothingShopItems = [
-	...purchasableClassicLooks.map((look) => ({ look, price: 300 })),
-	...purchasableFunnyLooks.map((look) => ({ look, price: 1000 })),
-] as const;
-const allWardrobeLooks = [
-	...starterWardrobeLooks,
-	...clothingShopItems.map((item) => item.look),
-] as const;
-
-const shopMaps: Exclude<
-	MapId,
-	"farm" | "house" | "barn" | "town" | "forest" | "cave"
->[] = [
-	"seed_shop",
-	"feed_shop",
-	"animal_shop",
-	"market_shop",
-	"tool_shop",
-	"clothing_shop",
-	"cafe_shop",
-];
-
-const shopDecorForSaleItems: Record<
-	Exclude<MapId, "farm" | "house" | "barn" | "town" | "forest" | "cave">,
-	string[]
-> = {
-	seed_shop: ["🌱"], // seeds
-	feed_shop: ["🧺"], // feed
-	animal_shop: ["🐄", "🐑", "🐔"], // cow, sheep, chicken
-	market_shop: ["💵", "💲", "💹", "💰"], // money signs
-	tool_shop: ["🧰"], // tools
-	clothing_shop: ["👕", "👒", "👢", "🧥"], // clothing
-	cafe_shop: ["☕", "🍔", "🥗", "🍕"], // cafe menu
-};
-
-const shopDecorSlots: Array<{ x: number; y: number }> = [
-	{ x: 2, y: 1 },
-	{ x: 4, y: 1 },
-	{ x: 6, y: 1 },
-	{ x: 8, y: 1 },
-	{ x: 10, y: 1 },
-	{ x: 12, y: 1 },
-	{ x: 3, y: 2 },
-	{ x: 5, y: 2 },
-	{ x: 9, y: 2 },
-	{ x: 11, y: 2 },
-];
-
-const cafeCounterPrepDecor: Array<{ x: number; emoji: string }> = [
-	{ x: 3, emoji: "🥗" }, // salad
-	{ x: 5, emoji: "🍕" }, // pizza
-	{ x: 9, emoji: "☕" }, // coffee
-	{ x: 11, emoji: "🍔" }, // burger
-];
-
-const tileVisuals: Record<string, VisualCell> = {
-	"#": { glyph: "🧱" }, // brick wall
-	",": { glyph: "", className: "tile-grass" },
-	":": { glyph: "", className: "tile-sand" },
-	";": { glyph: "", className: "tile-soil" },
-	"=": { glyph: "", className: "tile-path" },
-	")": { glyph: "", className: "tile-cave-path" },
-	".": { glyph: "", className: "tile-floor" },
-	"~": { glyph: "", className: "tile-water" },
-	_: { glyph: "", className: "tile-gravel" },
-	"^": { glyph: "", className: "tile-forest-grass" },
-	"<": { glyph: "", className: "tile-cave-wall-dark" },
-	">": { glyph: "", className: "tile-cave-wall-mid" },
-	"*": { glyph: "", className: "tile-cave-wall-light" },
-	"/": { glyph: "🪜", className: "tile-path" }, // ladder
-	T: { glyph: "🌲" }, // pine tree
-	G: { glyph: "🌳" }, // tree
-	C: { glyph: "🌵" }, // cactus
-	L: { glyph: "🪵" }, // log
-	O: { glyph: "🪨" }, // rock
-	J: { glyph: "🌿" }, // weed
-	X: { glyph: "🎁" }, // loot chest
-	M: { glyph: "🍾", className: "tile-sand" }, // message bottle
-	S: { glyph: "🐚", className: "tile-sand" }, // shell
-	"0": { glyph: "😉" }, // sketchy vendor
-	"6": { glyph: "📦", className: "tile-grass" }, // sketchy crate
-	"4": { glyph: "🥷" }, // trader
-	"5": { glyph: "📦" }, // trader crate
-	"7": { glyph: "🚁" }, // trader helicopter
-	"8": { glyph: "🧍‍♂️" }, // pet vendor
-	"9": { glyph: "❤️" }, // pet heart
-	Z: { glyph: "🧑‍⚕️", className: "tile-grass" }, // doctor
-	"{": { glyph: "🚜" }, // parked tractor
-	"}": { glyph: "🚜" }, // moving tractor alt
-	"@": { glyph: "🐈" }, // pet cat
-	"%": { glyph: "🐈‍⬛" }, // pet black cat
-	"&": { glyph: "🐕" }, // pet dog
-	"?": { glyph: "🐩" }, // pet poodle
-	K: { glyph: "🪸" }, // coral fruit crop
-	e: { glyph: "🐻" }, // bear
-	y: { glyph: "🐍" }, // snake
-	"!": { glyph: "💩" }, // poop enemy
-	"+": { glyph: "🚪" }, // door
-	d: { glyph: "🛏️" }, // bed
-	w: { glyph: "👕" }, // wardrobe
-	U: { glyph: "🛁" }, // bath
-	V: { glyph: "🛀" }, // bathing
-	j: { glyph: "🙂" }, // shopkeeper
-	l: { glyph: "🪟" }, // window
-	x: { glyph: "🧱" }, // counter
-	h: { glyph: "🪑" }, // chair
-	B: { glyph: "", className: "tile-barn-wall" },
-	H: { glyph: "🧱" }, // house wall
-	Y: { glyph: "🌱" }, // growing crop
-	i: { glyph: "🌿" }, // animated weed/foliage
-	"'": { glyph: "'" },
-	s: { glyph: "🌱", className: "tile-shop-sign" }, // seed shop sign
-	f: { glyph: "🧺", className: "tile-shop-sign" }, // feed shop sign
-	a: { glyph: "🐄", className: "tile-shop-sign" }, // animal shop sign
-	$: { glyph: "💰", className: "tile-shop-sign" }, // market sign
-	t: { glyph: "🧰", className: "tile-shop-sign" }, // tool shop sign
-	c: { glyph: "👕", className: "tile-shop-sign" }, // clothes sign
-	k: { glyph: "☕", className: "tile-shop-sign" }, // cafe sign
-	n: { glyph: "🙂" }, // town npc 1
-	b: { glyph: "👷", className: "tile-floor" }, // builder
-	m: { glyph: "😎" }, // town npc 2
-	o: { glyph: "🥸" }, // town npc 3
-	p: { glyph: "🤠" }, // town npc 4
-	q: { glyph: "⛵" }, // boat 1
-	r: { glyph: "🛶" }, // boat 2
-	u: { glyph: "🚤" }, // boat 3
-	v: { glyph: "🛥️" }, // boat 4
-	z: { glyph: "🚣‍♀️" }, // boat 5
-	"[": { glyph: "⛲", className: "tile-grass" }, // fountain
-	"]": { glyph: "🌴", className: "tile-grass" }, // palm tree
-	"`": { glyph: "🦇" }, // bat
-	"1": { glyph: "🐄" }, // cow
-	"2": { glyph: "🐑" }, // sheep
-	"3": { glyph: "🐔" }, // chicken
-	A: { glyph: "🦛" }, // hippo
-	D: { glyph: "🦄" }, // unicorn
-	F: { glyph: "🦣" }, // mammoth
-	I: { glyph: "🐌" }, // slug
-	N: { glyph: "🦍" }, // gorilla
-	E: { glyph: "🥚" }, // egg pickup
-	R: { glyph: "", className: "tile-roof-blue" },
-	W: { glyph: "", className: "tile-roof-white" },
-	g: { glyph: "", className: "tile-roof-gray" },
-	Q: { glyph: "", className: "tile-roof-red" },
-};
-
-const toVisual = (tile: string): VisualCell => {
-	if (tileVisuals[tile]) return tileVisuals[tile];
-	return { glyph: tile };
-};
-
-const groundClassForTile = (tile: string, mapId?: MapId): string | undefined => {
-	if (tile === ",") return "tile-grass";
-	if (tile === ":") return "tile-sand";
-	if (tile === ";") return "tile-soil-dry";
-	if (tile === "=") return "tile-path";
-	if (tile === ")") return "tile-cave-path";
-	if (tile === "_") return "tile-gravel";
-	if (tile === ".") return "tile-floor";
-	if (tile === "U") return "tile-floor";
-	if (tile === "T" || tile === "G" || tile === "^")
-		return mapId === "forest" ? "tile-forest-grass" : "tile-grass";
-	if (tile === "x" || tile === "j" || tile === "h") return "tile-floor";
-	if (tile === "~") return "tile-water";
-	return undefined;
-};
-
-const spriteTilesNeedingGround = new Set([
-	"P",
-	"+",
-	"d",
-	"w",
-	"U",
-	"V",
-	"j",
-	"l",
-	"x",
-	"h",
-	"Y",
-	"i",
-	"'",
-	"1",
-	"2",
-	"3",
-	"A",
-	"D",
-	"F",
-	"I",
-	"N",
-	"E",
-	"s",
-	"f",
-	"a",
-	"$",
-	"t",
-	"c",
-	"k",
-	"b",
-	"n",
-	"m",
-	"o",
-	"p",
-	"q",
-	"r",
-	"u",
-	"v",
-	"z",
-	"T",
-	"G",
-	"C",
-	"L",
-	"O",
-	"J",
-	"X",
-	"0",
-	"4",
-	"5",
-	"7",
-	"8",
-	"9",
-	"{",
-	"}",
-	"@",
-	"%",
-	"&",
-	"?",
-	"K",
-	"e",
-	"y",
-	"!",
-	"`",
-]);
-
-const priceItems: ItemId[] = [
-	"turnip_seed",
-	"carrot_seed",
-	"pumpkin_seed",
-	"corn_seed",
-	"turnip",
-	"carrot",
-	"pumpkin",
-	"corn",
-	"feed",
-	"milk",
-	"wool",
-	"egg",
-	"fish",
-	"shell",
-];
-
-const cafeMenuItems: CafeOrderItem[] = [
-	{ name: "Coffee", price: 3, stamina: 15 },
-	{ name: "Hamburger", price: 8, stamina: 45 },
-	{ name: "Salad", price: 7, stamina: 30 },
-	{ name: "Pizza", price: 15, stamina: 75 },
-];
-
-const dirDelta: Record<Dir, { dx: number; dy: number }> = {
-	up: { dx: 0, dy: -1 },
-	down: { dx: 0, dy: 1 },
-	left: { dx: -1, dy: 0 },
-	right: { dx: 1, dy: 0 },
-};
-
-const getHoeTargets = (
-	px: number,
-	py: number,
-	dir: Dir,
-	hoeLevel: number,
-): Array<{ x: number; y: number }> => {
-	const { width, depth } = getHoeShape(hoeLevel);
-	const fwd = dirDelta[dir];
-	const perp = { dx: -fwd.dy, dy: fwd.dx };
-	const half = Math.floor(width / 2);
-	const out: Array<{ x: number; y: number }> = [];
-	for (let step = 1; step <= depth; step += 1) {
-		for (let offset = -half; offset <= half; offset += 1) {
-			out.push({
-				x: px + fwd.dx * step + perp.dx * offset,
-				y: py + fwd.dy * step + perp.dy * offset,
-			});
-		}
-	}
-	return out;
-};
-
-const vendorMenuTitles = new Set([
-	"Seed Vendor",
-	"Feed Vendor",
-	"Animal Vendor",
-	"Clothing Vendor",
-	"Tool Vendor",
-	"Cafe",
-	"Supermarket",
-	"Sketchy Merchant",
-	"Trader",
-	"Doctor",
-]);
-const townBeachBottleTiles: XY[] = collectBeachTiles(
-	mapLayouts.town[TOWN_SAND_Y] ?? "",
-	TOWN_SAND_Y,
-);
-const makeEmptyInventory = (): Inventory => ({
-	turnip_seed: 0,
-	carrot_seed: 0,
-	pumpkin_seed: 0,
-	corn_seed: 0,
-	turnip: 0,
-	carrot: 0,
-	pumpkin: 0,
-	corn: 0,
-	feed: 0,
-	milk: 0,
-	wool: 0,
-	egg: 0,
-	fish: 0,
-	iron: 0,
-	shell: 0,
-	diamond: 0,
-	emerald: 0,
-	ruby: 0,
-	coral_fruit: 0,
-});
-
-const initialPrices: PriceState = {
-	turnip_seed: cropDefs.turnip.buyPrice,
-	carrot_seed: cropDefs.carrot.buyPrice,
-	pumpkin_seed: cropDefs.pumpkin.buyPrice,
-	corn_seed: cropDefs.corn.buyPrice,
-	turnip: cropDefs.turnip.baseSell,
-	carrot: cropDefs.carrot.baseSell,
-	pumpkin: cropDefs.pumpkin.baseSell,
-	corn: cropDefs.corn.baseSell,
-	feed: 8,
-	milk: 30,
-	wool: 28,
-	egg: 16,
-	fish: 5,
-	iron: 40,
-	shell: 10,
-	diamond: GEM_SELL_PRICES.diamond,
-	emerald: GEM_SELL_PRICES.emerald,
-	ruby: GEM_SELL_PRICES.ruby,
-	coral_fruit: 500,
-};
-const initialPriceTrends: PriceTrendState = {
-	turnip_seed: 0,
-	carrot_seed: 0,
-	pumpkin_seed: 0,
-	corn_seed: 0,
-	turnip: 0,
-	carrot: 0,
-	pumpkin: 0,
-	corn: 0,
-	feed: 0,
-	milk: 0,
-	wool: 0,
-	egg: 0,
-	fish: 0,
-	iron: 0,
-	shell: 0,
-	diamond: 0,
-	emerald: 0,
-	ruby: 0,
-	coral_fruit: 0,
-};
-
-const getFarmBarnInteriorBounds = (barnTier: BarnTier) => {
-	const { x, y, w, h } = getFarmBarnOuterRect(barnTier);
-	return { minX: x + 1, maxX: x + w - 2, minY: y + 1, maxY: y + h - 2 };
-};
-const chickenEggOffsets = [
-	{ dx: -1, dy: -1 },
-	{ dx: 0, dy: -1 },
-	{ dx: 1, dy: -1 },
-	{ dx: -1, dy: 0 },
-	{ dx: 1, dy: 0 },
-	{ dx: -1, dy: 1 },
-	{ dx: 0, dy: 1 },
-	{ dx: 1, dy: 1 },
-];
-
-const buildInitialFarmExpansionBlockers = () => {
-	const farmRows = mapLayouts.farm;
-	const reserved = new Set<string>([
-		...FARM_FOREST_BLOCKER_POSITIONS.map((p) => keyForPos(p.x, p.y)),
-		...FARM_CAVE_BLOCKER_POSITIONS.map((p) => keyForPos(p.x, p.y)),
-	]);
-	const wood: Record<string, boolean> = {};
-	const stone: Record<string, number> = {};
-	const hash2d = (x: number, y: number) => {
-		let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) >>> 0;
-		h = (h ^ (h >>> 13)) >>> 0;
-		h = Math.imul(h, 1274126177) >>> 0;
-		return (h ^ (h >>> 16)) >>> 0;
-	};
-	const keepSparseWood = (x: number, y: number) => (hash2d(x, y) % 100) < 25;
-	const keepSparseStone = (x: number, y: number) => (hash2d(x, y) % 100) < 33;
-	const canPlace = (x: number, y: number) => {
-		if (x < 1 || y < 1 || x >= FARM_WIDTH - 1 || y >= FARM_HEIGHT - 1) return false;
-		const key = keyForPos(x, y);
-		if (reserved.has(key)) return false;
-		return farmRows[y]?.[x] === ",";
-	};
-	const addWood = (x: number, y: number) => {
-		if (!keepSparseWood(x, y)) return;
-		if (!canPlace(x, y)) return;
-		wood[keyForPos(x, y)] = true;
-	};
-	const addStone = (x: number, y: number) => {
-		if (!keepSparseStone(x, y)) return;
-		if (!canPlace(x, y)) return;
-		stone[keyForPos(x, y)] = 24;
-	};
-
-	for (let x = 37; x <= FARM_WIDTH - 2; x += 1) {
-		addWood(x, 10);
-		if (x % 3 !== 0) addWood(x, 9);
-		if (x % 4 !== 1) addWood(x, 11);
-		for (let y = 12; y <= 17; y += 1) {
-			if ((x + y) % 3 === 0) continue;
-			addWood(x, y);
-		}
-	}
-
-	const centerX = 9;
-	const centerY = FARM_HEIGHT - 5;
-	for (let y = centerY - 6; y <= FARM_HEIGHT - 2; y += 1) {
-		for (let x = 1; x <= 44; x += 1) {
-			const dx = (x - centerX) / 16;
-			const dy = (y - centerY) / 5;
-			if (dx * dx + dy * dy > 1.05) continue;
-			if ((x * 13 + y * 7) % 4 === 0 && x > 4) continue;
-			addStone(x, y);
-		}
-	}
-	for (let y = Math.max(1, FARM_HEIGHT - 10); y <= FARM_HEIGHT - 2; y += 1) {
-		addStone(1, y);
-	}
-	for (let x = 1; x <= 22; x += 1) {
-		addStone(x, FARM_HEIGHT - 2);
-	}
-
-	const usedKeys = new Set<string>([...Object.keys(wood), ...Object.keys(stone)]);
-	const randomCandidates: Array<{ x: number; y: number }> = [];
-	for (let y = 1; y < FARM_HEIGHT - 1; y += 1) {
-		for (let x = 1; x < FARM_WIDTH - 1; x += 1) {
-			const key = keyForPos(x, y);
-			if (usedKeys.has(key)) continue;
-			if (!canPlace(x, y)) continue;
-			randomCandidates.push({ x, y });
-		}
-	}
-	const shuffled = randomCandidates.sort(() => Math.random() - 0.5);
-	shuffled.slice(0, 5).forEach(({ x, y }) => {
-		stone[keyForPos(x, y)] = 24;
-		usedKeys.add(keyForPos(x, y));
-	});
-	let logsAdded = 0;
-	for (const { x, y } of shuffled.slice(5)) {
-		if (logsAdded >= 5) break;
-		const key = keyForPos(x, y);
-		if (usedKeys.has(key)) continue;
-		wood[key] = true;
-		usedKeys.add(key);
-		logsAdded += 1;
-	}
-
-	return { wood, stone };
-};
-const initialFarmExpansionBlockers = buildInitialFarmExpansionBlockers();
-
+import { randomInt } from "./game/shared/random";
+import {
+	HEADLAMP_PRICE,
+	FARM_CAVE_BLOCKER_POSITIONS,
+	FARM_FOREST_BLOCKER_POSITIONS,
+	STARTER_CHEST_POS,
+	TRACTOR_IRON_COST,
+	TRACTOR_PARK_POS,
+	TRACTOR_PRICE,
+	allWardrobeLooks,
+	cafeCounterPrepDecor,
+	cafeMenuItems,
+	chickenEggOffsets,
+	clothingShopItems,
+	dirDelta,
+	getFarmBarnInteriorBounds,
+	getHoeTargets,
+	initialFarmExpansionBlockers,
+	initialPriceTrends,
+	initialPrices,
+	makeEmptyInventory,
+	priceItems,
+	purchasableFunnyLooks,
+	shopDecorForSaleItems,
+	shopDecorSlots,
+	shopMaps,
+	starterWardrobeLooks,
+	townBeachBottleTiles,
+	vendorMenuTitles,
+} from "./game/config/gameplay";
+import { groundClassForTile, spriteTilesNeedingGround, toVisual } from "./game/config/visuals";
+import { applyMoneyDeltaState, updateInventoryState } from "./game/state/actions";
 function App() {
 	const shellRef = useRef<HTMLDivElement | null>(null);
 	const notificationRef = useRef<HTMLAudioElement | null>(null);
@@ -2825,49 +2331,23 @@ function App() {
 		const current = nextNpcTiles[npcKey];
 		const anchor = townNpcAnchors[npcKey];
 		if (!current || !anchor) return;
-
-		let attempts = 0;
-		while (attempts < 128) {
-			attempts += 1;
-			const dir = randomInt(1, 8);
-			const delta = npcMoveDirections[dir];
-			if (!delta) continue;
-
-			const nx = current.x + delta.dx;
-			const ny = current.y + delta.dy;
-
-			if (Math.max(Math.abs(nx - anchor.x), Math.abs(ny - anchor.y)) > 2)
-				continue;
-			if (
-				ny < 0 ||
-				ny >= activeMapLayouts.town.length ||
-				nx < 0 ||
-				nx >= activeMapLayouts.town[0].length
-			)
-				continue;
-			if (!isPassableChar(activeMapLayouts.town[ny]?.[nx] ?? "#")) continue;
-
-			const occupiedByNpc = Object.entries(nextNpcTiles).some(
-				([otherKey, pos]) =>
-					otherKey !== npcKey && pos.x === nx && pos.y === ny,
-			);
-			if (occupiedByNpc) continue;
-			if (
-				petVendorActive &&
-				!ownedPet &&
-				nx === PET_VENDOR_POS.x &&
-				ny === PET_VENDOR_POS.y
-			)
-				continue;
-			if (doctorVendorActive && nx === DOCTOR_POS.x && ny === DOCTOR_POS.y)
-				continue;
-
-			const p = playerRef.current;
-			if (p.map === "town" && p.x === nx && p.y === ny) continue;
-
-			nextNpcTiles[npcKey] = { x: nx, y: ny };
-			return;
-		}
+		const next = nextTownNpcTile({
+			current,
+			anchor,
+			npcKey,
+			nextNpcTiles,
+			activeTownRows: activeMapLayouts.town,
+			isPassableChar,
+			petVendorActive,
+			ownedPet,
+			petVendorPos: PET_VENDOR_POS,
+			doctorVendorActive,
+			doctorPos: DOCTOR_POS,
+			player: playerRef.current,
+			randomInt,
+			moveDirections: npcMoveDirections,
+		});
+		if (next) nextNpcTiles[npcKey] = next;
 	};
 
 	const maybeMoveAnimal = (
@@ -2880,48 +2360,22 @@ function App() {
 		const current = nextAnimalTiles[animalId];
 		const anchor = animalAnchors[animalId];
 		if (!current || !anchor) return;
-
-		let attempts = 0;
-		while (attempts < 128) {
-			attempts += 1;
-			const dir = randomInt(1, 8);
-			const delta = npcMoveDirections[dir];
-			if (!delta) continue;
-
-			const nx = current.x + delta.dx;
-			const ny = current.y + delta.dy;
-			const allowOutsideBarn =
-				animalsMap === "barn" && isBarnExternal(barnTier);
-
-			if (
-				!allowOutsideBarn &&
-				Math.max(Math.abs(nx - anchor.x), Math.abs(ny - anchor.y)) > 2
-			)
-				continue;
-			if (!allowOutsideBarn) {
-				if (
-					nx < barnInteriorBounds.minX ||
-					nx > barnInteriorBounds.maxX ||
-					ny < barnInteriorBounds.minY ||
-					ny > barnInteriorBounds.maxY
-				)
-					continue;
-			}
-			if (!isPassableChar(activeMapLayouts[animalsMap][ny]?.[nx] ?? "#")) continue;
-			if (farmEggDrops[keyForPos(nx, ny)]) continue;
-
-			const occupiedByAnimal = Object.entries(nextAnimalTiles).some(
-				([otherId, pos]) =>
-					Number(otherId) !== animalId && pos.x === nx && pos.y === ny,
-			);
-			if (occupiedByAnimal) continue;
-
-			const p = playerRef.current;
-			if (p.map === "farm" && p.x === nx && p.y === ny) continue;
-
-			nextAnimalTiles[animalId] = { x: nx, y: ny };
-			return;
-		}
+		const next = nextAnimalTile({
+			current,
+			animalId,
+			nextAnimalTiles,
+			anchor,
+			allowOutsideBarn: animalsMap === "barn" && isBarnExternal(barnTier),
+			barnInteriorBounds,
+			activeMapRows: activeMapLayouts[animalsMap],
+			isPassableChar,
+			farmEggDrops,
+			player: playerRef.current,
+			randomInt,
+			moveDirections: npcMoveDirections,
+			playerMapWhenBlocking: "farm",
+		});
+		if (next) nextAnimalTiles[animalId] = next;
 	};
 
 	const maybeMoveBoat = (
@@ -2933,37 +2387,16 @@ function App() {
 
 		const current = nextBoatTiles[boatKey];
 		if (!current) return;
-
-		let attempts = 0;
-		while (attempts < 128) {
-			attempts += 1;
-			const dir = randomInt(1, 8);
-			const delta = npcMoveDirections[dir];
-			if (!delta) continue;
-
-			const nx = current.x + delta.dx;
-			const ny = current.y + delta.dy;
-			if (
-				ny < 0 ||
-				ny >= activeMapLayouts.town.length ||
-				nx < 0 ||
-				nx >= activeMapLayouts.town[0].length
-			)
-				continue;
-			if (activeMapLayouts.town[ny]?.[nx] !== "~") continue;
-
-			const occupiedByBoat = Object.entries(nextBoatTiles).some(
-				([otherKey, pos]) =>
-					otherKey !== boatKey && pos.x === nx && pos.y === ny,
-			);
-			if (occupiedByBoat) continue;
-
-			const p = playerRef.current;
-			if (p.map === "town" && p.x === nx && p.y === ny) continue;
-
-			nextBoatTiles[boatKey] = { x: nx, y: ny };
-			return;
-		}
+		const next = nextBoatTile({
+			current,
+			boatKey,
+			nextBoatTiles: nextBoatTiles as Record<string, { x: number; y: number }>,
+			activeTownRows: activeMapLayouts.town,
+			player: playerRef.current,
+			randomInt,
+			moveDirections: npcMoveDirections,
+		});
+		if (next) nextBoatTiles[boatKey] = next;
 	};
 
 	useEffect(() => {
@@ -3556,18 +2989,11 @@ function App() {
 	};
 
 	const updateInventory = (item: ItemId, amount: number) => {
-		setInventory((inv) => ({
-			...inv,
-			[item]: clampMin(inv[item] + amount, 0),
-		}));
+		updateInventoryState(setInventory, item, amount);
 	};
 
 	const applyMoneyDelta = (delta: number) => {
-		setMoney((m) => m + delta);
-		if (delta > 0) {
-			setCurrentDayEarned((v) => v + delta);
-			setTotalEarned((v) => v + delta);
-		}
+		applyMoneyDeltaState(setMoney, setCurrentDayEarned, setTotalEarned, delta);
 	};
 
 	const canAfford = (value: number) => money >= value;
@@ -3592,447 +3018,417 @@ function App() {
 		speakNpcLine(line);
 	};
 
-	const interactVendor = (key: VendorKey) => {
-		if (key === "seed_vendor") {
-			const cropList = standardCropIds.map((cropId) => [cropId, cropDefs[cropId]]) as [
-				CropId,
-				CropDef,
-			][];
-			speakVendorGreeting();
-			openMenu(
-				"Seed Vendor",
-				["Buy seeds."],
-				[
-					...cropList.map(([, c]) => ({
-						label: `${c.name} Seed $${prices[c.seedItem]}`,
-						info: [
-							`Seed Cost: $${prices[c.seedItem]}`,
-							`Grow Time: ${c.growDays} day${c.growDays === 1 ? "" : "s"}`,
-							`Harvest: ${itemNames[c.harvestItem]}`,
-							`Current Sell Value: $${prices[c.harvestItem]}`,
-						],
-						dealMeta: {
-							itemId: c.seedItem,
-							mode: "buy" as const,
-						},
-						onSelect: () => {
-							const p = prices[c.seedItem];
-							openQuantityPrompt({
-								mode: "buy",
-								itemLabel: `${c.name} Seed`,
-								max: Math.floor(money / p),
-								unitPrice: p,
-								onConfirm: (quantity) => {
-									applyMoneyDelta(-p * quantity);
-									updateInventory(c.seedItem, quantity);
-									playChaChing();
-									addLog(`Bought ${c.name} Seed x${quantity}.`);
-								},
-							});
-						},
-					})),
-					{
-						label: "Back",
-						info: ["Close this shop menu."],
-						onSelect: closeMenu,
+	const openSeedVendor = () => {
+		const cropList = standardCropIds.map((cropId) => [cropId, cropDefs[cropId]]) as [
+			CropId,
+			CropDef,
+		][];
+		speakVendorGreeting();
+		openMenu(
+			"Seed Vendor",
+			["Buy seeds."],
+			[
+				...cropList.map(([, c]) => ({
+					label: `${c.name} Seed $${prices[c.seedItem]}`,
+					info: [
+						`Seed Cost: $${prices[c.seedItem]}`,
+						`Grow Time: ${c.growDays} day${c.growDays === 1 ? "" : "s"}`,
+						`Harvest: ${itemNames[c.harvestItem]}`,
+						`Current Sell Value: $${prices[c.harvestItem]}`,
+					],
+					dealMeta: {
+						itemId: c.seedItem,
+						mode: "buy" as const,
 					},
-				],
-			);
-			return true;
-		}
+					onSelect: () => {
+						const p = prices[c.seedItem];
+						openQuantityPrompt({
+							mode: "buy",
+							itemLabel: `${c.name} Seed`,
+							max: Math.floor(money / p),
+							unitPrice: p,
+							onConfirm: (quantity) => {
+								applyMoneyDelta(-p * quantity);
+								updateInventory(c.seedItem, quantity);
+								playChaChing();
+								addLog(`Bought ${c.name} Seed x${quantity}.`);
+							},
+						});
+					},
+				})),
+				{
+					label: "Back",
+					info: ["Close this shop menu."],
+					onSelect: closeMenu,
+				},
+			],
+		);
+	};
 
-		if (key === "feed_vendor") {
-			speakVendorGreeting();
-			openMenu(
-				"Feed Vendor",
-				["Animal feed for sale."],
-				[
-					{
-						label: `Buy Feed $${prices.feed}`,
-						info: [
-							`Cost: $${prices.feed}`,
-							"Use feed on animals daily.",
-							"Fed animals produce goods next day.",
-						],
-						dealMeta: {
-							itemId: "feed",
-							mode: "buy" as const,
-						},
-						onSelect: () => {
-							openQuantityPrompt({
-								mode: "buy",
-								itemLabel: "Animal Feed",
-								max: Math.floor(money / prices.feed),
-								unitPrice: prices.feed,
-								onConfirm: (quantity) => {
-									applyMoneyDelta(-prices.feed * quantity);
-									updateInventory("feed", quantity);
-									playChaChing();
-									addLog(`Bought feed x${quantity}.`);
-								},
-							});
-						},
+	const openFeedVendor = () => {
+		speakVendorGreeting();
+		openMenu(
+			"Feed Vendor",
+			["Animal feed for sale."],
+			[
+				{
+					label: `Buy Feed $${prices.feed}`,
+					info: [
+						`Cost: $${prices.feed}`,
+						"Use feed on animals daily.",
+						"Fed animals produce goods next day.",
+					],
+					dealMeta: {
+						itemId: "feed",
+						mode: "buy" as const,
 					},
-					{
-						label: "Back",
-						info: ["Close this shop menu."],
-						onSelect: closeMenu,
+					onSelect: () => {
+						openQuantityPrompt({
+							mode: "buy",
+							itemLabel: "Animal Feed",
+							max: Math.floor(money / prices.feed),
+							unitPrice: prices.feed,
+							onConfirm: (quantity) => {
+								applyMoneyDelta(-prices.feed * quantity);
+								updateInventory("feed", quantity);
+								playChaChing();
+								addLog(`Bought feed x${quantity}.`);
+							},
+						});
 					},
-				],
-			);
-			return true;
-		}
+				},
+				{
+					label: "Back",
+					info: ["Close this shop menu."],
+					onSelect: closeMenu,
+				},
+			],
+		);
+	};
 
-		if (key === "animal_vendor") {
-			const openBarnSlots = Math.min(
-				Math.max(0, barnAnimalCap - animals.length),
-				countOpenBarnTiles(animalTiles),
-			);
-			if (openBarnSlots <= 0) {
-				const line = "Your barn is full right now.";
-				speakNpcLine(line);
-				addLog(line);
-				return true;
-			}
-			const animalsForSale = purchasableAnimalTypes.map((type) => [
-				type,
-				animalDefs[type],
-			]) as [AnimalType, AnimalDef][];
-			speakVendorGreeting();
-			openMenu(
-				"Animal Vendor",
-				["Animals for your barn."],
-				[
-					...animalsForSale.map(([type, def]) => ({
-						label: `${def.name} $${def.buyPrice}`,
+	const openAnimalVendor = () => {
+		const openBarnSlots = Math.min(
+			Math.max(0, barnAnimalCap - animals.length),
+			countOpenBarnTiles(animalTiles),
+		);
+		if (openBarnSlots <= 0) {
+			const line = "Your barn is full right now.";
+			speakNpcLine(line);
+			addLog(line);
+			return;
+		}
+		const animalsForSale = purchasableAnimalTypes.map((type) => [
+			type,
+			animalDefs[type],
+		]) as [AnimalType, AnimalDef][];
+		speakVendorGreeting();
+		openMenu(
+			"Animal Vendor",
+			["Animals for your barn."],
+			[
+				...animalsForSale.map(([type, def]) => ({
+					label: `${def.name} $${def.buyPrice}`,
+					info: [
+						`Buy Cost: $${def.buyPrice}`,
+						`Produces Daily (if fed): ${itemNames[def.productItem]}`,
+						`Current Sell Value: $${prices[def.productItem]}`,
+					],
+					onSelect: () => {
+						const openSlots = (() => {
+							const capacityRemaining = Math.max(0, barnAnimalCap - animals.length);
+							return Math.min(capacityRemaining, countOpenBarnTiles(animalTiles));
+						})();
+						openQuantityPrompt({
+							mode: "buy",
+							itemLabel: def.name,
+							max: Math.min(Math.floor(money / def.buyPrice), openSlots),
+							unitPrice: def.buyPrice,
+							onConfirm: (quantity) => {
+								applyMoneyDelta(-def.buyPrice * quantity);
+								const newAnimals: Animal[] = [];
+								const newTileEntries: [number, { x: number; y: number }][] = [];
+								let nextId = Math.max(0, ...animals.map((a) => a.id)) + 1;
+								const occupied = { ...animalTiles };
+								for (let i = 0; i < quantity; i += 1) {
+									const spawn = nextOpenBarnTile(occupied);
+									if (!spawn) break;
+									occupied[nextId] = spawn;
+									newAnimals.push({
+										id: nextId,
+										type,
+										fedToday: false,
+										canProduceToday: false,
+										hasProductReady: false,
+									});
+									newTileEntries.push([nextId, spawn]);
+									nextId += 1;
+								}
+								setAnimals((prev) => [...prev, ...newAnimals]);
+								setAnimalTiles((prev) => ({
+									...prev,
+									...Object.fromEntries(newTileEntries),
+								}));
+								setAnimalAnchors((prev) => ({
+									...prev,
+									...Object.fromEntries(newTileEntries),
+								}));
+								playChaChing();
+								addLog(`Bought ${def.name} x${newAnimals.length}.`);
+							},
+						});
+					},
+				})),
+				{
+					label: "Back",
+					info: ["Close this shop menu."],
+					onSelect: closeMenu,
+				},
+			],
+		);
+	};
+
+	const openClothingVendor = () => {
+		const availableLooks = clothingShopItems.filter(
+			(item) => !ownedWardrobeLooks.includes(item.look),
+		);
+		if (availableLooks.length === 0) {
+			const line = gotAllClothesDialog[randomInt(0, gotAllClothesDialog.length - 1)]!;
+			speakNpcLine(line);
+			addLog(line);
+			return;
+		}
+		speakVendorGreeting();
+		openMenu(
+			"Clothing Vendor",
+			["Fresh outfits and questionable style choices."],
+			[
+				...availableLooks.map((item) => ({
+					label: `${item.look} Outfit ($${item.price})`,
+					info: [`Price: $${item.price}`, "Buy this look for your wardrobe."],
+					onSelect: () => {
+						if (!canAfford(item.price)) {
+							playBad();
+							addLog("Not enough money for that outfit.");
+							closeMenu();
+							return;
+						}
+						applyMoneyDelta(-item.price);
+						setOwnedWardrobeLooks((prev) => [...prev, item.look]);
+						playChaChing();
+						addLog(`Bought outfit ${item.look}.`);
+						closeMenu();
+					},
+				})),
+				{
+					label: "Back",
+					info: ["Close this shop menu."],
+					onSelect: closeMenu,
+				},
+			],
+		);
+	};
+
+	const openToolVendor = () => {
+		const toolOrder: ToolId[] = [
+			"hoe",
+			"wateringCan",
+			"milkingGloves",
+			"shears",
+			"fishingRod",
+			"smashAxe",
+		];
+		const upgradableTools = toolOrder.filter((toolId) => tools[toolId] < TOOL_MAX_LEVEL);
+		const tractorAvailable = !hasTractor && !pendingTractorDelivery;
+		const headlampAvailable = !hasHeadlamp;
+		if (upgradableTools.length === 0 && !tractorAvailable && !headlampAvailable) {
+			const line = gotAllToolsDialog[randomInt(0, gotAllToolsDialog.length - 1)]!;
+			speakNpcLine(line);
+			addLog(line);
+			return;
+		}
+		speakVendorGreeting();
+		openMenu(
+			"Tool Vendor",
+			["Upgrade your tools to improve farm efficiency."],
+			[
+				...upgradableTools.map((toolId) => {
+					const level = tools[toolId];
+					const atMax = level >= TOOL_MAX_LEVEL;
+					const nextLevel = Math.min(level + 1, TOOL_MAX_LEVEL);
+					const price = getToolUpgradePrice(toolId, nextLevel);
+					const ironCost = getToolUpgradeIronCost(toolId, nextLevel);
+					const gemCost = getToolUpgradeGemCost(toolId, nextLevel);
+					const inlineIronLabel = ironCost > 0 ? ` + 🪨x${ironCost}` : "";
+					const inlineGemLabel = gemCost ? ` + ${itemIcons[gemCost.item]}x${gemCost.qty}` : "";
+					return {
+						label: atMax
+							? `${getToolTierName(level)} ${toolNames[toolId]} (MAX)`
+							: level <= 0
+								? `Buy ${getToolTierName(nextLevel)} ${toolNames[toolId]} ($${price})`
+								: `Upgrade to ${getToolTierName(nextLevel)} ${toolNames[toolId]} ($${price}${inlineIronLabel}${inlineGemLabel})`,
 						info: [
-							`Buy Cost: $${def.buyPrice}`,
-							`Produces Daily (if fed): ${itemNames[def.productItem]}`,
-							`Current Sell Value: $${prices[def.productItem]}`,
+							getToolLevelDescription(toolId, nextLevel),
+							...(atMax ? ["Already at maximum level."] : []),
 						],
 						onSelect: () => {
-							const openSlots = (() => {
-								const capacityRemaining = Math.max(
-									0,
-									barnAnimalCap - animals.length,
-								);
-								return Math.min(capacityRemaining, countOpenBarnTiles(animalTiles));
-							})();
-							openQuantityPrompt({
-								mode: "buy",
-								itemLabel: def.name,
-								max: Math.min(Math.floor(money / def.buyPrice), openSlots),
-								unitPrice: def.buyPrice,
-								onConfirm: (quantity) => {
-									applyMoneyDelta(-def.buyPrice * quantity);
-									const newAnimals: Animal[] = [];
-									const newTileEntries: [number, { x: number; y: number }][] =
-										[];
-									let nextId = Math.max(0, ...animals.map((a) => a.id)) + 1;
-									const occupied = { ...animalTiles };
-									for (let i = 0; i < quantity; i += 1) {
-										const spawn = nextOpenBarnTile(occupied);
-										if (!spawn) break;
-										occupied[nextId] = spawn;
-										newAnimals.push({
-											id: nextId,
-											type,
-											fedToday: false,
-											canProduceToday: false,
-											hasProductReady: false,
-										});
-										newTileEntries.push([nextId, spawn]);
-										nextId += 1;
-									}
-									setAnimals((prev) => [...prev, ...newAnimals]);
-									setAnimalTiles((prev) => ({
-										...prev,
-										...Object.fromEntries(newTileEntries),
-									}));
-									setAnimalAnchors((prev) => ({
-										...prev,
-										...Object.fromEntries(newTileEntries),
-									}));
-									playChaChing();
-									addLog(`Bought ${def.name} x${newAnimals.length}.`);
-								},
-							});
-						},
-					})),
-					{
-						label: "Back",
-						info: ["Close this shop menu."],
-						onSelect: closeMenu,
-					},
-				],
-			);
-			return true;
-		}
-
-		if (key === "clothing_vendor") {
-			const availableLooks = clothingShopItems.filter(
-				(item) => !ownedWardrobeLooks.includes(item.look),
-			);
-			if (availableLooks.length === 0) {
-				const line =
-					gotAllClothesDialog[randomInt(0, gotAllClothesDialog.length - 1)]!;
-				speakNpcLine(line);
-				addLog(line);
-				return true;
-			}
-			speakVendorGreeting();
-			openMenu(
-				"Clothing Vendor",
-				["Fresh outfits and questionable style choices."],
-				[
-					...availableLooks.map((item) => ({
-						label: `${item.look} Outfit ($${item.price})`,
-						info: [`Price: $${item.price}`, "Buy this look for your wardrobe."],
-						onSelect: () => {
-							if (!canAfford(item.price)) {
-								playBad();
-								addLog("Not enough money for that outfit.");
+							if (atMax) {
+								addLog(`${toolNames[toolId]} is already max level.`);
 								closeMenu();
 								return;
 							}
-							applyMoneyDelta(-item.price);
-							setOwnedWardrobeLooks((prev) => [...prev, item.look]);
+							if (!canAfford(price)) {
+								playBad();
+								addLog("Not enough money for that upgrade.");
+								closeMenu();
+								return;
+							}
+							if (inventory.iron < ironCost) {
+								playBad();
+								addLog("Not enough iron for that upgrade.");
+								closeMenu();
+								return;
+							}
+							if (gemCost && inventory[gemCost.item] < gemCost.qty) {
+								playBad();
+								addLog(`Not enough ${itemNames[gemCost.item]} for that upgrade.`);
+								closeMenu();
+								return;
+							}
+							applyMoneyDelta(-price);
+							if (ironCost > 0) updateInventory("iron", -ironCost);
+							if (gemCost) updateInventory(gemCost.item, -gemCost.qty);
+							setTools((prev) => ({ ...prev, [toolId]: nextLevel }));
 							playChaChing();
-							addLog(`Bought outfit ${item.look}.`);
+							addLog(
+								level <= 0
+									? `Bought ${getToolTierName(nextLevel)} ${toolNames[toolId]}.`
+									: `${toolNames[toolId]} upgraded to ${getToolTierName(nextLevel)}.`,
+							);
 							closeMenu();
 						},
-					})),
-					{
-						label: "Back",
-						info: ["Close this shop menu."],
-						onSelect: closeMenu,
-					},
-				],
-			);
-			return true;
-		}
-
-		if (key === "tool_vendor") {
-			const toolOrder: ToolId[] = [
-				"hoe",
-				"wateringCan",
-				"milkingGloves",
-				"shears",
-				"fishingRod",
-				"smashAxe",
-			];
-			const upgradableTools = toolOrder.filter(
-				(toolId) => tools[toolId] < TOOL_MAX_LEVEL,
-			);
-			const tractorAvailable = !hasTractor && !pendingTractorDelivery;
-			const headlampAvailable = !hasHeadlamp;
-			if (upgradableTools.length === 0 && !tractorAvailable && !headlampAvailable) {
-				const line =
-					gotAllToolsDialog[randomInt(0, gotAllToolsDialog.length - 1)]!;
-				speakNpcLine(line);
-				addLog(line);
-				return true;
-			}
-			speakVendorGreeting();
-			openMenu(
-				"Tool Vendor",
-				["Upgrade your tools to improve farm efficiency."],
-				[
-					...upgradableTools.map((toolId) => {
-						const level = tools[toolId];
-						const atMax = level >= TOOL_MAX_LEVEL;
-						const nextLevel = Math.min(level + 1, TOOL_MAX_LEVEL);
-						const price = getToolUpgradePrice(toolId, nextLevel);
-						const ironCost = getToolUpgradeIronCost(toolId, nextLevel);
-						const gemCost = getToolUpgradeGemCost(toolId, nextLevel);
-						const inlineIronLabel = ironCost > 0 ? ` + 🪨x${ironCost}` : ""; // rock=iron
-						const inlineGemLabel = gemCost
-							? ` + ${itemIcons[gemCost.item]}x${gemCost.qty}`
-							: "";
-						return {
-							label: atMax
-								? `${getToolTierName(level)} ${toolNames[toolId]} (MAX)`
-								: level <= 0
-									? `Buy ${getToolTierName(nextLevel)} ${toolNames[toolId]} ($${price})`
-									: `Upgrade to ${getToolTierName(nextLevel)} ${toolNames[toolId]} ($${price}${inlineIronLabel}${inlineGemLabel})`,
-							info: [
-								getToolLevelDescription(toolId, nextLevel),
-								...(atMax ? ["Already at maximum level."] : []),
-							],
-							onSelect: () => {
-								if (atMax) {
-									addLog(`${toolNames[toolId]} is already max level.`);
+					};
+				}),
+				...(tractorAvailable
+					? [
+							{
+								label: `Buy Tractor 🚜 ($${TRACTOR_PRICE} + 🪨x${TRACTOR_IRON_COST})`,
+								info: [
+									"A farm tractor with no upgrades.",
+									"Delivered tomorrow to your driveway.",
+								],
+								onSelect: () => {
+									if (!canAfford(TRACTOR_PRICE)) {
+										playBad();
+										addLog("Not enough money for that tractor.");
+										closeMenu();
+										return;
+									}
+									if (inventory.iron < TRACTOR_IRON_COST) {
+										playBad();
+										addLog("Not enough iron for that tractor.");
+										closeMenu();
+										return;
+									}
+									applyMoneyDelta(-TRACTOR_PRICE);
+									updateInventory("iron", -TRACTOR_IRON_COST);
+									setPendingTractorDelivery(true);
+									playChaChing();
 									closeMenu();
-									return;
-								}
-								if (!canAfford(price)) {
-									playBad();
-									addLog("Not enough money for that upgrade.");
-									closeMenu();
-									return;
-								}
-								if (inventory.iron < ironCost) {
-									playBad();
-									addLog("Not enough iron for that upgrade.");
-									closeMenu();
-									return;
-								}
-								if (gemCost && inventory[gemCost.item] < gemCost.qty) {
-									playBad();
-									addLog(`Not enough ${itemNames[gemCost.item]} for that upgrade.`);
-									closeMenu();
-									return;
-								}
-								applyMoneyDelta(-price);
-								if (ironCost > 0) updateInventory("iron", -ironCost);
-								if (gemCost) updateInventory(gemCost.item, -gemCost.qty);
-								setTools((prev) => ({ ...prev, [toolId]: nextLevel }));
-								playChaChing();
-								addLog(
-									level <= 0
-										? `Bought ${getToolTierName(nextLevel)} ${toolNames[toolId]}.`
-										: `${toolNames[toolId]} upgraded to ${getToolTierName(nextLevel)}.`,
-								);
-								closeMenu();
+									speakNpcLine(tractorDeliveryLine);
+									addLog(tractorDeliveryLine);
+								},
 							},
-						};
-					}),
-					...(tractorAvailable
-						? [
-								{
-									label: `Buy Tractor 🚜 ($${TRACTOR_PRICE} + 🪨x${TRACTOR_IRON_COST})`, // tractor + iron
-									info: [
-										"A farm tractor with no upgrades.",
-										"Delivered tomorrow to your driveway.",
-									],
-									onSelect: () => {
-										if (!canAfford(TRACTOR_PRICE)) {
-											playBad();
-											addLog("Not enough money for that tractor.");
-											closeMenu();
-											return;
-										}
-										if (inventory.iron < TRACTOR_IRON_COST) {
-											playBad();
-											addLog("Not enough iron for that tractor.");
-											closeMenu();
-											return;
-										}
-										applyMoneyDelta(-TRACTOR_PRICE);
-										updateInventory("iron", -TRACTOR_IRON_COST);
-										setPendingTractorDelivery(true);
-										playChaChing();
+						]
+					: []),
+				...(headlampAvailable
+					? [
+							{
+								label: `Buy Headlamp 💡 ($${HEADLAMP_PRICE})`,
+								info: ["A cave and forest visibility booster."],
+								onSelect: () => {
+									if (!canAfford(HEADLAMP_PRICE)) {
+										playBad();
+										addLog("Not enough money for that headlamp.");
 										closeMenu();
-										speakNpcLine(tractorDeliveryLine);
-										addLog(tractorDeliveryLine);
-									},
+										return;
+									}
+									applyMoneyDelta(-HEADLAMP_PRICE);
+									setHasHeadlamp(true);
+									playChaChing();
+									addLog("Bought Headlamp.");
+									closeMenu();
 								},
-							]
-						: []),
-					...(headlampAvailable
-						? [
-								{
-									label: `Buy Headlamp 💡 ($${HEADLAMP_PRICE})`, // headlamp tool
-									info: ["A cave and forest visibility booster."],
-									onSelect: () => {
-										if (!canAfford(HEADLAMP_PRICE)) {
-											playBad();
-											addLog("Not enough money for that headlamp.");
-											closeMenu();
-											return;
-										}
-										applyMoneyDelta(-HEADLAMP_PRICE);
-										setHasHeadlamp(true);
-										playChaChing();
-										addLog("Bought Headlamp.");
-										closeMenu();
-									},
-								},
-							]
-						: []),
-					{
-						label: "Back",
-						info: ["Close this shop menu."],
-						onSelect: closeMenu,
-					},
-				],
-			);
-			return true;
-		}
+							},
+						]
+					: []),
+				{
+					label: "Back",
+					info: ["Close this shop menu."],
+					onSelect: closeMenu,
+				},
+			],
+		);
+	};
 
-		if (key === "cafe_vendor") {
-			speakVendorGreeting();
-			openMenu(
-				"Cafe",
-				["Order food and recover stamina."],
-				[
-					...cafeMenuItems.map((item) => ({
-						label: `${item.name} $${item.price} (+${item.stamina} stamina)`,
-						info: [
-							`Price: $${item.price}`,
-							`Stamina: +${item.stamina}`,
-							"Freshly prepared. Please wait while we cook.",
-						],
-						onSelect: () => {
-							if (!canAfford(item.price)) {
-								playBad();
-								addLog("Not enough money for that order.");
-								closeMenu();
-								return;
-							}
-							applyMoneyDelta(-item.price);
-							startCafeOrder(item);
-						},
-					})),
-					{
-						label: "Back",
-						info: ["Close this shop menu."],
-						onSelect: closeMenu,
+	const openCafeVendor = () => {
+		speakVendorGreeting();
+		openMenu(
+			"Cafe",
+			["Order food and recover stamina."],
+			[
+				...cafeMenuItems.map((item) => ({
+					label: `${item.name} $${item.price} (+${item.stamina} stamina)`,
+					info: [
+						`Price: $${item.price}`,
+						`Stamina: +${item.stamina}`,
+						"Freshly prepared. Please wait while we cook.",
+					],
+					onSelect: () => {
+						if (!canAfford(item.price)) {
+							playBad();
+							addLog("Not enough money for that order.");
+							closeMenu();
+							return;
+						}
+						applyMoneyDelta(-item.price);
+						startCafeOrder(item);
 					},
-				],
-			);
-			return true;
-		}
+				})),
+				{
+					label: "Back",
+					info: ["Close this shop menu."],
+					onSelect: closeMenu,
+				},
+			],
+		);
+	};
 
-		if (key === "market") {
-			const sellables: ItemId[] = [
-				"turnip_seed",
-				"carrot_seed",
-				"pumpkin_seed",
-				"corn_seed",
-				"turnip",
-				"carrot",
-				"pumpkin",
-				"corn",
-				"milk",
-				"wool",
-				"egg",
-				"fish",
-				"shell",
-				"diamond",
-				"emerald",
-				"ruby",
-				"coral_fruit",
-			];
-			const options = sellables
-				.filter((id) => inventory[id] > 0)
-				.map((id) => {
-					const isSeed = id.endsWith("_seed");
-					const unitPrice =
-						id === "coral_fruit"
-							? CORAL_FRUIT_SELL_PRICE
-							: id === "diamond" || id === "emerald" || id === "ruby"
-								? GEM_SELL_PRICES[id]
-							: isSeed
-								? getSeedSellbackPrice(prices[id])
-								: prices[id];
-					const baseUnitPrice =
-						id === "coral_fruit"
-							? CORAL_FRUIT_SELL_PRICE
-							: id === "diamond" || id === "emerald" || id === "ruby"
-								? GEM_SELL_PRICES[id]
-								: initialPrices[id];
-					return {
+	const openMarketVendor = () => {
+		const sellables: ItemId[] = [
+			"turnip_seed",
+			"carrot_seed",
+			"pumpkin_seed",
+			"corn_seed",
+			"turnip",
+			"carrot",
+			"pumpkin",
+			"corn",
+			"milk",
+			"wool",
+			"egg",
+			"fish",
+			"shell",
+			"diamond",
+			"emerald",
+			"ruby",
+			"coral_fruit",
+		];
+		const options = sellables
+			.filter((id) => inventory[id] > 0)
+			.map((id) => {
+				const unitPrice = getMarketSellPrice(id, prices[id]);
+				const baseUnitPrice = getMarketBasePrice(id, initialPrices[id]);
+				return {
 					label: `Sell ${itemNames[id]} x1 ($${unitPrice})`,
 					info: [
 						`You have: ${inventory[id]}`,
@@ -4060,24 +3456,37 @@ function App() {
 						});
 					},
 				};
-				});
-			speakVendorGreeting();
-			openMenu(
-				"Supermarket",
-				["I buy local goods."],
-				[
-					...options,
-					{
-						label: "Back",
-						info: ["Close this shop menu."],
-						onSelect: closeMenu,
-					},
-				],
-			);
-			return true;
-		}
+			});
+		speakVendorGreeting();
+		openMenu(
+			"Supermarket",
+			["I buy local goods."],
+			[
+				...options,
+				{
+					label: "Back",
+					info: ["Close this shop menu."],
+					onSelect: closeMenu,
+				},
+			],
+		);
+	};
 
-		return false;
+	const vendorInteractionHandlers: Record<VendorKey, () => void> = {
+		seed_vendor: openSeedVendor,
+		feed_vendor: openFeedVendor,
+		animal_vendor: openAnimalVendor,
+		clothing_vendor: openClothingVendor,
+		tool_vendor: openToolVendor,
+		cafe_vendor: openCafeVendor,
+		market: openMarketVendor,
+	};
+
+	const interactVendor = (key: VendorKey) => {
+		const handler = vendorInteractionHandlers[key];
+		if (!handler) return false;
+		handler();
+		return true;
 	};
 
 	const interactBuilderVendor = () => {
@@ -4446,28 +3855,23 @@ function App() {
 	};
 
 	const countOpenBarnTiles = (occupied: Record<number, { x: number; y: number }>) => {
-		let count = 0;
 		const rows = activeMapLayouts[animalsMap];
-		for (let y = barnInteriorBounds.minY; y <= barnInteriorBounds.maxY; y += 1) {
-			for (let x = barnInteriorBounds.minX; x <= barnInteriorBounds.maxX; x += 1) {
-				if (!isPassableChar(rows[y]?.[x] ?? "#")) continue;
-				const used = Object.values(occupied).some((p) => p.x === x && p.y === y);
-				if (!used) count += 1;
-			}
-		}
-		return count;
+		return countOpenBarnTilesInBounds({
+			occupied,
+			rows,
+			bounds: barnInteriorBounds,
+			isPassableChar,
+		});
 	};
 
 	const nextOpenBarnTile = (occupied: Record<number, { x: number; y: number }>) => {
 		const rows = activeMapLayouts[animalsMap];
-		for (let y = barnInteriorBounds.minY; y <= barnInteriorBounds.maxY; y += 1) {
-			for (let x = barnInteriorBounds.minX; x <= barnInteriorBounds.maxX; x += 1) {
-				if (!isPassableChar(rows[y]?.[x] ?? "#")) continue;
-				const used = Object.values(occupied).some((p) => p.x === x && p.y === y);
-				if (!used) return { x, y };
-			}
-		}
-		return null;
+		return nextOpenBarnTileInBounds({
+			occupied,
+			rows,
+			bounds: barnInteriorBounds,
+			isPassableChar,
+		});
 	};
 
 	const getEggDropNearChicken = (
@@ -4475,7 +3879,6 @@ function App() {
 		occupiedAnimals: Record<number, { x: number; y: number }>,
 		existingEggs: Record<string, boolean>,
 	) => {
-		const candidates = [...chickenEggOffsets].sort(() => Math.random() - 0.5);
 		const rows = activeMapLayouts[animalsMap];
 		const allowOutsideBarn = animalsMap === "barn" && isBarnExternal(barnTier);
 		const bounds = allowOutsideBarn
@@ -4486,24 +3889,15 @@ function App() {
 					maxY: Math.max(1, rows.length - 2),
 				}
 			: barnInteriorBounds;
-		for (const { dx, dy } of candidates) {
-			const x = chickenPos.x + dx;
-			const y = chickenPos.y + dy;
-			if (
-				x < bounds.minX ||
-				x > bounds.maxX ||
-				y < bounds.minY ||
-				y > bounds.maxY
-			)
-				continue;
-			if (!isPassableChar(rows[y]?.[x] ?? "#")) continue;
-			if (Object.values(occupiedAnimals).some((p) => p.x === x && p.y === y))
-				continue;
-			const key = keyForPos(x, y);
-			if (existingEggs[key]) continue;
-			return { x, y };
-		}
-		return null;
+		return getEggDropNearChickenCandidate({
+			chickenPos,
+			occupiedAnimals,
+			existingEggs,
+			rows,
+			bounds,
+			isPassableChar,
+			chickenEggOffsets,
+		});
 	};
 
 	const nextDay = () => {

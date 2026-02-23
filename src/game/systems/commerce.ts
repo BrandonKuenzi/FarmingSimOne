@@ -18,6 +18,27 @@ export const GEM_SELL_PRICES: Record<"diamond" | "emerald" | "ruby", number> = {
 	ruby: 250,
 };
 
+const gemItemPriceById: Partial<Record<ItemId, number>> = {
+	diamond: GEM_SELL_PRICES.diamond,
+	emerald: GEM_SELL_PRICES.emerald,
+	ruby: GEM_SELL_PRICES.ruby,
+};
+
+export const getMarketSellPrice = (itemId: ItemId, marketPrice: number): number => {
+	if (itemId === "coral_fruit") return CORAL_FRUIT_SELL_PRICE;
+	const gemPrice = gemItemPriceById[itemId];
+	if (gemPrice !== undefined) return gemPrice;
+	if (itemId.endsWith("_seed")) return getSeedSellbackPrice(marketPrice);
+	return marketPrice;
+};
+
+export const getMarketBasePrice = (itemId: ItemId, baseMarketPrice: number): number => {
+	if (itemId === "coral_fruit") return CORAL_FRUIT_SELL_PRICE;
+	const gemPrice = gemItemPriceById[itemId];
+	if (gemPrice !== undefined) return gemPrice;
+	return baseMarketPrice;
+};
+
 export const getSketchyPriceMultiplier = () => {
 	const roll = Math.random();
 	if (roll < 0.2) return 0.8;
