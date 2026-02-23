@@ -138,6 +138,14 @@ import {
 } from "./game/world/npcs";
 import { generateDailyNewspaper, generatePriceChange } from "./game/systems/news";
 import {
+	CORAL_FRUIT_SELL_PRICE,
+	GEM_SELL_PRICES,
+	generateSketchyMerchantStock,
+	generateTraderTrades,
+	getDealBadge,
+	getSeedSellbackPrice,
+} from "./game/systems/commerce";
+import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
 	getFishingRodMaxWaitSeconds,
@@ -545,105 +553,6 @@ const getHoeTargets = (
 	return out;
 };
 
-const getSeedSellbackPrice = (price: number) => Math.max(1, Math.floor(price / 2));
-const CORAL_FRUIT_SELL_PRICE = 500;
-const GEM_SELL_PRICES: Record<"diamond" | "emerald" | "ruby", number> = {
-	diamond: 2000,
-	emerald: 1000,
-	ruby: 250,
-};
-const getSketchyPriceMultiplier = () => {
-	const roll = Math.random();
-	if (roll < 0.2) return 0.8;
-	if (roll < 0.4) return 0.7;
-	if (roll < 0.6) return 0.5;
-	if (roll < 0.7) return 0.2;
-	if (roll < 0.8) return 1.2;
-	if (roll < 0.9) return 1.5;
-	return 1;
-};
-const sketchyItemPool: ItemId[] = [
-	"turnip_seed",
-	"carrot_seed",
-	"pumpkin_seed",
-	"corn_seed",
-	"turnip",
-	"carrot",
-	"pumpkin",
-	"corn",
-	"feed",
-	"milk",
-	"wool",
-	"egg",
-	"fish",
-	"iron",
-	"shell",
-	"diamond",
-	"emerald",
-	"ruby",
-];
-const generateSketchyMerchantStock = (marketPrices: PriceState) => {
-	const distinct = randomInt(2, 5);
-	const chosen = [...sketchyItemPool]
-		.sort(() => Math.random() - 0.5)
-		.slice(0, distinct);
-	return chosen.map((item) => {
-		const basePrice = marketPrices[item];
-		const price = Math.max(1, Math.floor(basePrice * getSketchyPriceMultiplier()));
-		return {
-			item,
-			qty: randomInt(1, 10),
-			price,
-			basePrice,
-		} satisfies SketchyStockEntry;
-	});
-};
-const traderItemPool: ItemId[] = [
-	"turnip_seed",
-	"carrot_seed",
-	"pumpkin_seed",
-	"corn_seed",
-	"turnip",
-	"carrot",
-	"pumpkin",
-	"corn",
-	"feed",
-	"milk",
-	"wool",
-	"egg",
-	"fish",
-	"iron",
-	"shell",
-	"coral_fruit",
-];
-const traderItemTradeCap: Partial<Record<ItemId, number>> = {
-	iron: 10,
-	pumpkin: 50,
-	coral_fruit: 20,
-};
-const generateTraderTrades = () => {
-	const count = randomInt(3, 5);
-	const out: TraderTradeEntry[] = [];
-	const used = new Set<string>();
-	let attempts = 0;
-	while (out.length < count && attempts < 200) {
-		attempts += 1;
-		const giveItem = traderItemPool[randomInt(0, traderItemPool.length - 1)]!;
-		const wantItem = traderItemPool[randomInt(0, traderItemPool.length - 1)]!;
-		if (giveItem === wantItem) continue;
-		const key = `${wantItem}->${giveItem}`;
-		if (used.has(key)) continue;
-		const cap = traderItemTradeCap[giveItem] ?? 100;
-		out.push({
-			id: out.length + 1,
-			giveItem,
-			wantItem,
-			remaining: randomInt(1, cap),
-		});
-		used.add(key);
-	}
-	return out;
-};
 const vendorMenuTitles = new Set([
 	"Seed Vendor",
 	"Feed Vendor",
@@ -660,42 +569,6 @@ const townBeachBottleTiles: XY[] = collectBeachTiles(
 	mapLayouts.town[TOWN_SAND_Y] ?? "",
 	TOWN_SAND_Y,
 );
-type DealBadge =
-	| {
-			label: string;
-			color: string;
-			scaleUp: number;
-	  }
-	| undefined;
-
-const getDealBadge = (
-	mode: "buy" | "sell",
-	currentPrice: number,
-	basePrice: number,
-): DealBadge => {
-	const delta = currentPrice - basePrice;
-	if (Math.abs(delta) <= 1) return undefined;
-
-	const isVery = Math.abs(delta) > 5;
-	const isGood =
-		mode === "buy"
-			? currentPrice < basePrice
-			: currentPrice > basePrice;
-
-	if (isGood) {
-		return {
-			label: isVery ? "Very good deal!" : "Good deal",
-			color: "#1f7a2d",
-			scaleUp: isVery ? 1.1 : 1.05,
-		};
-	}
-	return {
-		label: isVery ? "Very bad deal!" : "Bad deal",
-		color: "#a02020",
-		scaleUp: isVery ? 1.1 : 1.05,
-	};
-};
-
 const makeEmptyInventory = (): Inventory => ({
 	turnip_seed: 0,
 	carrot_seed: 0,
