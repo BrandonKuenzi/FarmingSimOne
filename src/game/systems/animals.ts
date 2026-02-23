@@ -1,5 +1,5 @@
 import { keyForPos } from "../shared/coords";
-import type { Point } from "../shared/types";
+import type { Animal, Point } from "../shared/types";
 
 type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 type Occupied = Record<number, Point>;
@@ -76,4 +76,33 @@ export const getEggDropNearChicken = ({
 		return { x, y };
 	}
 	return null;
+};
+
+export const placeAnimalsInBounds = ({
+	animals,
+	cap,
+	bounds,
+}: {
+	animals: Animal[];
+	cap: number;
+	bounds: Bounds;
+}): {
+	keptAnimals: Animal[];
+	occupied: Occupied;
+} => {
+	const keptAnimals = animals.slice(0, cap);
+	const occupied: Occupied = {};
+	keptAnimals.forEach((animal) => {
+		let placed = false;
+		for (let y = bounds.minY; y <= bounds.maxY && !placed; y += 1) {
+			for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
+				const used = Object.values(occupied).some((p) => p.x === x && p.y === y);
+				if (used) continue;
+				occupied[animal.id] = { x, y };
+				placed = true;
+				break;
+			}
+		}
+	});
+	return { keptAnimals, occupied };
 };
