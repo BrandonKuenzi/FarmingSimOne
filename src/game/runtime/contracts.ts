@@ -9,7 +9,8 @@ import type {
 } from "../shared/types";
 
 export type TownNpcTileMap = Record<string, Point>;
-export type BoatTileMap = Record<string, Point>;
+export type BoatKey = "boat_1" | "boat_2" | "boat_3" | "boat_4" | "boat_5";
+export type BoatTileMap = Record<BoatKey, Point>;
 export type AnimalTileMap = Record<number, Point>;
 
 export type GameStateSnapshot = {

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { ForestEnemy, Point } from "../shared/types";
 import type {
 	AnimalTileMap,
+	BoatKey,
 	BoatTileMap,
 	GameStateActions,
 	TownNpcTileMap,
@@ -22,7 +23,7 @@ type WorldSimulationDeps = WorldSimulationState &
 		forestEnemyTickRef: { current: number };
 		caveEnemyTickRef: { current: number };
 		townNpcNames: Record<string, string>;
-		boatNpcKeys: string[];
+		boatNpcKeys: BoatKey[];
 		farmEggDrops: Record<string, boolean>;
 		farmForestBlockers: Record<string, boolean>;
 		farmCaveBlockers: Record<string, number>;

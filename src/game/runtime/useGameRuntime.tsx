@@ -188,11 +188,12 @@ import {
 	type GameKeyDownContext,
 } from "../systems/input";
 import { runInteract } from "../systems/playerInteract";
+import type { PlayerInteractContext } from "../systems/playerInteract";
 import { createServiceOrderActions } from "../systems/serviceOrders";
 import { renderGameRuntimeView } from "../ui/GameRuntimeView";
 import type { GameRuntimeViewModel } from "../ui/viewModel";
 import { createAreaMusicController } from "./areaMusic";
-import type { GameStateActions, GameStateSnapshot } from "./contracts";
+import type { BoatTileMap, GameStateActions, GameStateSnapshot } from "./contracts";
 import { useInputRouter } from "./useInputRouter";
 import { useWorldSimulation } from "./worldSimulation";
 import {
@@ -2069,7 +2070,7 @@ export function useGameRuntime() {
 
 	const maybeMoveBoat = (
 		boatKey: keyof typeof boatNpcEmojis,
-		nextBoatTiles: Record<keyof typeof boatNpcEmojis, { x: number; y: number }>,
+		nextBoatTiles: BoatTileMap,
 	) => {
 		if (pauseGame) return;
 		if (Math.random() > 0.25) return;
@@ -2227,7 +2228,7 @@ export function useGameRuntime() {
 	};
 	const gameActions: GameStateActions = {
 		setTownNpcTiles,
-		setBoatTiles: setBoatTiles as unknown as GameStateActions["setBoatTiles"],
+		setBoatTiles,
 		setAnimalTiles,
 		setPetTile,
 		setPetFacing,
@@ -2247,12 +2248,8 @@ export function useGameRuntime() {
 		caveLadderPos,
 		activeMapLayouts,
 		maybeMoveNPC,
-		maybeMoveBoat: (boatKey, nextTiles) => {
-			maybeMoveBoat(
-				boatKey as keyof typeof boatNpcEmojis,
-				nextTiles as unknown as Record<keyof typeof boatNpcEmojis, { x: number; y: number }>,
-			);
-		},
+		maybeMoveBoat: (boatKey, nextTiles) =>
+			maybeMoveBoat(boatKey as keyof typeof boatNpcEmojis, nextTiles),
 		maybeMoveAnimal,
 		maybeMovePet,
 		maybeMoveForestEnemy,
@@ -2260,7 +2257,7 @@ export function useGameRuntime() {
 		forestEnemyTickRef,
 		caveEnemyTickRef,
 		townNpcNames,
-		boatNpcKeys: Object.keys(boatNpcEmojis),
+		boatNpcKeys: Object.keys(boatNpcEmojis) as Array<keyof typeof boatNpcEmojis>,
 		farmEggDrops,
 		farmForestBlockers,
 		farmCaveBlockers,
@@ -3181,8 +3178,7 @@ export function useGameRuntime() {
 	};
 
 	const interact = (dir: Dir) => {
-		runInteract(
-			{
+		const interactCtx: PlayerInteractContext = {
 				modal,
 				fishing,
 				isOrdering,
@@ -3299,6 +3295,7 @@ export function useGameRuntime() {
 				CORAL_FRUIT_SELL_PRICE,
 				prices,
 				nextDay,
+				handleLateInteractionBlocks,
 				isBathing,
 				playBath,
 				setIsBathing,
@@ -3317,6 +3314,9 @@ export function useGameRuntime() {
 				interactVendor,
 				vendorByShopMap,
 				isShopMap,
+				shopDecorByMap,
+				isFarmHouseDoorTile,
+				getDoorGroundClass,
 				petVendorActive,
 				pendingPet,
 				canAfford,
@@ -3365,9 +3365,8 @@ export function useGameRuntime() {
 				PET_VENDOR_POS,
 				playMunch,
 				speakNpcLine,
-			},
-			dir,
-		);
+			};
+		runInteract(interactCtx, dir);
 	};
 
 	const moveModal = (dir: Dir) => {

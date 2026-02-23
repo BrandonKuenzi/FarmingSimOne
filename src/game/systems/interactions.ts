@@ -50,7 +50,7 @@ import type {
 	VendorKey,
 } from "../shared/types";
 
-type InteractionsContext = {
+export type InteractionsContext = {
 	playerMap: MapId;
 	tx: number;
 	ty: number;

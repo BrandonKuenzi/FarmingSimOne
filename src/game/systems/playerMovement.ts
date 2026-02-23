@@ -1,6 +1,57 @@
-import type { Dir } from "../shared/types";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { Dir, Door, MapId, Point, Position, TractorImplement } from "../shared/types";
 
-export const runMovePlayer = (ctx: any, dir: Dir): void => {
+type PlayerMovementContext = {
+	modal: unknown;
+	isOrdering: boolean;
+	isDoctorCompounding: boolean;
+	dirDelta: Record<Dir, { dx: number; dy: number }>;
+	player: Position;
+	height: number;
+	width: number;
+	isDrivingTractor: boolean;
+	mapDoors: Record<MapId, Door[]>;
+	addLog: (line: string) => void;
+	farmWeedObstacles: Record<string, boolean>;
+	keyForPos: (x: number, y: number) => string;
+	tractorImplement: TractorImplement | null;
+	tractorImplementOn: boolean;
+	isPassableAt: (map: MapId, x: number, y: number) => boolean;
+	ownedPet: string | null;
+	petTile: Point | null;
+	isOccupied: (map: MapId, x: number, y: number) => boolean;
+	playHoe: () => void;
+	petRunoverBadTimeoutRef: MutableRefObject<number | null>;
+	playBad: () => void;
+	setOwnedPet: Dispatch<SetStateAction<string | null>>;
+	setPendingPet: Dispatch<SetStateAction<string | null>>;
+	setPetTile: Dispatch<SetStateAction<Point | null>>;
+	setPetHeartTile: Dispatch<SetStateAction<Point | null>>;
+	setPendingPetGravePos: Dispatch<SetStateAction<Point | null>>;
+	setPetVendorActive: Dispatch<SetStateAction<boolean>>;
+	setTractorFacing: Dispatch<SetStateAction<1 | -1>>;
+	pendingPetGravePos: Point | null;
+	setPetGraveObstacles: Dispatch<SetStateAction<Record<string, number>>>;
+	setPlayer: Dispatch<SetStateAction<Position>>;
+	applyTractorImplementAt: (x: number, y: number, force?: boolean) => void;
+	TRACTOR_PARK_POS: Point;
+	exitTractor: () => void;
+	forestEntranceDoorPos: Point;
+	openForestExitMenu: () => void;
+	forestForwardExitPos: Point;
+	continueForestDungeon: () => void;
+	caveEntranceDoorPos: Point;
+	openCaveExitMenu: () => void;
+	caveLadderPos: Point | null;
+	continueCaveDungeon: () => void;
+	forestLockedToday: boolean;
+	canEnterForest: () => boolean;
+	caveLockedToday: boolean;
+	canEnterCave: () => boolean;
+	playNotification: () => void;
+};
+
+export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 	const {
 		modal,
 		isOrdering,
@@ -56,7 +107,7 @@ export const runMovePlayer = (ctx: any, dir: Dir): void => {
 	const nx = player.x + dx;
 	const ny = player.y + dy;
 	if (nx < 0 || ny < 0 || ny >= height || nx >= width) return;
-	if (isDrivingTractor && mapDoors[player.map].some((d: any) => d.x === nx && d.y === ny)) {
+	if (isDrivingTractor && mapDoors[player.map].some((d) => d.x === nx && d.y === ny)) {
 		addLog("The tractor can't go through doors.");
 		return;
 	}
@@ -114,10 +165,10 @@ export const runMovePlayer = (ctx: any, dir: Dir): void => {
 		(nx !== player.x || ny !== player.y)
 	) {
 		const key = keyForPos(player.x, player.y);
-		setPetGraveObstacles((prev: any) => ({ ...prev, [key]: 24 }));
+		setPetGraveObstacles((prev) => ({ ...prev, [key]: 24 }));
 		setPendingPetGravePos(null);
 	}
-	setPlayer((prev: any) => ({ ...prev, x: nx, y: ny }));
+	setPlayer((prev) => ({ ...prev, x: nx, y: ny }));
 	if (isDrivingTractor && player.map === "farm") {
 		applyTractorImplementAt(nx, ny);
 		if (nx === TRACTOR_PARK_POS.x && ny === TRACTOR_PARK_POS.y) {
@@ -142,7 +193,7 @@ export const runMovePlayer = (ctx: any, dir: Dir): void => {
 		return;
 	}
 
-	const door = mapDoors[player.map].find((d: any) => d.x === nx && d.y === ny);
+	const door = mapDoors[player.map].find((d) => d.x === nx && d.y === ny);
 	if (door) {
 		if (door.target.map === "forest" && forestLockedToday) {
 			playBad();
