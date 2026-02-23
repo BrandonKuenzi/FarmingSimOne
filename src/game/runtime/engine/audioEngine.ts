@@ -1,0 +1,312 @@
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { PetEmoji } from "../../shared/types";
+import {
+	fadeOutAndStopSound,
+	playOneShot,
+	startLoopSound,
+	stopAndResetSound,
+} from "../../systems/sound";
+import { speakLine } from "../../systems/tts";
+
+type AudioRef = MutableRefObject<HTMLAudioElement | null>;
+type TimerRef = MutableRefObject<number | null>;
+
+type AudioSources = {
+	bgMusicSrc: string;
+	bgFarmSrc: string;
+	townBGSrc: string;
+	beachAmbienceSrc: string;
+	chaChingSrc: string;
+	endOfDaySrc: string;
+	hoeSoundSrc: string;
+	munchSoundSrc: string;
+	badSoundSrc: string;
+	waterSoundSrc: string;
+	yayaSoundSrc: string;
+	tooTiredSoundSrc: string;
+	cafeOrderMusicSrc: string;
+	notificationSoundSrc: string;
+	forestMusicSrc: string;
+	caveMusicSrc: string;
+	gotRewardSoundSrc: string;
+	snakeSoundSrc: string;
+	bearSoundSrc: string;
+	pooSoundSrc: string;
+	bathSoundSrc: string;
+	pluckSoundSrc: string;
+	ploopSoundSrc: string;
+	seagullsSoundSrc: string;
+	meowSoundSrc: string;
+	woofSoundSrc: string;
+	tractorSoundSrc: string;
+};
+
+type AudioRefs = {
+	notificationRef: AudioRef;
+	farmMusicRef: AudioRef;
+	townMusicRef: AudioRef;
+	beachAmbienceRef: AudioRef;
+	houseMusicRef: AudioRef;
+	forestMusicRef: AudioRef;
+	caveMusicRef: AudioRef;
+	chaChingRef: AudioRef;
+	endOfDayRef: AudioRef;
+	hoeSoundRef: AudioRef;
+	munchSoundRef: AudioRef;
+	badSoundRef: AudioRef;
+	waterSoundRef: AudioRef;
+	yayaSoundRef: AudioRef;
+	tooTiredRef: AudioRef;
+	gotRewardRef: AudioRef;
+	snakeSoundRef: AudioRef;
+	bearSoundRef: AudioRef;
+	pooSoundRef: AudioRef;
+	bathSoundRef: AudioRef;
+	pluckSoundRef: AudioRef;
+	ploopSoundRef: AudioRef;
+	seagullsSoundRef: AudioRef;
+	meowSoundRef: AudioRef;
+	woofSoundRef: AudioRef;
+	tractorSoundRef: AudioRef;
+	cafeOrderMusicRef: AudioRef;
+	currentAreaMusicRef: AudioRef;
+	ttsReadyRef: MutableRefObject<boolean>;
+};
+
+type InitAudioEngineArgs = {
+	shellRef: MutableRefObject<HTMLDivElement | null>;
+	refs: AudioRefs;
+	sources: AudioSources;
+};
+
+export const initializeAudioEngine = ({
+	shellRef,
+	refs,
+	sources,
+}: InitAudioEngineArgs): void => {
+	shellRef.current?.focus();
+	refs.notificationRef.current = new Audio(sources.notificationSoundSrc);
+	refs.notificationRef.current.preload = "auto";
+	refs.farmMusicRef.current = new Audio(sources.bgFarmSrc);
+	refs.farmMusicRef.current.preload = "auto";
+	refs.farmMusicRef.current.loop = true;
+	refs.townMusicRef.current = new Audio(sources.townBGSrc);
+	refs.townMusicRef.current.preload = "auto";
+	refs.townMusicRef.current.loop = true;
+	refs.beachAmbienceRef.current = new Audio(sources.beachAmbienceSrc);
+	refs.beachAmbienceRef.current.preload = "auto";
+	refs.beachAmbienceRef.current.loop = true;
+	refs.beachAmbienceRef.current.volume = 0;
+	refs.houseMusicRef.current = new Audio(sources.bgMusicSrc);
+	refs.houseMusicRef.current.preload = "auto";
+	refs.houseMusicRef.current.loop = true;
+	refs.forestMusicRef.current = new Audio(sources.forestMusicSrc);
+	refs.forestMusicRef.current.preload = "auto";
+	refs.forestMusicRef.current.loop = true;
+	refs.caveMusicRef.current = new Audio(sources.caveMusicSrc);
+	refs.caveMusicRef.current.preload = "auto";
+	refs.caveMusicRef.current.loop = true;
+	refs.chaChingRef.current = new Audio(sources.chaChingSrc);
+	refs.chaChingRef.current.preload = "auto";
+	refs.endOfDayRef.current = new Audio(sources.endOfDaySrc);
+	refs.endOfDayRef.current.preload = "auto";
+	refs.endOfDayRef.current.loop = true;
+	refs.hoeSoundRef.current = new Audio(sources.hoeSoundSrc);
+	refs.hoeSoundRef.current.preload = "auto";
+	refs.munchSoundRef.current = new Audio(sources.munchSoundSrc);
+	refs.munchSoundRef.current.preload = "auto";
+	refs.badSoundRef.current = new Audio(sources.badSoundSrc);
+	refs.badSoundRef.current.preload = "auto";
+	refs.waterSoundRef.current = new Audio(sources.waterSoundSrc);
+	refs.waterSoundRef.current.preload = "auto";
+	refs.yayaSoundRef.current = new Audio(sources.yayaSoundSrc);
+	refs.yayaSoundRef.current.preload = "auto";
+	refs.tooTiredRef.current = new Audio(sources.tooTiredSoundSrc);
+	refs.tooTiredRef.current.preload = "auto";
+	refs.gotRewardRef.current = new Audio(sources.gotRewardSoundSrc);
+	refs.gotRewardRef.current.preload = "auto";
+	refs.snakeSoundRef.current = new Audio(sources.snakeSoundSrc);
+	refs.snakeSoundRef.current.preload = "auto";
+	refs.bearSoundRef.current = new Audio(sources.bearSoundSrc);
+	refs.bearSoundRef.current.preload = "auto";
+	refs.pooSoundRef.current = new Audio(sources.pooSoundSrc);
+	refs.pooSoundRef.current.preload = "auto";
+	refs.bathSoundRef.current = new Audio(sources.bathSoundSrc);
+	refs.bathSoundRef.current.preload = "auto";
+	refs.pluckSoundRef.current = new Audio(sources.pluckSoundSrc);
+	refs.pluckSoundRef.current.preload = "auto";
+	refs.ploopSoundRef.current = new Audio(sources.ploopSoundSrc);
+	refs.ploopSoundRef.current.preload = "auto";
+	refs.seagullsSoundRef.current = new Audio(sources.seagullsSoundSrc);
+	refs.seagullsSoundRef.current.preload = "auto";
+	refs.meowSoundRef.current = new Audio(sources.meowSoundSrc);
+	refs.meowSoundRef.current.preload = "auto";
+	refs.woofSoundRef.current = new Audio(sources.woofSoundSrc);
+	refs.woofSoundRef.current.preload = "auto";
+	refs.tractorSoundRef.current = new Audio(sources.tractorSoundSrc);
+	refs.tractorSoundRef.current.preload = "auto";
+	refs.tractorSoundRef.current.loop = true;
+	refs.cafeOrderMusicRef.current = new Audio(sources.cafeOrderMusicSrc);
+	refs.cafeOrderMusicRef.current.preload = "auto";
+	refs.cafeOrderMusicRef.current.loop = true;
+	refs.ttsReadyRef.current =
+		typeof window !== "undefined" && "speechSynthesis" in window;
+};
+
+type AudioActionsArgs = {
+	refs: AudioRefs;
+	seagullsFadeIntervalRef: TimerRef;
+	tiredDuckTimeoutRef: TimerRef;
+	tiredFaceTimeoutRef: TimerRef;
+	setShowTiredFace: Dispatch<SetStateAction<boolean>>;
+};
+
+export const createAudioActions = ({
+	refs,
+	seagullsFadeIntervalRef,
+	tiredDuckTimeoutRef,
+	tiredFaceTimeoutRef,
+	setShowTiredFace,
+}: AudioActionsArgs) => {
+	const playNotification = () => {
+		playOneShot(refs.notificationRef.current);
+	};
+
+	const playChaChing = () => {
+		playOneShot(refs.chaChingRef.current);
+	};
+
+	const playHoe = () => {
+		playOneShot(refs.hoeSoundRef.current);
+	};
+
+	const playMunch = () => {
+		playOneShot(refs.munchSoundRef.current);
+	};
+
+	const playBad = () => {
+		playOneShot(refs.badSoundRef.current);
+	};
+
+	const playTooTired = () => {
+		playOneShot(refs.tooTiredRef.current);
+		setShowTiredFace(true);
+		if (tiredFaceTimeoutRef.current !== null) {
+			window.clearTimeout(tiredFaceTimeoutRef.current);
+		}
+		tiredFaceTimeoutRef.current = window.setTimeout(() => {
+			setShowTiredFace(false);
+			tiredFaceTimeoutRef.current = null;
+		}, 1000);
+
+		const track = refs.currentAreaMusicRef.current;
+		if (!track) return;
+		track.volume = 0.2;
+		if (tiredDuckTimeoutRef.current !== null) {
+			window.clearTimeout(tiredDuckTimeoutRef.current);
+		}
+		tiredDuckTimeoutRef.current = window.setTimeout(() => {
+			if (refs.currentAreaMusicRef.current) {
+				refs.currentAreaMusicRef.current.volume = 1;
+			}
+			tiredDuckTimeoutRef.current = null;
+		}, 1000);
+	};
+
+	const playWater = () => {
+		playOneShot(refs.waterSoundRef.current);
+	};
+
+	const playYaya = () => {
+		playOneShot(refs.yayaSoundRef.current);
+	};
+
+	const playGotReward = () => {
+		playOneShot(refs.gotRewardRef.current);
+	};
+
+	const playSnakeSound = () => {
+		playOneShot(refs.snakeSoundRef.current);
+	};
+
+	const playBearSound = () => {
+		playOneShot(refs.bearSoundRef.current);
+	};
+
+	const playPooSound = () => {
+		playOneShot(refs.pooSoundRef.current);
+	};
+
+	const playBath = () => {
+		playOneShot(refs.bathSoundRef.current);
+	};
+
+	const playPluck = () => {
+		playOneShot(refs.pluckSoundRef.current);
+	};
+
+	const playPloop = () => {
+		playOneShot(refs.ploopSoundRef.current);
+	};
+
+	const playSeagulls = () => {
+		const sound = refs.seagullsSoundRef.current;
+		if (!sound) return;
+		if (seagullsFadeIntervalRef.current !== null) {
+			window.clearInterval(seagullsFadeIntervalRef.current);
+			seagullsFadeIntervalRef.current = null;
+		}
+		sound.volume = 1;
+		playOneShot(sound);
+	};
+
+	const fadeOutSeagulls = (durationMs = 650) => {
+		fadeOutAndStopSound({
+			sound: refs.seagullsSoundRef.current,
+			durationMs,
+			intervalRef: seagullsFadeIntervalRef,
+		});
+	};
+
+	const playPetSound = (pet: PetEmoji) => {
+		const isCat = pet === "🐈" || pet === "🐈‍⬛";
+		const sound = isCat ? refs.meowSoundRef.current : refs.woofSoundRef.current;
+		playOneShot(sound);
+	};
+
+	const startTractorLoop = () => {
+		startLoopSound(refs.tractorSoundRef.current, 0.7);
+	};
+
+	const stopTractorLoop = () => {
+		stopAndResetSound(refs.tractorSoundRef.current);
+	};
+
+	const speakNpcLine = (line: string) => {
+		speakLine(line, refs.ttsReadyRef.current);
+	};
+
+	return {
+		playNotification,
+		playChaChing,
+		playHoe,
+		playMunch,
+		playBad,
+		playTooTired,
+		playWater,
+		playYaya,
+		playGotReward,
+		playSnakeSound,
+		playBearSound,
+		playPooSound,
+		playBath,
+		playPluck,
+		playPloop,
+		playSeagulls,
+		fadeOutSeagulls,
+		playPetSound,
+		startTractorLoop,
+		stopTractorLoop,
+		speakNpcLine,
+	};
+};

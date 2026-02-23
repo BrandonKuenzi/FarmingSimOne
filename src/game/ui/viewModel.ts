@@ -1,0 +1,106 @@
+import type { Dispatch, KeyboardEvent, MutableRefObject, SetStateAction } from "react";
+import type { DayTransitionStar } from "../content/dayTransition";
+import type {
+	CloudSprite,
+	DayTransitionState,
+	Dir,
+	FishingState,
+	MapId,
+	ModalState,
+	Plot,
+	Position,
+	PriceState,
+	QuantityPromptState,
+	WeatherId,
+} from "../shared/types";
+
+type DealBadge = {
+	label: string;
+	color: string;
+	scaleUp: number;
+};
+
+export type GameRuntimeViewModel = {
+	onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void;
+	shellRef: MutableRefObject<HTMLDivElement | null>;
+	day: number;
+	player: Position;
+	currentWeather: WeatherId;
+	weatherEmojiById: Record<string, string>;
+	money: number;
+	stamina: number;
+	staminaMax: number;
+	waterLevel: number;
+	inventoryRows: Array<{ id: string; icon: string; name: string; amount: number }>;
+	log: string[];
+	activeMapLayouts: Record<string, string[]>;
+	isWindSlashOn: (x: number, y: number) => boolean;
+	renderedMap: string[][];
+	plots: Record<string, Plot>;
+	keyForPos: (x: number, y: number) => string;
+	groundClassForTile: (tile: string, map: MapId) => string | undefined;
+	isShopMap: (map: MapId) => boolean;
+	shopDecorByMap: Record<string, Record<string, string>>;
+	isFarmHouseDoorTile: (mapId: MapId, x: number, y: number) => boolean;
+	getDoorGroundClass: (mapId: MapId, x: number, y: number) => string | undefined;
+	fishing: FishingState | null;
+	isDrivingTractor: boolean;
+	showTiredFace: boolean;
+	playerEmoji: string;
+	waterRefillTile: { map: MapId; x: number; y: number } | null;
+	isRippleWaterTile: (map: MapId, x: number, y: number) => boolean;
+	waterRipplePhase: boolean;
+	isAnimatedGrassTile: (map: MapId, x: number, y: number) => boolean;
+	grassFoliageVariant: (
+		map: MapId,
+		x: number,
+		y: number,
+		animatedGrassFrame?: number,
+	) => number;
+	caveLadderPos: { x: number; y: number } | null;
+	caveRubble: Record<string, string>;
+	toVisual: (
+		cell: string,
+		map?: MapId,
+	) => { glyph: string; className?: string; overlayGlyph?: string };
+	spriteTilesNeedingGround: Set<string>;
+	petFacing: 1 | -1;
+	tractorFacing: 1 | -1;
+	showForestHit: boolean;
+	getForestFogOpacity: (x: number, y: number) => number;
+	getCaveFogOpacity: (x: number, y: number) => number;
+	clouds: CloudSprite[];
+	setClouds: Dispatch<SetStateAction<CloudSprite[]>>;
+	marketRows: Array<{ id: string; name: string; price: number; trend: number }>;
+	toolRows: Array<{ id: string; name: string; level: number }>;
+	getToolTierName: (level: number) => string;
+	pendingTractorDelivery: boolean;
+	hasTractor: boolean;
+	hasHeadlamp: boolean;
+	newspaper: string;
+	isOrdering: boolean;
+	isDoctorCompounding: boolean;
+	doctorObservation: string;
+	cafeObservation: string;
+	modal: ModalState | null;
+	modalIndex: number;
+	quantityPrompt: QuantityPromptState | null;
+	selectModal: () => void;
+	getDealBadge: (
+		mode: "buy" | "sell",
+		unitPrice: number,
+		baseUnitPrice: number,
+	) => DealBadge | undefined;
+	prices: PriceState;
+	initialPrices: PriceState;
+	cancelQuantityPrompt: () => void;
+	moveQuantity: (delta: number) => void;
+	moveModal: (dir: Dir) => void;
+	moonPhases: readonly string[];
+	dayTransition: DayTransitionState | null;
+	dayTransitionStarsState: DayTransitionStar[];
+	dayTransitionStage: "intro" | "day" | "earned" | "final";
+	dayTransitionClosePhase: "idle" | "card" | "backdrop";
+	continueAfterSleep: () => void;
+	dayTransitionPrompt: string;
+};

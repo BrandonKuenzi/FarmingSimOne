@@ -1,4 +1,4 @@
-import { randomInt } from "../shared/random";
+import { randomInt, randomRoll } from "../shared/random";
 import type { BarnTier, MapId, Tile } from "../shared/types";
 
 export const wall: Tile = { icon: "#", passable: false, label: "Wall" };
@@ -113,14 +113,14 @@ export const buildFarmLayout = (barnTier: BarnTier): string[] => {
 	const farmCaveWallTiles = ["<", ">", "*"] as const;
 	for (let y = 0; y < FARM_HEIGHT; y += 1) {
 		grid[y][0] =
-			farmCaveWallTiles[Math.floor(Math.random() * farmCaveWallTiles.length)]!;
+			farmCaveWallTiles[Math.floor(randomRoll() * farmCaveWallTiles.length)]!;
 		grid[y][FARM_WIDTH - 1] = "#";
 	}
 	const farmCaveTrimYs = [8, 9, 10, 13, 14, 15, 16];
 	farmCaveTrimYs.forEach((y) => {
 		if (y >= 0 && y < FARM_HEIGHT) {
 			grid[y][1] =
-				farmCaveWallTiles[Math.floor(Math.random() * farmCaveWallTiles.length)]!;
+				farmCaveWallTiles[Math.floor(randomRoll() * farmCaveWallTiles.length)]!;
 		}
 	});
 	grid[CAVE_GATE_Y][0] = "=";
@@ -592,7 +592,7 @@ export const buildCavePlaceholderLayout = (): string[] => {
 		for (let x = 1; x <= 6; x += 1) {
 			grid[y]![x] =
 				placeholderCaveWallTiles[
-					Math.floor(Math.random() * placeholderCaveWallTiles.length)
+					Math.floor(randomRoll() * placeholderCaveWallTiles.length)
 				]!;
 		}
 	}

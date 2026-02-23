@@ -1,3 +1,4 @@
+import { randomRoll } from "../shared/random";
 import type { CropId, ToolId, ToolLevels } from "../shared/types";
 
 export const TOOL_MAX_LEVEL = 5;
@@ -134,7 +135,7 @@ export const getSmashAxeRockDamage = (level: number) => {
 };
 
 export const rollLivestockYield = (toolLevel: number) => {
-	const roll = Math.random() * 100;
+	const roll = randomRoll() * 100;
 	if (toolLevel >= 5) {
 		if (roll < 10) return 5;
 		if (roll < 25) return 4;

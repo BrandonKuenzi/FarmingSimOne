@@ -1,3 +1,4 @@
+import { randomRoll } from "../shared/random";
 import type { AnimalDef, AnimalType, CropDef, CropId, ItemId, SnakePatrolState } from "../shared/types";
 
 export const makeSnakeDirections = (enemies: Array<{ id: number; type: string }>) =>
@@ -7,8 +8,8 @@ export const makeSnakeDirections = (enemies: Array<{ id: number; type: string }>
 			.map((enemy) => [
 				enemy.id,
 				{
-					hDir: (Math.random() < 0.5 ? -1 : 1) as -1 | 1,
-					vDir: (Math.random() < 0.5 ? -1 : 1) as -1 | 1,
+					hDir: (randomRoll() < 0.5 ? -1 : 1) as -1 | 1,
+					vDir: (randomRoll() < 0.5 ? -1 : 1) as -1 | 1,
 					verticalMode: false,
 				} satisfies SnakePatrolState,
 			]),

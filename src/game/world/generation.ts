@@ -1,4 +1,4 @@
-﻿import { randomInt } from "../shared/random";
+import { randomInt, randomRoll } from "../shared/random";
 import { CAVE_GATE_Y, FARM_HEIGHT, FARM_WIDTH, FOREST_GATE_Y } from "./layout";
 import type {
 	CaveGenerationResult,
@@ -70,7 +70,7 @@ const carveForestLine = (
 	while (x !== x2) {
 		x += x < x2 ? 1 : -1;
 		grid[y]![x] = ",";
-		if (Math.random() < 0.16) {
+		if (randomRoll() < 0.16) {
 			const yOffset = randomInt(-1, 1);
 			const ny = Math.max(1, Math.min(FARM_HEIGHT - 2, y + yOffset));
 			grid[ny]![x] = ",";
@@ -79,7 +79,7 @@ const carveForestLine = (
 	while (y !== y2) {
 		y += y < y2 ? 1 : -1;
 		grid[y]![x] = ",";
-		if (Math.random() < 0.14) {
+		if (randomRoll() < 0.14) {
 			const xOffset = randomInt(-1, 1);
 			const nx = Math.max(1, Math.min(FARM_WIDTH - 2, x + xOffset));
 			grid[y]![nx] = ",";
@@ -100,7 +100,7 @@ const carveCaveLine = (
 	while (x !== x2) {
 		x += x < x2 ? 1 : -1;
 		grid[y]![x] = ")";
-		if (Math.random() < 0.16) {
+		if (randomRoll() < 0.16) {
 			const yOffset = randomInt(-1, 1);
 			const ny = Math.max(1, Math.min(FARM_HEIGHT - 2, y + yOffset));
 			grid[ny]![x] = ")";
@@ -109,7 +109,7 @@ const carveCaveLine = (
 	while (y !== y2) {
 		y += y < y2 ? 1 : -1;
 		grid[y]![x] = ")";
-		if (Math.random() < 0.14) {
+		if (randomRoll() < 0.14) {
 			const xOffset = randomInt(-1, 1);
 			const nx = Math.max(1, Math.min(FARM_WIDTH - 2, x + xOffset));
 			grid[y]![nx] = ")";
@@ -464,9 +464,9 @@ export const generateForestState = (cfg?: ForestGenConfig): ForestGenerationResu
 		enemyCells.has(`${x},${y}`) ||
 		chestBlockKey.has(`${x},${y}`);
 
-	const lootVariance = randomInt(0, 1) * (Math.random() < 0.5 ? -1 : 1);
+	const lootVariance = randomInt(0, 1) * (randomRoll() < 0.5 ? -1 : 1);
 	const totalLootBoxes = Math.max(1, level + lootVariance);
-	const hasGoodChest = Math.random() < 0.5;
+	const hasGoodChest = randomRoll() < 0.5;
 	let chest: ForestChest = { id: 1, x: 1, y: 1, opened: true };
 	if (hasGoodChest) {
 		const chestCell = randomForestOpenCell(grid, isBlocked, true) ?? {
@@ -634,7 +634,7 @@ export const buildCaveRubble = (layout: string[]): Record<string, string> => {
 		const row = layout[y] ?? "";
 		for (let x = 0; x < row.length; x += 1) {
 			if (row[x] !== ")") continue;
-			if (Math.random() > 0.085) continue;
+			if (randomRoll() > 0.085) continue;
 			rubble[`${x},${y}`] =
 				caveRubbleChars[randomInt(0, caveRubbleChars.length - 1)] ?? ".";
 		}

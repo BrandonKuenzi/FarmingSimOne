@@ -1,3 +1,5 @@
+import { randomRoll } from "./game/shared/random";
+
 export type NpcDialogType = "Problem" | "RandomFact" | "Complement";
 
 export type NpcDailyAssignment = {
@@ -6,7 +8,7 @@ export type NpcDailyAssignment = {
 	currentAdjective: string;
 };
 
-const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]!;
+const pick = <T,>(arr: T[]) => arr[Math.floor(randomRoll() * arr.length)]!;
 
 export const nouns = [
 	"turnip",

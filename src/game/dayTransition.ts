@@ -1,3 +1,5 @@
+import { randomRoll } from "./shared/random";
+
 export const moonPhases = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"] as const;
 const dayTransitionStarGlyphs = ["⭐", "✨", "🌟"] as const;
 
@@ -41,12 +43,12 @@ export type DayTransitionStar = {
 export const createDayTransitionStars = (count = 22): DayTransitionStar[] =>
 	Array.from({ length: count }, (_, i) => ({
 		id: i,
-		left: Math.random() * 96 + 2,
-		top: Math.random() * 72 + 6,
-		size: 16 + Math.floor(Math.random() * 16),
-		delay: Math.random(),
-		duration: 4 + Math.random() * 16,
+		left: randomRoll() * 96 + 2,
+		top: randomRoll() * 72 + 6,
+		size: 16 + Math.floor(randomRoll() * 16),
+		delay: randomRoll(),
+		duration: 4 + randomRoll() * 16,
 		glyph: dayTransitionStarGlyphs[
-			Math.floor(Math.random() * dayTransitionStarGlyphs.length)
+			Math.floor(randomRoll() * dayTransitionStarGlyphs.length)
 		]!,
 	}));

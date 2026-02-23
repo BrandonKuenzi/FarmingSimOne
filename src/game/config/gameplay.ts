@@ -2,6 +2,7 @@ import { cropDefs } from "../content/catalog";
 import { GEM_SELL_PRICES } from "../systems/commerce";
 import { getHoeShape } from "../systems/tools";
 import { keyForPos } from "../shared/coords";
+import { randomRoll } from "../shared/random";
 import type {
 	BarnTier,
 	CafeOrderItem,
@@ -353,7 +354,7 @@ const buildInitialFarmExpansionBlockers = () => {
 			randomCandidates.push({ x, y });
 		}
 	}
-	const shuffled = randomCandidates.sort(() => Math.random() - 0.5);
+	const shuffled = randomCandidates.sort(() => randomRoll() - 0.5);
 	shuffled.slice(0, 5).forEach(({ x, y }) => {
 		stone[keyForPos(x, y)] = 24;
 		usedKeys.add(keyForPos(x, y));
