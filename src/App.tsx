@@ -148,6 +148,11 @@ import {
 import { evolveFarmWeeds, generateInitialFarmWeedField } from "./game/systems/weeds";
 import { randomWeather, weatherEmojiById } from "./game/systems/weather";
 import {
+	grassFoliageVariant,
+	isAnimatedGrassTile,
+	isRippleWaterTile,
+} from "./game/systems/ambient";
+import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
 	getFishingRodMaxWaitSeconds,
@@ -2260,29 +2265,6 @@ function App() {
 		}, 2000);
 		return () => window.clearInterval(interval);
 	}, []);
-
-	const isRippleWaterTile = (mapId: MapId, x: number, y: number) => {
-		const row = activeMapLayouts[mapId]?.[y];
-		if (!row || row[x] !== "~") return false;
-		// Deterministic sparse ripple mask: about 5% of water cells.
-		const mapSalt = mapId.charCodeAt(0) + mapId.length * 13;
-		const hash = (x * 73 + y * 97 + mapSalt) % 20;
-		return hash === 0;
-	};
-
-	const isAnimatedGrassTile = (mapId: MapId, x: number, y: number) => {
-		const row = activeMapLayouts[mapId]?.[y];
-		if (!row || row[x] !== ",") return false;
-		// Deterministic sparse foliage mask: about 5% of grass cells.
-		const mapSalt = mapId.charCodeAt(0) + mapId.length * 29;
-		const hash = (x * 41 + y * 113 + mapSalt) % 20;
-		return hash === 0;
-	};
-
-	const grassFoliageVariant = (mapId: MapId, x: number, y: number) => {
-		const mapSalt = mapId.charCodeAt(0) + mapId.length * 11;
-		return (x * 17 + y * 31 + mapSalt) % 3;
-	};
 
 	const isWindSlashOn = (x: number, y: number) => {
 		const baseRow = activeMapLayouts[player.map]?.[y];
