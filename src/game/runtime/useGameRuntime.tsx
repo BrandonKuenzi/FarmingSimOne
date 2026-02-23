@@ -4102,19 +4102,82 @@ export function useGameRuntime() {
 			: []),
 	];
 
-	const viewCtx = new Proxy({}, {
-		get: (_target, prop) => {
-			if (typeof prop !== "string") return undefined;
-			try {
-				return eval(prop);
-			} catch {
-				return undefined;
-			}
-		},
-	});
+	const viewCtx = {
+		onKeyDown,
+		shellRef,
+		day,
+		player,
+		currentWeather,
+		weatherEmojiById,
+		money,
+		stamina,
+		staminaMax,
+		waterLevel,
+		inventoryRows,
+		log,
+		activeMapLayouts,
+		isWindSlashOn,
+		renderedMap,
+		plots,
+		keyForPos,
+		groundClassForTile,
+		isShopMap,
+		shopDecorByMap,
+		isFarmHouseDoorTile,
+		getDoorGroundClass,
+		fishing,
+		isDrivingTractor,
+		showTiredFace,
+		playerEmoji,
+		waterRefillTile,
+		isRippleWaterTile,
+		waterRipplePhase,
+		isAnimatedGrassTile,
+		grassFoliageVariant,
+		caveLadderPos,
+		caveRubble,
+		toVisual,
+		spriteTilesNeedingGround,
+		petFacing,
+		tractorFacing,
+		showForestHit,
+		getForestFogOpacity,
+		getCaveFogOpacity,
+		clouds,
+		setClouds,
+		marketRows,
+		toolRows,
+		getToolTierName,
+		pendingTractorDelivery,
+		hasTractor,
+		hasHeadlamp,
+		newspaper,
+		isOrdering,
+		isDoctorCompounding,
+		doctorObservation,
+		cafeObservation,
+		modal,
+		modalIndex,
+		quantityPrompt,
+		selectModal,
+		getDealBadge,
+		prices,
+		initialPrices,
+		cancelQuantityPrompt,
+		moveQuantity,
+		moveModal,
+		moonPhases,
+		dayTransition,
+		dayTransitionStarsState,
+		dayTransitionStage,
+		dayTransitionClosePhase,
+		continueAfterSleep,
+		dayTransitionPrompt,
+	};
 
 	return renderGameRuntimeView(viewCtx);
 }
+
 
 
 

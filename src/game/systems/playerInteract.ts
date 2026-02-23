@@ -1,5 +1,4 @@
-﻿// @ts-nocheck
-import type { Dir } from "../shared/types";
+﻿import type { Dir } from "../shared/types";
 
 export const runInteract = (ctx: any, dir: Dir): void => {
 const {
@@ -42,7 +41,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 		const targetDoor =
 			player.map === "forest"
 				? undefined
-				: mapDoors[player.map].find((d) => d.x === tx && d.y === ty);
+				: mapDoors[player.map].find((d: any) => d.x === tx && d.y === ty);
 		if (targetDoor) {
 			if (targetDoor.target.map === "forest" && forestLockedToday) {
 				playBad();
@@ -113,9 +112,9 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					],
 					onSelect: () => {
 						const seedChoices = allPlantableCropIds
-							.map((cropId) => cropDefs[cropId].seedItem)
-							.filter((itemId, idx, arr) => arr.indexOf(itemId) === idx)
-							.filter((itemId) => inventory[itemId] > 0);
+							.map((cropId: any) => cropDefs[cropId].seedItem)
+							.filter((itemId: any, idx: any, arr: any) => arr.indexOf(itemId) === idx)
+							.filter((itemId: any) => inventory[itemId] > 0);
 						if (seedChoices.length < 1) {
 							playBad();
 							openMenu("Tractor", ["Out of seeds"], [
@@ -127,7 +126,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 							"Load Seeds",
 							["Choose seeds to load into the tractor."],
 							[
-								...seedChoices.map((seedItem) => ({
+								...seedChoices.map((seedItem: any) => ({
 									label: `${itemNames[seedItem]} (${inventory[seedItem]})`,
 									info: [
 										"When driving tractor, press space to turn on and off your implement",
@@ -200,7 +199,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 		}
 		if (player.map === "town" && beachShellDrops[keyForPos(tx, ty)]) {
 			const shellKey = keyForPos(tx, ty);
-			setBeachShellDrops((prev) => {
+			setBeachShellDrops((prev: any) => {
 				const next = { ...prev };
 				delete next[shellKey];
 				return next;
@@ -226,7 +225,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 		const farmTargetKey = keyForPos(tx, ty);
 		if (player.map === "farm" && farmWeedObstacles[farmTargetKey]) {
 			if (!trySpendStamina(1)) return;
-			setFarmWeedObstacles((prev) => ({ ...prev, [farmTargetKey]: false }));
+			setFarmWeedObstacles((prev: any) => ({ ...prev, [farmTargetKey]: false }));
 			playHoe();
 			const gotFeed = Math.random() < 0.5;
 			const gotMoney = Math.random() < 0.02;
@@ -272,17 +271,17 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 
 		if (player.map === "forest") {
 			if (forestChest.x === tx && forestChest.y === ty && !forestChest.opened) {
-				setForestChest((prev) => ({ ...prev, opened: true }));
+				setForestChest((prev: any) => ({ ...prev, opened: true }));
 				openHighValueForestChestReward();
 				return;
 			}
 
 			const bonusChest = forestBonusChests.find(
-				(chest) => chest.x === tx && chest.y === ty && !chest.opened,
+				(chest: any) => chest.x === tx && chest.y === ty && !chest.opened,
 			);
 			if (bonusChest) {
-				setForestBonusChests((prev) =>
-					prev.map((chest) =>
+				setForestBonusChests((prev: any) =>
+					prev.map((chest: any) =>
 						chest.id === bonusChest.id ? { ...chest, opened: true } : chest,
 					),
 				);
@@ -324,7 +323,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 			const obstacle = forestObstacleAt(tx, ty);
 			if (obstacle?.type === "weed") {
 				if (!trySpendStamina(1)) return;
-				setForestObstacles((prev) => prev.filter((o) => o.id !== obstacle.id));
+				setForestObstacles((prev: any) => prev.filter((o: any) => o.id !== obstacle.id));
 				playHoe();
 				const gotFeed = Math.random() < 0.5;
 				const gotMoney = Math.random() < 0.02;
@@ -349,7 +348,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					return;
 				}
 				if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
-				setForestObstacles((prev) => prev.filter((o) => o.id !== obstacle.id));
+				setForestObstacles((prev: any) => prev.filter((o: any) => o.id !== obstacle.id));
 				playHoe();
 				const seedChance = getSmashAxeWoodSeedChance(smashAxeLevel);
 				if (Math.random() < seedChance) {
@@ -372,14 +371,14 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
 				const damage = getSmashAxeRockDamage(smashAxeLevel);
 				const nextHitsRemaining = Math.max(0, obstacle.hitsRemaining - damage);
-				setForestObstacles((prev) =>
+				setForestObstacles((prev: any) =>
 					prev
-						.map((o) =>
+						.map((o: any) =>
 							o.id === obstacle.id
 								? { ...o, hitsRemaining: Math.max(0, o.hitsRemaining - damage) }
 								: o,
 						)
-						.filter((o) => o.hitsRemaining > 0),
+						.filter((o: any) => o.hitsRemaining > 0),
 				);
 				playHoe();
 				if (nextHitsRemaining > 0) {
@@ -409,14 +408,14 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
 				const damage = getSmashAxeRockDamage(smashAxeLevel);
 				const nextHitsRemaining = Math.max(0, obstacle.hitsRemaining - damage);
-				setCaveObstacles((prev) =>
+				setCaveObstacles((prev: any) =>
 					prev
-						.map((o) =>
+						.map((o: any) =>
 							o.id === obstacle.id
 								? { ...o, hitsRemaining: Math.max(0, o.hitsRemaining - damage) }
 								: o,
 						)
-						.filter((o) => o.hitsRemaining > 0),
+						.filter((o: any) => o.hitsRemaining > 0),
 				);
 				playHoe();
 				if (nextHitsRemaining > 0) {
@@ -448,7 +447,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 						addLog("You broke the cave rock.");
 					}
 					if (!caveLadderPos) {
-						const remainingRocks = caveObstacles.filter((o) => o.id !== obstacle.id).length;
+						const remainingRocks = caveObstacles.filter((o: any) => o.id !== obstacle.id).length;
 						const revealChance = 1 / 12;
 						if (remainingRocks <= 0 || Math.random() < revealChance) {
 							setCaveLadderPos({ x: obstacle.x, y: obstacle.y });
@@ -470,7 +469,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					return;
 				}
 				if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
-				setFarmForestBlockers((prev) => ({ ...prev, [blockerKey]: false }));
+				setFarmForestBlockers((prev: any) => ({ ...prev, [blockerKey]: false }));
 				playHoe();
 				const seedChance = getSmashAxeWoodSeedChance(smashAxeLevel);
 				if (Math.random() < seedChance) {
@@ -494,7 +493,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				const damage = getSmashAxeRockDamage(smashAxeLevel);
 				const hitsRemaining = farmCaveBlockers[blockerKey] ?? 0;
 				const nextHitsRemaining = Math.max(0, hitsRemaining - damage);
-				setFarmCaveBlockers((prev) => {
+				setFarmCaveBlockers((prev: any) => {
 					const current = prev[blockerKey] ?? 0;
 					const remaining = Math.max(0, current - damage);
 					if (remaining <= 0) {
@@ -532,7 +531,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				const damage = getSmashAxeRockDamage(smashAxeLevel);
 				const hitsRemaining = petGraveObstacles[blockerKey] ?? 0;
 				const nextHitsRemaining = Math.max(0, hitsRemaining - damage);
-				setPetGraveObstacles((prev) => {
+				setPetGraveObstacles((prev: any) => {
 					const current = prev[blockerKey] ?? 0;
 					const remaining = Math.max(0, current - damage);
 					if (remaining <= 0) {
@@ -561,9 +560,9 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 			const plotKey = keyForPos(tx, ty);
 			if (baseTile === "," && !plots[plotKey]) {
 				const targets = getHoeTargets(player.x, player.y, dir, tools.hoe);
-				const nextPlots: Record<string, Plot> = { ...plots };
+				const nextPlots: Record<string, any> = { ...plots };
 				let hoedCount = 0;
-				targets.forEach(({ x, y }) => {
+				targets.forEach(({ x, y }: any) => {
 					const row = activeMapLayouts.farm[y];
 					if (!row || row[x] !== ",") return;
 					const key = keyForPos(x, y);
@@ -585,8 +584,8 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				const plot = plots[plotKey];
 				if (!plot.crop) {
 					const seedOptions = allPlantableCropIds
-						.filter((cropId) => inventory[cropDefs[cropId].seedItem] > 0)
-						.map((cropId) => ({
+						.filter((cropId: any) => inventory[cropDefs[cropId].seedItem] > 0)
+						.map((cropId: any) => ({
 							cropId,
 							def: cropDefs[cropId],
 						}));
@@ -598,7 +597,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 								: "No seeds available. You can reset this tile to grass.",
 						],
 						[
-							...seedOptions.map(({ cropId, def }) => ({
+							...seedOptions.map(({ cropId, def }: any) => ({
 								label: `${cropId === "coral_fruit" ? "Sea Shell" : def.name} (${inventory[def.seedItem]})`,
 								info: [
 									`Grow Time: ${def.growDays} day${def.growDays === 1 ? "" : "s"}`,
@@ -607,7 +606,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 								],
 								onSelect: () => {
 									updateInventory(def.seedItem, -1);
-									setPlots((prev) => ({
+									setPlots((prev: any) => ({
 										...prev,
 										[plotKey]: {
 											crop: cropId,
@@ -624,7 +623,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 								label: "Reset to Grass",
 								info: ["Turn this soil tile back into grass."],
 								onSelect: () => {
-									setPlots((prev) => {
+									setPlots((prev: any) => {
 										const next = { ...prev };
 										delete next[plotKey];
 										return next;
@@ -647,7 +646,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				const crop = cropDefs[plot.crop];
 				const grown = plot.growthDays >= crop.growDays;
 				if (grown) {
-					setPlots((prev) => ({
+					setPlots((prev: any) => ({
 						...prev,
 						[plotKey]: { crop: null, growthDays: 0, watered: false },
 					}));
@@ -662,8 +661,8 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 						tools.wateringCan,
 					);
 					const waterableKeys = targets
-						.map(({ x, y }) => keyForPos(x, y))
-						.filter((k) => {
+						.map(({ x, y }: any) => keyForPos(x, y))
+						.filter((k: any) => {
 							const p = plots[k];
 							if (!p?.crop || p.watered) return false;
 							const def = cropDefs[p.crop];
@@ -681,11 +680,11 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					}
 					if (!tryUseToolAction(tools.wateringCan)) return;
 					const keysToWater = waterableKeys.slice(0, wateredCount);
-					setWaterLevel((w) => Math.max(0, w - wateredCount));
-					setPlots((prev) => ({
+					setWaterLevel((w: any) => Math.max(0, w - wateredCount));
+					setPlots((prev: any) => ({
 						...prev,
 						...Object.fromEntries(
-							keysToWater.map((k) => [k, { ...prev[k]!, watered: true }]),
+							keysToWater.map((k: any) => [k, { ...prev[k]!, watered: true }]),
 						),
 					}));
 					playWater();
@@ -731,14 +730,14 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 		}
 		if (player.map === "house" && targetBaseTile === "w") {
 			const remainingOutfits = clothingShopItems.filter(
-				(item) => !ownedWardrobeLooks.includes(item.look),
+				(item: any) => !ownedWardrobeLooks.includes(item.look),
 			).length;
 			const hasMoreToPurchase = remainingOutfits > 0;
 			openMenu(
 				"Wardrobe",
 				["Choose your look."],
 				[
-					...ownedWardrobeLooks.map((look) => ({
+					...ownedWardrobeLooks.map((look: any) => ({
 						label: look,
 						info: [
 							starterWardrobeLooks.includes(
@@ -820,4 +819,5 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 
 		addLog("Nothing to interact with.");
 }
+
 
