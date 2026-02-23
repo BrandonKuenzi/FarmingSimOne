@@ -135,15 +135,6 @@ import {
 	startFishingSequence,
 } from "../systems/fishing";
 import {
-	fadeOutAndStopSound,
-	playOneShot,
-	startLoopSound,
-	stopAndResetSound,
-} from "../systems/sound";
-import { speakLine } from "../systems/tts";
-import {
-	grantBonusChestRewardSet as grantBonusChestRewardSetRule,
-	openHighValueForestChestReward as openHighValueForestChestRewardRule,
 	rollBeachBottleReward,
 } from "../systems/rewards";
 import { getFogTargetOpacity } from "../systems/vision";
@@ -189,11 +180,27 @@ import {
 } from "../systems/input";
 import { runInteract } from "../systems/playerInteract";
 import type { PlayerInteractContext } from "../systems/playerInteract";
+import { runMovePlayer } from "../systems/playerMovement";
+import { buildRenderedMapGrid } from "../systems/renderedMap";
 import { createServiceOrderActions } from "../systems/serviceOrders";
 import { renderGameRuntimeView } from "../ui/GameRuntimeView";
 import type { GameRuntimeViewModel } from "../ui/viewModel";
 import { createAreaMusicController } from "./areaMusic";
 import type { BoatTileMap, GameStateActions, GameStateSnapshot } from "./contracts";
+import { createAudioActions, initializeAudioEngine } from "./engine/audioEngine";
+import {
+	continueAfterSleep as continueAfterSleepEngine,
+	playDayTransitionEarnedSfx,
+	runNextDay as runNextDayEngine,
+	startDayTransitionSequence,
+} from "./engine/dayCycleEngine";
+import { useBathingRecovery } from "./engine/bathingEngine";
+import {
+	grantBonusChestRewardSet as grantBonusChestRewardSetEngine,
+	openHighValueForestChestReward as openHighValueForestChestRewardEngine,
+	openRewardPopup as openRewardPopupEngine,
+} from "./engine/rewardEngine";
+import { buildGameRuntimeViewModel } from "./engine/viewModelBuilder";
 import { useInputRouter } from "./useInputRouter";
 import { useWorldSimulation } from "./worldSimulation";
 import {
@@ -741,193 +748,130 @@ export function useGameRuntime() {
 	}, [barnTier, barnSpawnPoint, activeMapLayouts.barn]);
 
 	useEffect(() => {
-		shellRef.current?.focus();
-		notificationRef.current = new Audio(notificationSoundSrc);
-		notificationRef.current.preload = "auto";
-		farmMusicRef.current = new Audio(bgFarmSrc);
-		farmMusicRef.current.preload = "auto";
-		farmMusicRef.current.loop = true;
-		townMusicRef.current = new Audio(townBGSrc);
-		townMusicRef.current.preload = "auto";
-		townMusicRef.current.loop = true;
-		beachAmbienceRef.current = new Audio(beachAmbienceSrc);
-		beachAmbienceRef.current.preload = "auto";
-		beachAmbienceRef.current.loop = true;
-		beachAmbienceRef.current.volume = 0;
-		houseMusicRef.current = new Audio(bgMusicSrc);
-		houseMusicRef.current.preload = "auto";
-		houseMusicRef.current.loop = true;
-		forestMusicRef.current = new Audio(forestMusicSrc);
-		forestMusicRef.current.preload = "auto";
-		forestMusicRef.current.loop = true;
-		caveMusicRef.current = new Audio(caveMusicSrc);
-		caveMusicRef.current.preload = "auto";
-		caveMusicRef.current.loop = true;
-		chaChingRef.current = new Audio(chaChingSrc);
-		chaChingRef.current.preload = "auto";
-		endOfDayRef.current = new Audio(endOfDaySrc);
-		endOfDayRef.current.preload = "auto";
-		endOfDayRef.current.loop = true;
-		hoeSoundRef.current = new Audio(hoeSoundSrc);
-		hoeSoundRef.current.preload = "auto";
-		munchSoundRef.current = new Audio(munchSoundSrc);
-		munchSoundRef.current.preload = "auto";
-		badSoundRef.current = new Audio(badSoundSrc);
-		badSoundRef.current.preload = "auto";
-		waterSoundRef.current = new Audio(waterSoundSrc);
-		waterSoundRef.current.preload = "auto";
-		yayaSoundRef.current = new Audio(yayaSoundSrc);
-		yayaSoundRef.current.preload = "auto";
-		tooTiredRef.current = new Audio(tooTiredSoundSrc);
-		tooTiredRef.current.preload = "auto";
-		gotRewardRef.current = new Audio(gotRewardSoundSrc);
-		gotRewardRef.current.preload = "auto";
-		snakeSoundRef.current = new Audio(snakeSoundSrc);
-		snakeSoundRef.current.preload = "auto";
-		bearSoundRef.current = new Audio(bearSoundSrc);
-		bearSoundRef.current.preload = "auto";
-		pooSoundRef.current = new Audio(pooSoundSrc);
-		pooSoundRef.current.preload = "auto";
-		bathSoundRef.current = new Audio(bathSoundSrc);
-		bathSoundRef.current.preload = "auto";
-		pluckSoundRef.current = new Audio(pluckSoundSrc);
-		pluckSoundRef.current.preload = "auto";
-		ploopSoundRef.current = new Audio(ploopSoundSrc);
-		ploopSoundRef.current.preload = "auto";
-		seagullsSoundRef.current = new Audio(seagullsSoundSrc);
-		seagullsSoundRef.current.preload = "auto";
-		meowSoundRef.current = new Audio(meowSoundSrc);
-		meowSoundRef.current.preload = "auto";
-		woofSoundRef.current = new Audio(woofSoundSrc);
-		woofSoundRef.current.preload = "auto";
-		tractorSoundRef.current = new Audio(tractorSoundSrc);
-		tractorSoundRef.current.preload = "auto";
-		tractorSoundRef.current.loop = true;
-		cafeOrderMusicRef.current = new Audio(cafeOrderMusicSrc);
-		cafeOrderMusicRef.current.preload = "auto";
-		cafeOrderMusicRef.current.loop = true;
-		ttsReadyRef.current =
-			typeof window !== "undefined" && "speechSynthesis" in window;
+		initializeAudioEngine({
+			shellRef,
+			refs: {
+				notificationRef,
+				farmMusicRef,
+				townMusicRef,
+				beachAmbienceRef,
+				houseMusicRef,
+				forestMusicRef,
+				caveMusicRef,
+				chaChingRef,
+				endOfDayRef,
+				hoeSoundRef,
+				munchSoundRef,
+				badSoundRef,
+				waterSoundRef,
+				yayaSoundRef,
+				tooTiredRef,
+				gotRewardRef,
+				snakeSoundRef,
+				bearSoundRef,
+				pooSoundRef,
+				bathSoundRef,
+				pluckSoundRef,
+				ploopSoundRef,
+				seagullsSoundRef,
+				meowSoundRef,
+				woofSoundRef,
+				tractorSoundRef,
+				cafeOrderMusicRef,
+				currentAreaMusicRef,
+				ttsReadyRef,
+			},
+			sources: {
+				bgMusicSrc,
+				bgFarmSrc,
+				townBGSrc,
+				beachAmbienceSrc,
+				chaChingSrc,
+				endOfDaySrc,
+				hoeSoundSrc,
+				munchSoundSrc,
+				badSoundSrc,
+				waterSoundSrc,
+				yayaSoundSrc,
+				tooTiredSoundSrc,
+				cafeOrderMusicSrc,
+				notificationSoundSrc,
+				forestMusicSrc,
+				caveMusicSrc,
+				gotRewardSoundSrc,
+				snakeSoundSrc,
+				bearSoundSrc,
+				pooSoundSrc,
+				bathSoundSrc,
+				pluckSoundSrc,
+				ploopSoundSrc,
+				seagullsSoundSrc,
+				meowSoundSrc,
+				woofSoundSrc,
+				tractorSoundSrc,
+			},
+		});
 	}, []);
 
-	const playNotification = () => {
-		playOneShot(notificationRef.current);
-	};
-
-	const playChaChing = () => {
-		playOneShot(chaChingRef.current);
-	};
-
-	const playHoe = () => {
-		playOneShot(hoeSoundRef.current);
-	};
-
-	const playMunch = () => {
-		playOneShot(munchSoundRef.current);
-	};
-
-	const playBad = () => {
-		playOneShot(badSoundRef.current);
-	};
-
-	const playTooTired = () => {
-		playOneShot(tooTiredRef.current);
-		setShowTiredFace(true);
-		if (tiredFaceTimeoutRef.current !== null) {
-			window.clearTimeout(tiredFaceTimeoutRef.current);
-		}
-		tiredFaceTimeoutRef.current = window.setTimeout(() => {
-			setShowTiredFace(false);
-			tiredFaceTimeoutRef.current = null;
-		}, 1000);
-
-		const track = currentAreaMusicRef.current;
-		if (track) {
-			track.volume = 0.2;
-			if (tiredDuckTimeoutRef.current !== null) {
-				window.clearTimeout(tiredDuckTimeoutRef.current);
-			}
-			tiredDuckTimeoutRef.current = window.setTimeout(() => {
-				if (currentAreaMusicRef.current) {
-					currentAreaMusicRef.current.volume = 1;
-				}
-				tiredDuckTimeoutRef.current = null;
-			}, 1000);
-		}
-	};
-
-	const playWater = () => {
-		playOneShot(waterSoundRef.current);
-	};
-
-	const playYaya = () => {
-		playOneShot(yayaSoundRef.current);
-	};
-
-	const playGotReward = () => {
-		playOneShot(gotRewardRef.current);
-	};
-
-	const playSnakeSound = () => {
-		playOneShot(snakeSoundRef.current);
-	};
-
-	const playBearSound = () => {
-		playOneShot(bearSoundRef.current);
-	};
-
-	const playPooSound = () => {
-		playOneShot(pooSoundRef.current);
-	};
-
-	const playBath = () => {
-		playOneShot(bathSoundRef.current);
-	};
-
-	const playPluck = () => {
-		playOneShot(pluckSoundRef.current);
-	};
-
-	const playPloop = () => {
-		playOneShot(ploopSoundRef.current);
-	};
-
-	const playSeagulls = () => {
-		const sound = seagullsSoundRef.current;
-		if (!sound) return;
-		if (seagullsFadeIntervalRef.current !== null) {
-			window.clearInterval(seagullsFadeIntervalRef.current);
-			seagullsFadeIntervalRef.current = null;
-		}
-		sound.volume = 1;
-		playOneShot(sound);
-	};
-
-	const fadeOutSeagulls = (durationMs = 650) => {
-		fadeOutAndStopSound({
-			sound: seagullsSoundRef.current,
-			durationMs,
-			intervalRef: seagullsFadeIntervalRef,
-		});
-	};
-
-	const playPetSound = (pet: PetEmoji) => {
-		const isCat = pet === "🐈" || pet === "🐈‍⬛"; // cat variants meow
-		const sound = isCat ? meowSoundRef.current : woofSoundRef.current;
-		playOneShot(sound);
-	};
-
-	const startTractorLoop = () => {
-		startLoopSound(tractorSoundRef.current, 0.7);
-	};
-
-	const stopTractorLoop = () => {
-		stopAndResetSound(tractorSoundRef.current);
-	};
-
-	const speakNpcLine = (line: string) => {
-		speakLine(line, ttsReadyRef.current);
-	};
+	const {
+		playNotification,
+		playChaChing,
+		playHoe,
+		playMunch,
+		playBad,
+		playTooTired,
+		playWater,
+		playYaya,
+		playGotReward,
+		playSnakeSound,
+		playBearSound,
+		playPooSound,
+		playBath,
+		playPluck,
+		playPloop,
+		playSeagulls,
+		fadeOutSeagulls,
+		playPetSound,
+		startTractorLoop,
+		stopTractorLoop,
+		speakNpcLine,
+	} = createAudioActions({
+		refs: {
+			notificationRef,
+			farmMusicRef,
+			townMusicRef,
+			beachAmbienceRef,
+			houseMusicRef,
+			forestMusicRef,
+			caveMusicRef,
+			chaChingRef,
+			endOfDayRef,
+			hoeSoundRef,
+			munchSoundRef,
+			badSoundRef,
+			waterSoundRef,
+			yayaSoundRef,
+			tooTiredRef,
+			gotRewardRef,
+			snakeSoundRef,
+			bearSoundRef,
+			pooSoundRef,
+			bathSoundRef,
+			pluckSoundRef,
+			ploopSoundRef,
+			seagullsSoundRef,
+			meowSoundRef,
+			woofSoundRef,
+			tractorSoundRef,
+			cafeOrderMusicRef,
+			currentAreaMusicRef,
+			ttsReadyRef,
+		},
+		seagullsFadeIntervalRef,
+		tiredDuckTimeoutRef,
+		tiredFaceTimeoutRef,
+		setShowTiredFace,
+	});
 
 	useEffect(() => {
 		if (startedRef.current) return;
@@ -2518,138 +2462,58 @@ export function useGameRuntime() {
 	};
 
 	const movePlayer = (dir: Dir) => {
-		if (modal || isOrdering || isDoctorCompounding) return;
-		const { dx, dy } = dirDelta[dir];
-		const nx = player.x + dx;
-		const ny = player.y + dy;
-		if (nx < 0 || ny < 0 || ny >= height || nx >= width) return;
-		if (
-			isDrivingTractor &&
-			mapDoors[player.map].some((d) => d.x === nx && d.y === ny)
-		) {
-			addLog("The tractor can't go through doors.");
-			return;
-		}
-		const targetFarmWeed = !!farmWeedObstacles[keyForPos(nx, ny)];
-		if (isDrivingTractor && player.map === "farm" && targetFarmWeed) {
-			if (tractorImplement !== "harvest") {
-				addLog("You must have a harvester to harvest weeds.");
-			} else if (!tractorImplementOn) {
-				addLog("You must turn your implement on before you can harvest.");
-			}
-		}
-		const canTractorHarvestWeedStep =
-			isDrivingTractor &&
-			player.map === "farm" &&
-			tractorImplement === "harvest" &&
-			tractorImplementOn &&
-			targetFarmWeed;
-		if (!isPassableAt(player.map, nx, ny) && !canTractorHarvestWeedStep) return;
-		const tractorCrushesPet =
-			isDrivingTractor &&
-			player.map === "farm" &&
-			!!ownedPet &&
-			!!petTile &&
-			petTile.x === nx &&
-			petTile.y === ny;
-		if (isOccupied(player.map, nx, ny) && !tractorCrushesPet) return;
-		if (tractorCrushesPet) {
-			playHoe();
-			if (petRunoverBadTimeoutRef.current !== null) {
-				window.clearTimeout(petRunoverBadTimeoutRef.current);
-				petRunoverBadTimeoutRef.current = null;
-			}
-			petRunoverBadTimeoutRef.current = window.setTimeout(() => {
-				playBad();
-				petRunoverBadTimeoutRef.current = null;
-			}, 500);
-			setOwnedPet(null);
-			setPendingPet(null);
-			setPetTile(null);
-			setPetHeartTile(null);
-			setPendingPetGravePos({ x: nx, y: ny });
-			setPetVendorActive(true);
-			addLog("Your pet was run over by the tractor.");
-		}
-		if (isDrivingTractor) {
-			if (dx < 0) setTractorFacing(1);
-			else if (dx > 0) setTractorFacing(-1);
-		}
-		if (
-			isDrivingTractor &&
-			player.map === "farm" &&
-			pendingPetGravePos &&
-			pendingPetGravePos.x === player.x &&
-			pendingPetGravePos.y === player.y &&
-			(nx !== player.x || ny !== player.y)
-		) {
-			const key = keyForPos(player.x, player.y);
-			setPetGraveObstacles((prev) => ({ ...prev, [key]: 24 }));
-			setPendingPetGravePos(null);
-		}
-		setPlayer((prev) => ({ ...prev, x: nx, y: ny }));
-		if (isDrivingTractor && player.map === "farm") {
-			applyTractorImplementAt(nx, ny);
-			if (nx === TRACTOR_PARK_POS.x && ny === TRACTOR_PARK_POS.y) {
-				exitTractor();
-			}
-			return;
-		}
-		if (
-			player.map === "forest" &&
-			nx === forestEntranceDoorPos.x &&
-			ny === forestEntranceDoorPos.y
-		) {
-			openForestExitMenu();
-			return;
-		}
-		if (
-			player.map === "forest" &&
-			nx === forestForwardExitPos.x &&
-			ny === forestForwardExitPos.y
-		) {
-			continueForestDungeon();
-			return;
-		}
-		if (
-			player.map === "cave" &&
-			nx === caveEntranceDoorPos.x &&
-			ny === caveEntranceDoorPos.y
-		) {
-			openCaveExitMenu();
-			return;
-		}
-		if (player.map === "cave" && caveLadderPos && nx === caveLadderPos.x && ny === caveLadderPos.y) {
-			continueCaveDungeon();
-			return;
-		}
-
-		const door = mapDoors[player.map].find((d) => d.x === nx && d.y === ny);
-		if (door) {
-			if (door.target.map === "forest" && forestLockedToday) {
-				playBad();
-				addLog("You are too scared to go back in the forest today.");
-				return;
-			}
-			if (door.target.map === "forest" && !canEnterForest()) {
-				playBad();
-				addLog("You are too exhausted to enter the forest.");
-				return;
-			}
-			if (door.target.map === "cave" && caveLockedToday) {
-				playBad();
-				addLog("You are too scared to go back in the cave today.");
-				return;
-			}
-			if (door.target.map === "cave" && !canEnterCave()) {
-				playBad();
-				addLog("You are too exhausted to enter the cave.");
-				return;
-			}
-			playNotification();
-			setPlayer({ map: door.target.map, x: door.target.x, y: door.target.y });
-			addLog(`Entered ${door.target.map}.`);
-		}
+		runMovePlayer(
+			{
+				modal,
+				isOrdering,
+				isDoctorCompounding,
+				dirDelta,
+				player,
+				height,
+				width,
+				isDrivingTractor,
+				mapDoors,
+				addLog,
+				farmWeedObstacles,
+				keyForPos,
+				tractorImplement,
+				tractorImplementOn,
+				isPassableAt,
+				ownedPet,
+				petTile,
+				isOccupied,
+				playHoe,
+				petRunoverBadTimeoutRef,
+				playBad,
+				setOwnedPet,
+				setPendingPet,
+				setPetTile,
+				setPetHeartTile,
+				setPendingPetGravePos,
+				setPetVendorActive,
+				setTractorFacing,
+				pendingPetGravePos,
+				setPetGraveObstacles,
+				setPlayer,
+				applyTractorImplementAt,
+				TRACTOR_PARK_POS,
+				exitTractor,
+				forestEntranceDoorPos,
+				openForestExitMenu,
+				forestForwardExitPos,
+				continueForestDungeon,
+				caveEntranceDoorPos,
+				openCaveExitMenu,
+				caveLadderPos,
+				continueCaveDungeon,
+				forestLockedToday,
+				canEnterForest,
+				caveLockedToday,
+				canEnterCave,
+				playNotification,
+			},
+			dir,
+		);
 	};
 
 	const updateInventory = (item: ItemId, amount: number) => {
@@ -2885,181 +2749,86 @@ export function useGameRuntime() {
 	};
 
 	const nextDay = () => {
-		endFishing();
-		const nextWeather = randomWeather();
-		const upcomingDay = day + 1;
-		const earnedYesterday = currentDayEarned;
-		setPreviousDayEarned(earnedYesterday);
-		setCurrentDayEarned(0);
-		stopAreaFade();
-		if (currentAreaMusicRef.current) {
-			currentAreaMusicRef.current.pause();
-			currentAreaMusicRef.current.currentTime = 0;
-		}
-		if (endOfDayRef.current) {
-			endOfDayRef.current.currentTime = 0;
-			void endOfDayRef.current.play().catch(() => undefined);
-		}
-		setPauseGame(true);
-		setDayTransitionPrompt(
-			nextDayPrompts[randomInt(0, nextDayPrompts.length - 1)]!,
-		);
-		setDayTransition({
-			day: upcomingDay,
+		runNextDayEngine({
+			endFishing,
+			day,
+			currentDayEarned,
 			totalEarned,
-			previousDayEarned: earnedYesterday,
-		});
-		setStamina(staminaMax);
-
-		setDay((d) => d + 1);
-		setCurrentWeather(nextWeather);
-		setForestLockedToday(false);
-		setCaveLockedToday(false);
-		const nextBottlePos = rollBeachBottleSpawn(townBeachBottleTiles, randomInt);
-		setBeachBottlePos(nextBottlePos);
-		setBeachShellDrops(
-			rollBeachShellDrops(
-				townBeachBottleTiles,
-				keyForPos,
-				randomInt,
-				nextBottlePos
-					? new Set([keyForPos(nextBottlePos.x, nextBottlePos.y)])
-					: undefined,
-			),
-		);
-		setNpcDailyAssignments(
-			generateDailyAssignmentsForNpcs(Object.keys(townNpcNames)),
-		);
-		setNpcTalkedToday({});
-		const nextForest = generateForestState({
-			level: 1,
-			entranceSide: "left",
-			entranceCoord: FOREST_GATE_Y,
-			lastTurn: 0,
-		});
-		applyForestRoom(nextForest);
-		const nextCave = generateCaveState({
-			level: 1,
-			entranceSide: "right",
-			entranceCoord: CAVE_GATE_Y,
-			lastTurn: 0,
-		});
-		applyCaveRoom(nextCave);
-		setFarmWeedObstacles((prev) =>
-			evolveFarmWeeds(
-				prev,
-				mapLayouts.farm,
-				farmForestBlockers,
-				farmCaveBlockers,
-				new Set(Object.keys(plots)),
-				false,
-				STARTER_CHEST_POS,
-			),
-		);
-
-		setPlots((prev) => advancePlotsForNewDay(prev, nextWeather));
-
-		const chickensReadyToLay = animals.filter(
-			(a) => a.type === "chicken" && a.fedToday,
-		);
-		if (chickensReadyToLay.length > 0) {
-			let eggsLaid = 0;
-			setFarmEggDrops((prev) => {
-				const next = { ...prev };
-				chickensReadyToLay.forEach((chicken) => {
-					const pos = animalTiles[chicken.id];
-					if (!pos) return;
-					const drop = getEggDropNearChicken(pos, animalTiles, next);
-					if (!drop) return;
-					next[keyForPos(drop.x, drop.y)] = true;
-					eggsLaid += 1;
-				});
-				return next;
-			});
-			if (eggsLaid > 0) {
-				addLog(`Chickens laid ${eggsLaid} egg${eggsLaid === 1 ? "" : "s"}.`);
-			}
-		}
-		setAnimals((prev) => resetAnimalsForNewDay(prev));
-		if (pendingBarnUpgrade) {
-			const nextBarnTier = Math.min(
-				BARN_MAX_TIER,
-				(barnTier + 1) as BarnTier,
-			) as BarnTier;
-			setBarnTier(nextBarnTier);
-			setPendingBarnUpgrade(false);
-			addLog(
-				`Your barn was upgraded overnight to ${BARN_TIER_NAMES[nextBarnTier]}.`,
-			);
-			if (isBarnExternal(nextBarnTier)) {
-				const nextLayout = buildBarnLayout(nextBarnTier);
-				const rows = nextLayout.map((r) => r.split(""));
-				const bounds = {
-					minX: 1,
-					maxX: (rows[0]?.length ?? 0) - 2,
-					minY: 1,
-					maxY: rows.length - 2,
-				};
-				const nextCap = getBarnAnimalCap(nextBarnTier);
-				const relocation = placeAnimalsInBounds({
-					animals,
-					cap: nextCap,
-					bounds,
-				});
-				setAnimals(relocation.keptAnimals);
-				setAnimalTiles(relocation.occupied);
-				setAnimalAnchors(relocation.occupied);
-				setFarmEggDrops({});
-			}
-		}
-		if (pendingTractorDelivery) {
-			setHasTractor(true);
-			setTractorParked(true);
-			setPendingTractorDelivery(false);
-			addLog("Your tractor has been delivered to the farm driveway.");
-		}
-		const deliveredPet = pendingPet;
-		if (deliveredPet) {
-			setOwnedPet(deliveredPet);
-			setPendingPet(null);
-			addLog(`Your new pet arrived at the farm: ${deliveredPet}`);
-		}
-
-		const oldPrices = prices;
-		const { newPrices, newTrends, changedItems } = rollDailyMarketState({
-			oldPrices,
+			staminaMax,
+			stopAreaFade,
+			currentAreaMusicRef,
+			endOfDayRef,
+			setPauseGame,
+			setDayTransitionPrompt,
+			setDayTransition,
+			setPreviousDayEarned,
+			setCurrentDayEarned,
+			setStamina,
+			setDay,
+			setCurrentWeather,
+			setForestLockedToday,
+			setCaveLockedToday,
+			townBeachBottleTiles,
+			randomInt,
+			keyForPos,
+			setBeachBottlePos,
+			setBeachShellDrops,
+			townNpcNames,
+			setNpcDailyAssignments,
+			setNpcTalkedToday,
+			FOREST_GATE_Y,
+			CAVE_GATE_Y,
+			applyForestRoom,
+			applyCaveRoom,
+			setFarmWeedObstacles,
+			farmForestBlockers,
+			farmCaveBlockers,
+			plots,
+			STARTER_CHEST_POS,
+			setPlots,
+			animals,
+			animalTiles,
+			getEggDropNearChicken,
+			setFarmEggDrops,
+			addLog,
+			setAnimals,
+			pendingBarnUpgrade,
+			barnTier,
+			BARN_MAX_TIER,
+			BARN_TIER_NAMES,
+			setBarnTier,
+			setPendingBarnUpgrade,
+			isBarnExternal,
+			buildBarnLayout,
+			getBarnAnimalCap,
+			placeAnimalsInBounds,
+			setAnimalTiles,
+			setAnimalAnchors,
+			pendingTractorDelivery,
+			setHasTractor,
+			setTractorParked,
+			setPendingTractorDelivery,
+			pendingPet,
+			ownedPet,
+			setOwnedPet,
+			setPendingPet,
+			prices,
 			initialPriceTrends,
 			priceItems,
-			generatePriceChange,
-			randomInt,
-		});
-		setPrices(newPrices);
-		setPriceTrends(newTrends);
-		const dailyVendorRolls = rollDailyVendorState({
-			newPrices,
-			ownedPet,
-			deliveredPet,
+			setPrices,
+			setPriceTrends,
 			generateSketchyMerchantStock,
 			generateTraderTrades,
-		});
-		setSketchyMerchantActive(dailyVendorRolls.showSketchy);
-		setSketchyMerchantStock(dailyVendorRolls.sketchyStock);
-		setTraderActive(dailyVendorRolls.showTrader);
-		setTraderTrades(dailyVendorRolls.traderTrades);
-		setDoctorVendorActive(dailyVendorRolls.doctorVendorActive);
-		setDoctorUsedToday(false);
-		setPetVendorActive(dailyVendorRolls.petVendorActive);
-
-		const dailyNewspaper = generateDailyNewspaper(
-			oldPrices,
-			newPrices,
-			changedItems,
-			nextWeather,
+			setSketchyMerchantActive,
+			setSketchyMerchantStock,
+			setTraderActive,
+			setTraderTrades,
+			setDoctorVendorActive,
+			setDoctorUsedToday,
+			setPetVendorActive,
 			itemNames,
-			randomInt,
-		);
-		setNewspaper(dailyNewspaper);
-		addLog(`Day ${day + 1} began.`);
+			setNewspaper,
+		});
 	};
 
 	const finalizeAfterSleep = () => {
@@ -3069,48 +2838,35 @@ export function useGameRuntime() {
 	};
 
 	const continueAfterSleep = () => {
-		if (!dayTransition || dayTransitionClosePhase !== "idle") return;
-		crossFadeEndOfDayTo(houseMusicRef.current, 1000);
-		setDayTransitionClosePhase("card");
-		const toBackdrop = window.setTimeout(() => {
-			setDayTransitionClosePhase("backdrop");
-		}, 550);
-		const finalize = window.setTimeout(() => {
-			finalizeAfterSleep();
-		}, 1550);
-		dayTransitionCloseTimersRef.current = [toBackdrop, finalize];
+		continueAfterSleepEngine({
+			dayTransition,
+			dayTransitionClosePhase,
+			crossFadeEndOfDayTo,
+			houseMusicRef,
+			setDayTransitionClosePhase,
+			finalizeAfterSleep,
+			dayTransitionCloseTimersRef,
+		});
 	};
 
 	useEffect(() => {
-		dayTransitionCloseTimersRef.current.forEach((t) => window.clearTimeout(t));
-		dayTransitionCloseTimersRef.current = [];
-		dayTransitionTimersRef.current.forEach((t) => window.clearTimeout(t));
-		dayTransitionTimersRef.current = [];
-		if (!dayTransition) return;
-		setDayTransitionStage("intro");
-		setDayTransitionClosePhase("idle");
-		setDayTransitionStarsState(createDayTransitionStars());
-		const dayTimer = window.setTimeout(() => {
-			setDayTransitionStage("day");
-		}, 6000);
-		const earnedTimer = window.setTimeout(() => {
-			setDayTransitionStage("earned");
-		}, 7000);
-		const finalTimer = window.setTimeout(() => {
-			setDayTransitionStage("final");
-		}, 8000);
-		dayTransitionTimersRef.current = [dayTimer, earnedTimer, finalTimer];
-		return () => {
-			dayTransitionTimersRef.current.forEach((t) => window.clearTimeout(t));
-			dayTransitionTimersRef.current = [];
-		};
+		return startDayTransitionSequence({
+			dayTransition,
+			dayTransitionCloseTimersRef,
+			dayTransitionTimersRef,
+			setDayTransitionStage,
+			setDayTransitionClosePhase,
+			setDayTransitionStarsState,
+		});
 	}, [dayTransition]);
 
 	useEffect(() => {
-		if (!dayTransition) return;
-		if (dayTransitionStage !== "earned") return;
-		if (dayTransition.previousDayEarned > 0) playChaChing();
-		else playBad();
+		playDayTransitionEarnedSfx({
+			dayTransition,
+			dayTransitionStage,
+			playChaChing,
+			playBad,
+		});
 	}, [dayTransition, dayTransitionStage]);
 
 	const stopBathing = (line?: string) => {
@@ -3119,34 +2875,28 @@ export function useGameRuntime() {
 		if (line) addLog(line);
 	};
 
-	useEffect(() => {
-		if (!isBathing) return;
-		const interval = window.setInterval(() => {
-			setStamina((s) => Math.min(staminaMax, s + 1));
-		}, 1000);
-		return () => window.clearInterval(interval);
-	}, [isBathing, staminaMax]);
-
-	useEffect(() => {
-		if (isBathing && stamina >= staminaMax) {
-			stopBathing("You feel refreshed and step out of the bath.");
-		}
-	}, [isBathing, stamina, staminaMax]);
+	useBathingRecovery({
+		isBathing,
+		stamina,
+		staminaMax,
+		setStamina,
+		stopBathing,
+	});
 
 	const openRewardPopup = (line: string) => {
-		playGotReward();
-		addLog(line);
-		openMenu(
-			"Treasure Chest",
-			[line],
-			[{ label: "Nice!", onSelect: closeMenu }],
-		);
+		openRewardPopupEngine({
+			line,
+			playGotReward,
+			addLog,
+			openMenu,
+			closeMenu,
+		});
 	};
 
 	const grantBonusChestRewardSet = (
 		types: Array<"food" | "money" | "seeds" | "iron">,
 	): string => {
-		return grantBonusChestRewardSetRule(
+		return grantBonusChestRewardSetEngine(
 			{
 				randomInt,
 				applyMoneyDelta,
@@ -3159,7 +2909,7 @@ export function useGameRuntime() {
 	};
 
 	const openHighValueForestChestReward = () => {
-		openHighValueForestChestRewardRule({
+		openHighValueForestChestRewardEngine({
 			randomInt,
 			applyMoneyDelta,
 			updateInventory,
@@ -3433,242 +3183,66 @@ export function useGameRuntime() {
 	const onKeyDown = useInputRouter(inputContext);
 
 	const renderedMap = useMemo(() => {
-		const base = activeMapLayouts[player.map].map((r) => r.split(""));
-
-		if (player.map === "farm") {
-			if (day === 1 && !starterChestOpened) {
-				base[STARTER_CHEST_POS.y]![STARTER_CHEST_POS.x] = "X";
-			}
-			Object.entries(plots).forEach(([key, p]) => {
-				const [xs, ys] = key.split(",");
-				const x = Number(xs);
-				const y = Number(ys);
-				if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-				if (!p.crop) {
-					base[y][x] = ";";
-				} else {
-					const def = cropDefs[p.crop];
-					const age = p.growthDays;
-					if (age >= def.growDays)
-						base[y][x] = p.crop === "coral_fruit" ? "K" : "Y";
-					else if (age >= Math.ceil(def.growDays / 2)) base[y][x] = "i";
-					else base[y][x] = "'";
-				}
-			});
-			Object.entries(farmForestBlockers).forEach(([key, present]) => {
-				if (!present) return;
-				const [xs, ys] = key.split(",");
-				const x = Number(xs);
-				const y = Number(ys);
-				if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-				base[y]![x] = "L";
-			});
-			Object.entries(farmCaveBlockers).forEach(([key, hits]) => {
-				if ((hits ?? 0) <= 0) return;
-				const [xs, ys] = key.split(",");
-				const x = Number(xs);
-				const y = Number(ys);
-				if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-				base[y]![x] = "O";
-			});
-			Object.entries(petGraveObstacles).forEach(([key, hits]) => {
-				if (!hits || hits <= 0) return;
-				const [xs, ys] = key.split(",");
-				const x = Number(xs);
-				const y = Number(ys);
-				if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-				base[y]![x] = "}";
-			});
-			Object.entries(farmWeedObstacles).forEach(([key, present]) => {
-				if (!present) return;
-				const [xs, ys] = key.split(",");
-				const x = Number(xs);
-				const y = Number(ys);
-				if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-				base[y]![x] = "J";
-			});
-		}
-
-			if (player.map === "town") {
-				if (beachBottlePos) {
-					base[beachBottlePos.y]![beachBottlePos.x] = "M";
-				}
-				if (doctorVendorActive) {
-					base[DOCTOR_POS.y]![DOCTOR_POS.x] = "Z";
-				}
-				if (petVendorActive && !ownedPet) {
-					base[PET_VENDOR_POS.y]![PET_VENDOR_POS.x] = "8";
-				}
-			if (sketchyMerchantActive) {
-				base[SKETCHY_MERCHANT_POS.y]![SKETCHY_MERCHANT_POS.x] = "0";
-				if (
-					sketchyMerchantStock.length > 0 &&
-					base[SKETCHY_CRATE_POS.y]?.[SKETCHY_CRATE_POS.x]
-				) {
-					base[SKETCHY_CRATE_POS.y]![SKETCHY_CRATE_POS.x] = "6";
-				}
-			}
-			if (traderActive) {
-				if (base[TRADER_POS.y]?.[TRADER_POS.x]) {
-					base[TRADER_POS.y]![TRADER_POS.x] = "4";
-				}
-				if (base[TRADER_BOX_POS.y]?.[TRADER_BOX_POS.x]) {
-					base[TRADER_BOX_POS.y]![TRADER_BOX_POS.x] = "5";
-				}
-				if (base[TRADER_HELI_POS.y]?.[TRADER_HELI_POS.x]) {
-					base[TRADER_HELI_POS.y]![TRADER_HELI_POS.x] = "7";
-				}
-			}
-			Object.entries(beachShellDrops).forEach(([key, present]) => {
-				if (!present) return;
-				const [xs, ys] = key.split(",");
-				const x = Number(xs);
-				const y = Number(ys);
-				if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-				base[y]![x] = "S";
-			});
-			const labels: Record<string, string> = {
-				neighbor_1: "n",
-				neighbor_2: "m",
-				neighbor_3: "o",
-				neighbor_4: "p",
-			};
-			Object.entries(townNpcTiles).forEach(([k, pos]) => {
-				const label = labels[k];
-				if (label) base[pos.y][pos.x] = label;
-			});
-			const boatLabels: Record<keyof typeof boatNpcEmojis, string> = {
-				boat_1: "q",
-				boat_2: "r",
-				boat_3: "u",
-				boat_4: "v",
-				boat_5: "z",
-			};
-			(
-				Object.entries(boatTiles) as Array<
-					[keyof typeof boatNpcEmojis, { x: number; y: number }]
-				>
-			).forEach(([k, pos]) => {
-				base[pos.y][pos.x] = boatLabels[k];
-			});
-		}
-
-		if (player.map === animalsMap) {
-			const markerByAnimal: Record<AnimalType, string> = {
-				cow: "1",
-				sheep: "2",
-				chicken: "3",
-				hippo: "A",
-				unicorn: "D",
-				mammoth: "F",
-				slug: "I",
-				gorilla: "N",
-			};
-			animals.forEach((a) => {
-				const pos = animalTiles[a.id];
-				if (!pos) return;
-				base[pos.y][pos.x] = markerByAnimal[a.type];
-			});
-			Object.entries(farmEggDrops).forEach(([key, present]) => {
-				if (!present) return;
-				const [xs, ys] = key.split(",");
-				const x = Number(xs);
-				const y = Number(ys);
-				if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-				base[y]![x] = "E";
-			});
-		}
-		if (player.map === "farm") {
-			if (ownedPet && petTile) {
-				const petMarker: Record<PetEmoji, string> = {
-					"🐈": "@", // pet cat marker
-					"🐈‍⬛": "%", // pet black cat marker
-					"🐕": "&", // pet dog marker
-					"🐩": "?", // pet poodle marker
-				};
-				base[petTile.y]![petTile.x] = petMarker[ownedPet];
-			}
-			if (petHeartTile) {
-				base[petHeartTile.y]![petHeartTile.x] = "9";
-			}
-			if (hasTractor && tractorParked) {
-				base[TRACTOR_PARK_POS.y]![TRACTOR_PARK_POS.x] = "{";
-			}
-		}
-
-		if (player.map === "forest") {
-			forestObstacles.forEach((o) => {
-				base[o.y]![o.x] =
-					o.type === "rock" ? "O" : o.type === "weed" ? "J" : "L";
-			});
-			if (!forestChest.opened) {
-				base[forestChest.y]![forestChest.x] = "X";
-			}
-			forestBonusChests.forEach((chest) => {
-				if (!chest.opened) {
-					base[chest.y]![chest.x] = "X";
-				}
-			});
-			forestEnemies.forEach((enemy) => {
-				base[enemy.y]![enemy.x] =
-					enemy.type === "bear" ? "e" : enemy.type === "snake" ? "y" : "!";
-			});
-		}
-		if (player.map === "cave") {
-			caveObstacles.forEach((o) => {
-				base[o.y]![o.x] = "O";
-			});
-			if (caveLadderPos) {
-				base[caveLadderPos.y]![caveLadderPos.x] = "/";
-			}
-			caveEnemies.forEach((enemy) => {
-				base[enemy.y]![enemy.x] =
-					enemy.type === "bear" ? "e" : enemy.type === "poop" ? "!" : "`";
-			});
-		}
-
-		if (isShopMap(player.map)) {
-			const decor = shopDecorByMap[player.map];
-			if (decor) {
-				Object.entries(decor).forEach(([pos, emoji]) => {
-					const [xStr, yStr] = pos.split(",");
-					const x = Number(xStr);
-					const y = Number(yStr);
-					if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-					const tile = activeMapLayouts[player.map]?.[y]?.[x];
-					if (!tile || tile === "+" || tile === "j") return;
-					base[y][x] = emoji;
-				});
-			}
-		}
-
-		if (player.map === "cafe_shop" && isOrdering) {
-			for (let y = 0; y < base.length; y += 1) {
-				for (let x = 0; x < base[y]!.length; x += 1) {
-					if (base[y]![x] === "j") base[y]![x] = ".";
-				}
-			}
-			base[2]![cafeShopkeeperX] = "j";
-		}
-
-		if (player.map === "house" && isBathing) {
-			base[1]![1] = "V";
-		} else {
-			base[player.y][player.x] = "P";
-		}
-
-		if (fishing && fishing.map === player.map) {
-			if (fishing.phase === "waiting") base[fishing.y][fishing.x] = "b";
-			else if (fishing.phase === "bite") base[fishing.y][fishing.x] = "F";
-		}
-
-		return base;
+		return buildRenderedMapGrid({
+			activeMapLayouts,
+			player,
+			day,
+			starterChestOpened,
+			STARTER_CHEST_POS,
+			plots,
+			cropDefs,
+			farmForestBlockers,
+			farmCaveBlockers,
+			petGraveObstacles,
+			farmWeedObstacles,
+			beachBottlePos,
+			doctorVendorActive,
+			DOCTOR_POS,
+			petVendorActive,
+			ownedPet,
+			PET_VENDOR_POS,
+			sketchyMerchantActive,
+			SKETCHY_MERCHANT_POS,
+			sketchyMerchantStock,
+			SKETCHY_CRATE_POS,
+			traderActive,
+			TRADER_POS,
+			TRADER_BOX_POS,
+			TRADER_HELI_POS,
+			beachShellDrops,
+			townNpcTiles,
+			boatNpcEmojis,
+			boatTiles,
+			animalsMap,
+			animals,
+			animalTiles,
+			farmEggDrops,
+			petOptions,
+			petTile,
+			petHeartTile,
+			hasTractor,
+			tractorParked,
+			TRACTOR_PARK_POS,
+			forestObstacles,
+			forestChest,
+			forestBonusChests,
+			forestEnemies,
+			caveObstacles,
+			caveLadderPos,
+			caveEnemies,
+			isShopMap,
+			shopDecorByMap,
+			keyForPos,
+			isOrdering,
+			cafeShopkeeperX,
+			isBathing,
+			fishing,
+		});
 	}, [
 		animals,
 		animalTiles,
 		day,
 		fishing,
-		day,
 		starterChestOpened,
 		forestChest,
 		forestBonusChests,
@@ -3698,44 +3272,15 @@ export function useGameRuntime() {
 		hasTractor,
 		tractorParked,
 		townNpcTiles,
-		waterRefillTile,
 		shopDecorByMap,
 		cafeShopkeeperX,
 		isOrdering,
 		isBathing,
-		isDrivingTractor,
 		activeMapLayouts,
 		animalsMap,
 	]);
 
-	const inventoryRows = (Object.keys(inventory) as ItemId[])
-		.filter((id) => inventory[id] > 0)
-		.map((id) => ({
-			id,
-			icon: itemIcons[id],
-			name: itemNames[id],
-			amount: inventory[id],
-		}));
-	const marketRows = priceItems.map((id) => ({
-		id,
-		name: itemNames[id],
-		price: prices[id],
-		trend: priceTrends[id],
-	}));
-	const toolRows: Array<{ id: ToolId; name: string; level: number }> = [
-		{ id: "hoe", name: "Hoe", level: tools.hoe },
-		{ id: "wateringCan", name: "Watering Can", level: tools.wateringCan },
-		{ id: "milkingGloves", name: "Milking Gloves", level: tools.milkingGloves },
-		{ id: "shears", name: "Shears", level: tools.shears },
-		...(tools.fishingRod > 0
-			? ([{ id: "fishingRod", name: "Fishing Rod", level: tools.fishingRod }] as const)
-			: []),
-		...(tools.smashAxe > 0
-			? ([{ id: "smashAxe", name: "Smash Axe", level: tools.smashAxe }] as const)
-			: []),
-	];
-
-	const viewCtx: GameRuntimeViewModel = {
+	const viewCtx: GameRuntimeViewModel = buildGameRuntimeViewModel({
 		onKeyDown,
 		shellRef,
 		day,
@@ -3746,7 +3291,12 @@ export function useGameRuntime() {
 		stamina,
 		staminaMax,
 		waterLevel,
-		inventoryRows,
+		inventory,
+		itemIcons,
+		itemNames,
+		priceItems,
+		priceTrends,
+		tools,
 		log,
 		activeMapLayouts,
 		isWindSlashOn,
@@ -3778,8 +3328,6 @@ export function useGameRuntime() {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
-		marketRows,
-		toolRows,
 		getToolTierName,
 		pendingTractorDelivery,
 		hasTractor,
@@ -3806,7 +3354,7 @@ export function useGameRuntime() {
 		dayTransitionClosePhase,
 		continueAfterSleep,
 		dayTransitionPrompt,
-	};
+	});
 
 	return renderGameRuntimeView(viewCtx);
 }

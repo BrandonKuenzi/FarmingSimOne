@@ -1,5 +1,13 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { Dir, Door, MapId, Point, Position, TractorImplement } from "../shared/types";
+import type {
+	Dir,
+	Door,
+	MapId,
+	PetEmoji,
+	Point,
+	Position,
+	TractorImplement,
+} from "../shared/types";
 
 type PlayerMovementContext = {
 	modal: unknown;
@@ -17,14 +25,14 @@ type PlayerMovementContext = {
 	tractorImplement: TractorImplement | null;
 	tractorImplementOn: boolean;
 	isPassableAt: (map: MapId, x: number, y: number) => boolean;
-	ownedPet: string | null;
+	ownedPet: PetEmoji | null;
 	petTile: Point | null;
 	isOccupied: (map: MapId, x: number, y: number) => boolean;
 	playHoe: () => void;
 	petRunoverBadTimeoutRef: MutableRefObject<number | null>;
 	playBad: () => void;
-	setOwnedPet: Dispatch<SetStateAction<string | null>>;
-	setPendingPet: Dispatch<SetStateAction<string | null>>;
+	setOwnedPet: Dispatch<SetStateAction<PetEmoji | null>>;
+	setPendingPet: Dispatch<SetStateAction<PetEmoji | null>>;
 	setPetTile: Dispatch<SetStateAction<Point | null>>;
 	setPetHeartTile: Dispatch<SetStateAction<Point | null>>;
 	setPendingPetGravePos: Dispatch<SetStateAction<Point | null>>;
