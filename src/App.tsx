@@ -146,6 +146,7 @@ import {
 	getSeedSellbackPrice,
 } from "./game/systems/commerce";
 import { evolveFarmWeeds, generateInitialFarmWeedField } from "./game/systems/weeds";
+import { randomWeather, weatherEmojiById } from "./game/systems/weather";
 import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
@@ -633,15 +634,6 @@ const initialPriceTrends: PriceTrendState = {
 	emerald: 0,
 	ruby: 0,
 	coral_fruit: 0,
-};
-
-const weatherOptions: WeatherId[] = ["sunny", "windy", "rainy"];
-const randomWeather = (): WeatherId =>
-	weatherOptions[randomInt(0, weatherOptions.length - 1)]!;
-const weatherEmojiById: Record<WeatherId, string> = {
-	sunny: "🌞", // sunny
-	windy: "🍃", // windy
-	rainy: "☔", // rainy
 };
 
 const getFarmBarnInteriorBounds = (barnTier: BarnTier) => {
