@@ -16,6 +16,8 @@ type RenderedMapContext = {
 	day: number;
 	starterChestOpened: boolean;
 	STARTER_CHEST_POS: { x: number; y: number };
+	headlampLetterVisible: boolean;
+	HEADLAMP_LETTER_POS: { x: number; y: number };
 	plots: Record<string, Plot>;
 	cropDefs: Record<string, { growDays: number }>;
 	farmForestBlockers: Record<string, boolean>;
@@ -55,6 +57,7 @@ type RenderedMapContext = {
 	forestBonusChests: ForestChest[];
 	forestEnemies: ForestEnemy[];
 	caveObstacles: ForestObstacle[];
+	caveBonusChest: ForestChest | null;
 	caveLadderPos: { x: number; y: number } | null;
 	caveEnemies: ForestEnemy[];
 	isShopMap: (map: MapId) => boolean;
@@ -73,6 +76,8 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		day,
 		starterChestOpened,
 		STARTER_CHEST_POS,
+		headlampLetterVisible,
+		HEADLAMP_LETTER_POS,
 		plots,
 		cropDefs,
 		farmForestBlockers,
@@ -112,6 +117,7 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		forestBonusChests,
 		forestEnemies,
 		caveObstacles,
+		caveBonusChest,
 		caveLadderPos,
 		caveEnemies,
 		isShopMap,
@@ -129,6 +135,9 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		if (day === 1 && !starterChestOpened) {
 			base[STARTER_CHEST_POS.y]![STARTER_CHEST_POS.x] = "X";
 		}
+		if (headlampLetterVisible) {
+			base[HEADLAMP_LETTER_POS.y]![HEADLAMP_LETTER_POS.x] = "\\";
+		}
 		Object.entries(plots).forEach(([key, p]) => {
 			const [xs, ys] = key.split(",");
 			const x = Number(xs);
@@ -138,9 +147,15 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 			else {
 				const def = cropDefs[p.crop];
 				const age = p.growthDays;
-				if (age >= def.growDays) base[y][x] = p.crop === "coral_fruit" ? "K" : "Y";
-				else if (age >= Math.ceil(def.growDays / 2)) base[y][x] = "i";
-				else base[y][x] = "'";
+				if (age >= def.growDays) {
+					base[y][x] = "🌾";
+				} else {
+					const stage2Start = Math.max(1, Math.ceil(def.growDays / 3));
+					const stage3Start = Math.max(1, Math.ceil((def.growDays * 2) / 3));
+					if (age >= stage3Start) base[y][x] = "☘️";
+					else if (age >= stage2Start) base[y][x] = "🌱";
+					else base[y][x] = "'";
+				}
 			}
 		});
 		Object.entries(farmForestBlockers).forEach(([key, present]) => {
@@ -276,8 +291,11 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 	}
 	if (player.map === "cave") {
 		caveObstacles.forEach((o) => {
-			base[o.y]![o.x] = "O";
+			base[o.y]![o.x] = o.type === "torch" ? "|" : "O";
 		});
+		if (caveBonusChest && !caveBonusChest.opened) {
+			base[caveBonusChest.y]![caveBonusChest.x] = "X";
+		}
 		if (caveLadderPos) base[caveLadderPos.y]![caveLadderPos.x] = "/";
 		caveEnemies.forEach((enemy) => {
 			base[enemy.y]![enemy.x] = enemy.type === "bear" ? "e" : enemy.type === "poop" ? "!" : "`";

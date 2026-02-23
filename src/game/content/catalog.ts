@@ -4,7 +4,7 @@ import type { AnimalDef, AnimalType, CropDef, CropId, ItemId, SnakePatrolState }
 export const makeSnakeDirections = (enemies: Array<{ id: number; type: string }>) =>
 	Object.fromEntries(
 		enemies
-			.filter((enemy) => enemy.type === "snake")
+			.filter((enemy) => enemy.type === "snake" || enemy.type === "bat")
 			.map((enemy) => [
 				enemy.id,
 				{

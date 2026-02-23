@@ -16,8 +16,8 @@ import { generateDailyAssignmentsForNpcs } from "../../../npcDialogue";
 import { createDayTransitionStars, nextDayPrompts } from "../../content/dayTransition";
 import { rollBeachBottleSpawn, rollBeachShellDrops } from "../../world/beach";
 import { generateForestState, generateCaveState } from "../../world/generation";
-import { mapLayouts } from "../../world/layout";
-import { generateDailyNewspaper, generatePriceChange } from "../../systems/news";
+import { getFarmBarnOuterRect, mapLayouts } from "../../world/layout";
+import { generateDailyNewspaper } from "../../systems/news";
 import { advancePlotsForNewDay, resetAnimalsForNewDay, rollDailyMarketState, rollDailyVendorState } from "../../systems/day";
 import { evolveFarmWeeds } from "../../systems/weeds";
 import { randomWeather } from "../../systems/weather";
@@ -55,6 +55,9 @@ type RunNextDayArgs = {
 	applyForestRoom: (next: ForestGenerationResult) => void;
 	applyCaveRoom: (next: CaveGenerationResult) => void;
 	setFarmWeedObstacles: Dispatch<SetStateAction<Record<string, boolean>>>;
+	setFarmForestBlockers: Dispatch<SetStateAction<Record<string, boolean>>>;
+	setFarmCaveBlockers: Dispatch<SetStateAction<Record<string, number>>>;
+	setPetGraveObstacles: Dispatch<SetStateAction<Record<string, number>>>;
 	farmForestBlockers: Record<string, boolean>;
 	farmCaveBlockers: Record<string, number>;
 	plots: Record<string, Plot>;
@@ -95,6 +98,7 @@ type RunNextDayArgs = {
 	setOwnedPet: Dispatch<SetStateAction<PetEmoji | null>>;
 	setPendingPet: Dispatch<SetStateAction<PetEmoji | null>>;
 	prices: PriceState;
+	initialPrices: PriceState;
 	initialPriceTrends: PriceTrendState;
 	priceItems: ItemId[];
 	setPrices: Dispatch<SetStateAction<PriceState>>;
@@ -145,6 +149,9 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 		applyForestRoom,
 		applyCaveRoom,
 		setFarmWeedObstacles,
+		setFarmForestBlockers,
+		setFarmCaveBlockers,
+		setPetGraveObstacles,
 		farmForestBlockers,
 		farmCaveBlockers,
 		plots,
@@ -177,6 +184,7 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 		setOwnedPet,
 		setPendingPet,
 		prices,
+		initialPrices,
 		initialPriceTrends,
 		priceItems,
 		setPrices,
@@ -284,9 +292,34 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 
 	if (pendingBarnUpgrade) {
 		const nextBarnTier = Math.min(BARN_MAX_TIER, (barnTier + 1) as BarnTier) as BarnTier;
+		const prevBarnRect = getFarmBarnOuterRect(barnTier);
+		const nextBarnRect = getFarmBarnOuterRect(nextBarnTier);
 		setBarnTier(nextBarnTier);
 		setPendingBarnUpgrade(false);
 		addLog(`Your barn was upgraded overnight to ${BARN_TIER_NAMES[nextBarnTier]}.`);
+		const barnExpandedOnFarm =
+			nextBarnRect.w > prevBarnRect.w || nextBarnRect.h > prevBarnRect.h;
+		if (barnExpandedOnFarm) {
+			const inNextBarnRect = (x: number, y: number) =>
+				x >= nextBarnRect.x &&
+				x < nextBarnRect.x + nextBarnRect.w &&
+				y >= nextBarnRect.y &&
+				y < nextBarnRect.y + nextBarnRect.h;
+			const dropInRect = <T extends boolean | number>(prev: Record<string, T>) =>
+				Object.fromEntries(
+					Object.entries(prev).filter(([key]) => {
+						const [xStr, yStr] = key.split(",");
+						const x = Number(xStr);
+						const y = Number(yStr);
+						return !inNextBarnRect(x, y);
+					}),
+				) as Record<string, T>;
+			setFarmForestBlockers(dropInRect);
+			setFarmCaveBlockers(dropInRect);
+			setPetGraveObstacles(dropInRect);
+			setFarmWeedObstacles(dropInRect);
+			setFarmEggDrops(dropInRect);
+		}
 		if (isBarnExternal(nextBarnTier)) {
 			const nextLayout = buildBarnLayout(nextBarnTier);
 			const rows = nextLayout.map((r) => r.split(""));
@@ -325,9 +358,9 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 	const oldPrices = prices;
 	const { newPrices, newTrends, changedItems } = rollDailyMarketState({
 		oldPrices,
+		defaultPrices: initialPrices,
 		initialPriceTrends,
 		priceItems,
-		generatePriceChange,
 		randomInt,
 	});
 	setPrices(newPrices);

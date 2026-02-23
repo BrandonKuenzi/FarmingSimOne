@@ -142,13 +142,18 @@ export const nextAnimalTile = ({
 	randomInt: RandomFn;
 	moveDirections: Record<number, MoveDelta>;
 	playerMapWhenBlocking: MapId;
-}): IntPoint | null =>
-	tryRandomWanderMove(current, 128, randomInt, moveDirections, (next) => {
+}): IntPoint | null => {
+	let attempts = 0;
+	while (attempts < 128) {
+		attempts += 1;
+		const delta = moveDirections[randomInt(1, 8)];
+		if (!delta) continue;
+		const next = { x: current.x + delta.dx, y: current.y + delta.dy };
 		if (
 			!allowOutsideBarn &&
 			Math.max(Math.abs(next.x - anchor.x), Math.abs(next.y - anchor.y)) > 2
 		)
-			return false;
+			continue;
 		if (!allowOutsideBarn) {
 			if (
 				next.x < barnInteriorBounds.minX ||
@@ -156,18 +161,20 @@ export const nextAnimalTile = ({
 				next.y < barnInteriorBounds.minY ||
 				next.y > barnInteriorBounds.maxY
 			)
-				return false;
+				continue;
 		}
-		if (!isPassableChar(activeMapRows[next.y]?.[next.x] ?? "#")) return false;
-		if (farmEggDrops[keyForPos(next.x, next.y)]) return false;
+		const tile = activeMapRows[next.y]?.[next.x] ?? "#";
+		if (!isPassableChar(tile)) continue;
+		if (farmEggDrops[keyForPos(next.x, next.y)]) continue;
 
 		const occupiedByAnimal = Object.entries(nextAnimalTiles).some(
 			([otherId, pos]) =>
 				Number(otherId) !== animalId && pos.x === next.x && pos.y === next.y,
 		);
-		if (occupiedByAnimal) return false;
-		if (player.map === playerMapWhenBlocking && player.x === next.x && player.y === next.y) {
-			return false;
-		}
-		return true;
-	});
+		if (occupiedByAnimal) continue;
+		if (player.map === playerMapWhenBlocking && player.x === next.x && player.y === next.y)
+			continue;
+		return next;
+	}
+	return null;
+};

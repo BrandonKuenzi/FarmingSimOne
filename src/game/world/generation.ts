@@ -627,6 +627,206 @@ const randomCaveOpenCell = (
 	return null;
 };
 
+const generateBonusCaveState = (cfg?: ForestGenConfig): CaveGenerationResult => {
+	const level = Math.max(1, cfg?.level ?? 1);
+	const entranceSide = cfg?.entranceSide ?? "left";
+	const entrancePair = makeCaveDoorBySide(
+		entranceSide,
+		cfg?.entranceCoord ?? (entranceSide === "left" ? CAVE_GATE_Y : undefined),
+	);
+	const exitSide = oppositeForestSide(entranceSide);
+	const alignedCoord =
+		entranceSide === "left" || entranceSide === "right"
+			? entrancePair.door.y
+			: entrancePair.door.x;
+	const exitPair = makeCaveDoorBySide(exitSide, alignedCoord);
+
+	const grid: string[][] = Array.from({ length: FARM_HEIGHT }, () =>
+		Array.from({ length: FARM_WIDTH }, () => randomCaveWallTile()),
+	);
+
+	const centerX = Math.floor(FARM_WIDTH / 2);
+	const centerY = Math.floor(FARM_HEIGHT / 2);
+	const rx = Math.floor(FARM_WIDTH * 0.31);
+	const ry = Math.floor(FARM_HEIGHT * 0.36);
+	for (let y = 1; y < FARM_HEIGHT - 1; y += 1) {
+		for (let x = 1; x < FARM_WIDTH - 1; x += 1) {
+			const nx = (x - centerX) / rx;
+			const ny = (y - centerY) / ry;
+			if (nx * nx + ny * ny <= 1) {
+				grid[y]![x] = ")";
+			}
+		}
+	}
+
+	// Always route through the chamber center so entrance/exit paths
+	// intersect the bonus-room floor and never bypass the loot chamber.
+	carveCaveLine(
+		grid,
+		entrancePair.inside.x,
+		entrancePair.inside.y,
+		centerX,
+		centerY,
+	);
+	carveCaveLine(
+		grid,
+		centerX,
+		centerY,
+		exitPair.inside.x,
+		exitPair.inside.y,
+	);
+
+	grid[entrancePair.door.y]![entrancePair.door.x] = level === 1 ? "+" : "/";
+	grid[entrancePair.inside.y]![entrancePair.inside.x] = ")";
+	grid[exitPair.inside.y]![exitPair.inside.x] = ")";
+
+	const chestCell = { x: centerX, y: centerY };
+	grid[chestCell.y]![chestCell.x] = ")";
+
+	const obstacleCells = new Set<string>([
+		`${entrancePair.inside.x},${entrancePair.inside.y}`,
+		`${exitPair.inside.x},${exitPair.inside.y}`,
+		`${chestCell.x},${chestCell.y}`,
+	]);
+	const isBlocked = (x: number, y: number) => obstacleCells.has(`${x},${y}`);
+	const obstacles: ForestObstacle[] = [];
+	const chestSideOffsets =
+		entranceSide === "left" || entranceSide === "right"
+			? [
+					{ dx: 0, dy: -1 },
+					{ dx: 0, dy: 1 },
+				]
+			: [
+					{ dx: -1, dy: 0 },
+					{ dx: 1, dy: 0 },
+				];
+	for (const offset of chestSideOffsets) {
+		const x = chestCell.x + offset.dx;
+		const y = chestCell.y + offset.dy;
+		if (!isCaveWalkableTile(grid[y]?.[x] ?? "")) continue;
+		if (isBlocked(x, y)) continue;
+		obstacleCells.add(`${x},${y}`);
+		obstacles.push({
+			id: obstacles.length + 1,
+			type: "torch",
+			x,
+			y,
+			hitsRemaining: 1,
+		});
+	}
+	const isEdgeFloorTile = (x: number, y: number) => {
+		if (!isCaveWalkableTile(grid[y]?.[x] ?? "")) return false;
+		return (
+			!isCaveWalkableTile(grid[y - 1]?.[x] ?? "") ||
+			!isCaveWalkableTile(grid[y + 1]?.[x] ?? "") ||
+			!isCaveWalkableTile(grid[y]?.[x - 1] ?? "") ||
+			!isCaveWalkableTile(grid[y]?.[x + 1] ?? "")
+		);
+	};
+	const findEdgeFromCenter = (dx: number, dy: number) => {
+		let lastWalkable: { x: number; y: number } | null = null;
+		for (let step = 1; step < Math.max(FARM_WIDTH, FARM_HEIGHT); step += 1) {
+			const x = centerX + dx * step;
+			const y = centerY + dy * step;
+			if (x <= 0 || y <= 0 || x >= FARM_WIDTH - 1 || y >= FARM_HEIGHT - 1) break;
+			if (isCaveWalkableTile(grid[y]?.[x] ?? "")) {
+				lastWalkable = { x, y };
+				continue;
+			}
+			break;
+		}
+		if (!lastWalkable) return null;
+		return isEdgeFloorTile(lastWalkable.x, lastWalkable.y) ? lastWalkable : null;
+	};
+	const symmetricDirectionSets: Array<Array<{ dx: number; dy: number }>> = [
+		[
+			{ dx: 1, dy: 1 },
+			{ dx: -1, dy: 1 },
+			{ dx: -1, dy: -1 },
+			{ dx: 1, dy: -1 },
+		],
+		[
+			{ dx: 1, dy: 0 },
+			{ dx: -1, dy: 0 },
+			{ dx: 0, dy: 1 },
+			{ dx: 0, dy: -1 },
+		],
+	];
+	let torchCells: Array<{ x: number; y: number }> = [];
+	for (const directionSet of symmetricDirectionSets) {
+		const candidates = directionSet
+			.map(({ dx, dy }) => findEdgeFromCenter(dx, dy))
+			.filter((cell): cell is { x: number; y: number } => cell !== null);
+		const unique = new Set(candidates.map((cell) => `${cell.x},${cell.y}`));
+		if (candidates.length !== 4 || unique.size !== 4) continue;
+		if (candidates.some((cell) => isBlocked(cell.x, cell.y))) continue;
+		torchCells = candidates;
+		break;
+	}
+	if (torchCells.length !== 4) {
+		torchCells = [];
+		const fallbackDirections = [
+			{ dx: 1, dy: 1 },
+			{ dx: -1, dy: 1 },
+			{ dx: -1, dy: -1 },
+			{ dx: 1, dy: -1 },
+		];
+		for (const direction of fallbackDirections) {
+			const cell = findEdgeFromCenter(direction.dx, direction.dy);
+			if (!cell || isBlocked(cell.x, cell.y)) continue;
+			const key = `${cell.x},${cell.y}`;
+			if (torchCells.some((placed) => `${placed.x},${placed.y}` === key)) continue;
+			torchCells.push(cell);
+		}
+		for (let tries = 0; tries < 800 && torchCells.length < 4; tries += 1) {
+			const candidate = randomCaveOpenCell(grid, isBlocked);
+			if (!candidate) break;
+			if (!isEdgeFloorTile(candidate.x, candidate.y)) continue;
+			const key = `${candidate.x},${candidate.y}`;
+			if (torchCells.some((placed) => `${placed.x},${placed.y}` === key)) continue;
+			torchCells.push(candidate);
+		}
+		for (let tries = 0; tries < 800 && torchCells.length < 4; tries += 1) {
+			const candidate = randomCaveOpenCell(grid, isBlocked);
+			if (!candidate) break;
+			const key = `${candidate.x},${candidate.y}`;
+			if (torchCells.some((placed) => `${placed.x},${placed.y}` === key)) continue;
+			torchCells.push(candidate);
+		}
+	}
+	for (let i = 0; i < torchCells.length; i += 1) {
+		const cell = torchCells[i]!;
+		obstacleCells.add(`${cell.x},${cell.y}`);
+		obstacles.push({
+			id: obstacles.length + 1,
+			type: "torch",
+			x: cell.x,
+			y: cell.y,
+			hitsRemaining: 1,
+		});
+	}
+
+	return {
+		layout: grid.map((row) => row.join("")),
+		enemies: [],
+		obstacles,
+		bonusChest: {
+			id: 1,
+			x: chestCell.x,
+			y: chestCell.y,
+			opened: false,
+		},
+		isBonusLevel: true,
+		entranceSide,
+		entranceDoor: entrancePair.door,
+		entranceInside: entrancePair.inside,
+		ladderPos: exitPair.inside,
+		levelOneExitInside: { x: -1, y: -1 },
+		startingRockCount: 1,
+		level,
+	};
+};
+
 const caveRubbleChars = [".", ":", '"', "`"] as const;
 export const buildCaveRubble = (layout: string[]): Record<string, string> => {
 	const rubble: Record<string, string> = {};
@@ -644,6 +844,9 @@ export const buildCaveRubble = (layout: string[]): Record<string, string> => {
 
 export const generateCaveState = (cfg?: ForestGenConfig): CaveGenerationResult => {
 	const level = Math.max(1, cfg?.level ?? 1);
+	if (level % 5 === 0) {
+		return generateBonusCaveState(cfg);
+	}
 	const entranceSide = cfg?.entranceSide ?? "left";
 	const entrancePair = makeCaveDoorBySide(
 		entranceSide,
@@ -728,6 +931,19 @@ export const generateCaveState = (cfg?: ForestGenConfig): CaveGenerationResult =
 			hitsRemaining: 24,
 		});
 	}
+	const torchCount = randomInt(2, 7);
+	for (let i = 0; i < torchCount; i += 1) {
+		const cell = randomCaveOpenCell(grid, isBlocked);
+		if (!cell) break;
+		obstacleCells.add(`${cell.x},${cell.y}`);
+		obstacles.push({
+			id: rockCount + i + 1,
+			type: "torch",
+			x: cell.x,
+			y: cell.y,
+			hitsRemaining: 1,
+		});
+	}
 
 	const enemyTypesWeighted: ForestEnemyType[] = ["bear", "bat", "bat", "poop"];
 	const enemies: ForestEnemy[] = [];
@@ -762,9 +978,12 @@ export const generateCaveState = (cfg?: ForestGenConfig): CaveGenerationResult =
 		layout: grid.map((row) => row.join("")),
 		enemies,
 		obstacles,
+		bonusChest: null,
+		isBonusLevel: false,
 		entranceSide,
 		entranceDoor: entrancePair.door,
 		entranceInside: entrancePair.inside,
+		ladderPos: null,
 		levelOneExitInside,
 		startingRockCount: Math.max(1, obstacles.length),
 		level,

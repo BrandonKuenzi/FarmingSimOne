@@ -23,6 +23,8 @@ export type AreaMusicController = {
 type AreaMusicControllerInput = {
 	isShopMap: (mapId: MapId) => boolean;
 	playerRef: MutableRefObject<{ map: MapId; [key: string]: unknown }>;
+	forestIsBonusLevel: boolean;
+	caveIsBonusLevel: boolean;
 	hasDayTransition: boolean;
 	isOrdering: boolean;
 	isDoctorCompounding: boolean;
@@ -50,6 +52,8 @@ export const createAreaMusicController = (
 	const {
 		isShopMap,
 		playerRef,
+		forestIsBonusLevel,
+		caveIsBonusLevel,
 		hasDayTransition,
 		isOrdering,
 		isDoctorCompounding,
@@ -74,10 +78,22 @@ export const createAreaMusicController = (
 	const getAreaMusicForMap = (mapId: MapId) => {
 		if (mapId === "farm") return farmMusicRef.current;
 		if (mapId === "town" || isShopMap(mapId)) return townMusicRef.current;
-		if (mapId === "forest") return forestMusicRef.current;
-		if (mapId === "cave") return caveMusicRef.current;
+		if (mapId === "forest") {
+			if (forestIsBonusLevel) return bureaucracyMusicRef.current;
+			return forestMusicRef.current;
+		}
+		if (mapId === "cave") {
+			if (caveIsBonusLevel) return bureaucracyMusicRef.current;
+			return caveMusicRef.current;
+		}
 		if (mapId === "bureaucracy_office") return bureaucracyMusicRef.current;
 		return houseMusicRef.current;
+	};
+
+	const getDesiredVolumeForTrack = (track: HTMLAudioElement | null): number => {
+		if (!track) return 1;
+		if (track === caveMusicRef.current) return 0.5;
+		return 1;
 	};
 
 	const stopAreaFade = () => {
@@ -142,7 +158,7 @@ export const createAreaMusicController = (
 				track.pause();
 			}
 			track.currentTime = 0;
-			track.volume = 1;
+			track.volume = getDesiredVolumeForTrack(track);
 		});
 	};
 
@@ -203,7 +219,7 @@ export const createAreaMusicController = (
 				stopAreaFade();
 				track.pause();
 				track.currentTime = 0;
-				track.volume = 1;
+				track.volume = getDesiredVolumeForTrack(track);
 				stopStaleBackgroundTracks();
 			}
 		}, tickMs);
@@ -219,7 +235,7 @@ export const createAreaMusicController = (
 
 		const current = currentAreaMusicRef.current;
 		if (!current) {
-			target.volume = 1;
+			target.volume = getDesiredVolumeForTrack(target);
 			void target.play().catch(() => undefined);
 			currentAreaMusicRef.current = target;
 			stopStaleBackgroundTracks();
@@ -228,7 +244,7 @@ export const createAreaMusicController = (
 
 		if (current === target) {
 			if (current.paused) {
-				current.volume = 1;
+				current.volume = getDesiredVolumeForTrack(current);
 				void current.play().catch(() => undefined);
 			}
 			stopStaleBackgroundTracks();
@@ -238,7 +254,7 @@ export const createAreaMusicController = (
 		if (instant) {
 			current.pause();
 			current.currentTime = 0;
-			target.volume = 1;
+			target.volume = getDesiredVolumeForTrack(target);
 			void target.play().catch(() => undefined);
 			currentAreaMusicRef.current = target;
 			stopStaleBackgroundTracks();
@@ -262,8 +278,8 @@ export const createAreaMusicController = (
 				stopAreaFade();
 				current.pause();
 				current.currentTime = 0;
-				current.volume = 1;
-				target.volume = 1;
+				current.volume = getDesiredVolumeForTrack(current);
+				target.volume = getDesiredVolumeForTrack(target);
 				stopStaleBackgroundTracks();
 			}
 		}, tickMs);
@@ -272,12 +288,13 @@ export const createAreaMusicController = (
 
 	const crossFadeEndOfDayTo = (target: HTMLAudioElement | null, durationMs = 1000) => {
 		const endTrack = endOfDayRef.current;
+		const targetVolume = getDesiredVolumeForTrack(target);
 		if (!target) {
 			stopEndOfDaySong();
 			return;
 		}
 		if (!endTrack) {
-			target.volume = 1;
+			target.volume = targetVolume;
 			void target.play().catch(() => undefined);
 			currentAreaMusicRef.current = target;
 			return;
@@ -294,13 +311,13 @@ export const createAreaMusicController = (
 			elapsed += tickMs;
 			const t = Math.min(elapsed / durationMs, 1);
 			endTrack.volume = 1 - t;
-			target.volume = t;
+			target.volume = targetVolume * t;
 			if (t >= 1) {
 				stopAreaFade();
 				endTrack.pause();
 				endTrack.currentTime = 0;
 				endTrack.volume = 1;
-				target.volume = 1;
+				target.volume = targetVolume;
 				currentAreaMusicRef.current = target;
 				stopStaleBackgroundTracks();
 			}

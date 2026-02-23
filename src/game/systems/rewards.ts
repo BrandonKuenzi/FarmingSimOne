@@ -15,10 +15,15 @@ type RewardContext = {
 export const grantBonusChestRewardSet = (
 	ctx: RewardContext,
 	types: Array<"food" | "money" | "seeds" | "iron">,
+	foodMode: "all" | "coffeeOnly" = "all",
 ): string => {
 	const lines: string[] = [];
 	if (types.includes("food")) {
-		const food = cafeMenuItems[ctx.randomInt(0, cafeMenuItems.length - 1)]!;
+		const coffee = cafeMenuItems.find((item) => item.name === "Coffee");
+		const food =
+			foodMode === "coffeeOnly" && coffee
+				? coffee
+				: cafeMenuItems[ctx.randomInt(0, cafeMenuItems.length - 1)]!;
 		ctx.setStamina((s) => Math.min(ctx.staminaMax, s + food.stamina));
 		lines.push(`Found ${food.name} (+${food.stamina} stamina).`);
 	}
@@ -124,6 +129,43 @@ export const openHighValueForestChestReward = (ctx: {
 		}
 	}
 	ctx.openRewardPopup(rewardLine);
+};
+
+export const openCaveBonusChestReward = (ctx: {
+	updateInventory: (item: ItemId, amount: number) => void;
+	openRewardPopup: (line: string) => void;
+}): void => {
+	const roll = randomRoll() * 100;
+	let line = "";
+	if (roll < 25) {
+		ctx.updateInventory("diamond", 1);
+		line = "You found Diamond +1.";
+	} else if (roll < 50) {
+		ctx.updateInventory("emerald", 1);
+		line = "You found Emerald +1.";
+	} else if (roll < 75) {
+		ctx.updateInventory("ruby", 1);
+		line = "You found Ruby +1.";
+	} else if (roll < 85) {
+		ctx.updateInventory("emerald", 1);
+		ctx.updateInventory("ruby", 1);
+		line = "You found Emerald +1 and Ruby +1.";
+	} else if (roll < 95) {
+		ctx.updateInventory("emerald", 1);
+		ctx.updateInventory("diamond", 1);
+		line = "You found Emerald +1 and Diamond +1.";
+	} else if (roll < 99) {
+		ctx.updateInventory("diamond", 1);
+		ctx.updateInventory("emerald", 1);
+		ctx.updateInventory("ruby", 1);
+		line = "Jackpot! Diamond +1, Emerald +1, and Ruby +1.";
+	} else {
+		ctx.updateInventory("diamond", 2);
+		ctx.updateInventory("emerald", 2);
+		ctx.updateInventory("ruby", 2);
+		line = "Mega jackpot! Diamond x2, Emerald x2, and Ruby x2.";
+	}
+	ctx.openRewardPopup(line);
 };
 
 export const rollBeachBottleReward = (ctx: {

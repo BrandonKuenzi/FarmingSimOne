@@ -92,6 +92,8 @@ body {
 	font-size: 20px;
 	line-height: 1;
 	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 .save-load-overlay {
@@ -326,6 +328,29 @@ body {
 
 .cave-emoji-glyph {
 	filter: brightness(0.5);
+}
+
+.cave-ladder-hole-glyph {
+	position: relative;
+	isolation: isolate;
+}
+
+.cave-ladder-hole-glyph::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		to top,
+		rgba(0, 0, 0, 0.85) 0%,
+		rgba(0, 0, 0, 0.5) 38%,
+		rgba(0, 0, 0, 0) 100%
+	);
+	mix-blend-mode: multiply;
+	pointer-events: none;
+}
+
+.animal-unfed-emoji-glyph {
+	filter: brightness(0.8);
 }
 
 .forest-tree-emoji-glyph {
