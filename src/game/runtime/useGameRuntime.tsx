@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, type SetStateAction } from "react";
 import bgMusicSrc from "../../assets/bgMusic.mp3";
 import bgFarmSrc from "../../assets/bgFarm.ogg";
 import townBGSrc from "../../assets/GameBananaFeildloop.mp3";
@@ -270,7 +270,7 @@ import type {
 	WeatherId,
 } from "../shared/types";
 import { keyForPos } from "../shared/coords";
-import { randomInt } from "../shared/random";
+import { randomInt, randomRoll } from "../shared/random";
 import {
 	HEADLAMP_PRICE,
 	FARM_CAVE_BLOCKER_POSITIONS,
@@ -302,6 +302,7 @@ import {
 } from "../config/gameplay";
 import { groundClassForTile, spriteTilesNeedingGround, toVisual } from "../config/visuals";
 import { applyMoneyDeltaState, updateInventoryState } from "../state/actions";
+import { gameStateReducer, type GameState, type GameStateAction } from "../state/gameState";
 export function useGameRuntime() {
 	const shellRef = useRef<HTMLDivElement | null>(null);
 	const notificationRef = useRef<HTMLAudioElement | null>(null);
@@ -379,286 +380,416 @@ export function useGameRuntime() {
 			lastTurn: 0,
 		}),
 	);
-	const startedRef = useRef(false);
-	const [player, setPlayer] = useState<Position>({ map: "farm", x: 6, y: 10 });
-	const [day, setDay] = useState(1);
-	const [forestLayout, setForestLayout] = useState<string[]>(
-		() => initialForestStateRef.current.layout,
-	);
-	const [forestEnemies, setForestEnemies] = useState<ForestEnemy[]>(
-		() => initialForestStateRef.current.enemies,
-	);
+		const startedRef = useRef(false);
 	const forestSnakeDirsRef = useRef<Record<number, SnakePatrolState>>(
 		makeSnakeDirections(initialForestStateRef.current.enemies),
 	);
 	const forestAggroRef = useRef<Record<number, boolean>>({});
 	const forestEnemyTickRef = useRef(0);
-	const [forestObstacles, setForestObstacles] = useState<ForestObstacle[]>(
-		() => initialForestStateRef.current.obstacles,
-	);
-	const [forestChest, setForestChest] = useState<ForestChest>(
-		() => initialForestStateRef.current.chest,
-	);
-	const [forestBonusChests, setForestBonusChests] = useState<ForestChest[]>(
-		() => initialForestStateRef.current.bonusChests,
-	);
-	const [forestLevel, setForestLevel] = useState<number>(
-		() => initialForestStateRef.current.level,
-	);
-	const [forestEntranceDoorPos, setForestEntranceDoorPos] = useState<Point>(
-		() => initialForestStateRef.current.entranceDoor,
-	);
-	const [forestForwardExitPos, setForestForwardExitPos] = useState<Point>(
-		() => initialForestStateRef.current.exitDoor,
-	);
-	const [forestExitSide, setForestExitSide] = useState<ForestSide>(
-		() => initialForestStateRef.current.exitSide,
-	);
-	const [forestLastTurn, setForestLastTurn] = useState<-1 | 0 | 1>(
-		() => initialForestStateRef.current.turnSign,
-	);
-	const [forestIsBonusLevel, setForestIsBonusLevel] = useState<boolean>(
-		() => initialForestStateRef.current.isBonusLevel,
-	);
-	const [forestLockedToday, setForestLockedToday] = useState(false);
-	const [forestFog, setForestFog] = useState<Record<string, number>>({});
-	const [caveFog, setCaveFog] = useState<Record<string, number>>({});
-	const [caveLayout, setCaveLayout] = useState<string[]>(
-		() => initialCaveStateRef.current.layout,
-	);
-	const [caveRubble, setCaveRubble] = useState<Record<string, string>>(
-		() => buildCaveRubble(initialCaveStateRef.current.layout),
-	);
-	const [caveEnemies, setCaveEnemies] = useState<ForestEnemy[]>(
-		() => initialCaveStateRef.current.enemies,
-	);
 	const caveBatDirsRef = useRef<Record<number, SnakePatrolState>>(
 		makeSnakeDirections(initialCaveStateRef.current.enemies),
 	);
 	const caveAggroRef = useRef<Record<number, boolean>>({});
 	const caveEnemyTickRef = useRef(0);
-	const [caveObstacles, setCaveObstacles] = useState<ForestObstacle[]>(
-		() => initialCaveStateRef.current.obstacles,
-	);
-	const [caveLevel, setCaveLevel] = useState<number>(
-		() => initialCaveStateRef.current.level,
-	);
-	const [caveEntranceDoorPos, setCaveEntranceDoorPos] = useState<Point>(
-		() => initialCaveStateRef.current.entranceDoor,
-	);
-	const [caveLevelOneExitPos, setCaveLevelOneExitPos] = useState<Point>(
-		() => initialCaveStateRef.current.levelOneExitInside,
-	);
-	const [caveLadderPos, setCaveLadderPos] = useState<Point | null>(null);
-	const [caveStartingRockCount, setCaveStartingRockCount] = useState<number>(
-		() => initialCaveStateRef.current.startingRockCount,
-	);
-	const [caveLockedToday, setCaveLockedToday] = useState(false);
-	const [currentWeather, setCurrentWeather] = useState<WeatherId>(() =>
-		randomWeather(),
-	);
-	const [cafeShopkeeperX, setCafeShopkeeperX] = useState(7);
-	const [shopDecorByMap] = useState<Record<string, Record<string, string>>>(
-		() => {
-			const out: Record<string, Record<string, string>> = {};
-			shopMaps.forEach((mapId) => {
-				const theme = shopDecorForSaleItems[mapId];
-				const slots: Record<string, string> = {};
-				if (mapId === "cafe_shop") {
-					cafeCounterPrepDecor.forEach(({ x, emoji }) => {
-						slots[`${x},1`] = emoji;
+	const [gameState, dispatch] = useReducer(
+		gameStateReducer,
+		undefined,
+		(): GameState => {
+			const farmForestBlockers = {
+				...Object.fromEntries(
+					FARM_FOREST_BLOCKER_POSITIONS.map((pos) => [keyForPos(pos.x, pos.y), true]),
+				),
+				...initialFarmExpansionBlockers.wood,
+			};
+			const farmCaveBlockers = {
+				...Object.fromEntries(
+					FARM_CAVE_BLOCKER_POSITIONS.map((pos) => [keyForPos(pos.x, pos.y), 24]),
+				),
+				...initialFarmExpansionBlockers.stone,
+			};
+			return {
+				player: { map: "farm", x: 6, y: 10 },
+				day: 1,
+				forestLayout: initialForestStateRef.current.layout,
+				forestEnemies: initialForestStateRef.current.enemies,
+				forestObstacles: initialForestStateRef.current.obstacles,
+				forestChest: initialForestStateRef.current.chest,
+				forestBonusChests: initialForestStateRef.current.bonusChests,
+				forestLevel: initialForestStateRef.current.level,
+				forestEntranceDoorPos: initialForestStateRef.current.entranceDoor,
+				forestForwardExitPos: initialForestStateRef.current.exitDoor,
+				forestExitSide: initialForestStateRef.current.exitSide,
+				forestLastTurn: initialForestStateRef.current.turnSign,
+				forestIsBonusLevel: initialForestStateRef.current.isBonusLevel,
+				forestLockedToday: false,
+				forestFog: {},
+				caveFog: {},
+				caveLayout: initialCaveStateRef.current.layout,
+				caveRubble: buildCaveRubble(initialCaveStateRef.current.layout),
+				caveEnemies: initialCaveStateRef.current.enemies,
+				caveObstacles: initialCaveStateRef.current.obstacles,
+				caveLevel: initialCaveStateRef.current.level,
+				caveEntranceDoorPos: initialCaveStateRef.current.entranceDoor,
+				caveLevelOneExitPos: initialCaveStateRef.current.levelOneExitInside,
+				caveLadderPos: null,
+				caveStartingRockCount: initialCaveStateRef.current.startingRockCount,
+				caveLockedToday: false,
+				currentWeather: randomWeather(),
+				cafeShopkeeperX: 7,
+				shopDecorByMap: (() => {
+					const out: Record<string, Record<string, string>> = {};
+					shopMaps.forEach((mapId) => {
+						const theme = shopDecorForSaleItems[mapId];
+						const slots: Record<string, string> = {};
+						if (mapId === "cafe_shop") {
+							cafeCounterPrepDecor.forEach(({ x, emoji }) => {
+								slots[`${x},1`] = emoji;
+							});
+							out[mapId] = slots;
+							return;
+						}
+						if (mapId === "tool_shop") {
+							const backWallXs = [2, 5, 9, 12];
+							backWallXs.forEach((x) => {
+								const item = theme[randomInt(0, theme.length - 1)]!;
+								slots[`${x},1`] = item;
+							});
+							out[mapId] = slots;
+							return;
+						}
+						const placementCount = Math.min(shopDecorSlots.length, randomInt(2, 4));
+						const chosenSlots = [...shopDecorSlots]
+							.sort(() => randomRoll() - 0.5)
+							.slice(0, placementCount);
+						chosenSlots.forEach(({ x, y }) => {
+							const item = theme[randomInt(0, theme.length - 1)]!;
+							slots[`${x},${y}`] = item;
+						});
+						out[mapId] = slots;
 					});
-					out[mapId] = slots;
-					return;
-				}
-				if (mapId === "tool_shop") {
-					const backWallXs = [2, 5, 9, 12];
-					backWallXs.forEach((x) => {
-						const item = theme[randomInt(0, theme.length - 1)]!;
-						slots[`${x},1`] = item;
-					});
-					out[mapId] = slots;
-					return;
-				}
-				const placementCount = Math.min(shopDecorSlots.length, randomInt(2, 4));
-				const chosenSlots = [...shopDecorSlots]
-					.sort(() => Math.random() - 0.5)
-					.slice(0, placementCount);
-				chosenSlots.forEach(({ x, y }) => {
-					const item = theme[randomInt(0, theme.length - 1)]!;
-					slots[`${x},${y}`] = item;
-				});
-				out[mapId] = slots;
-			});
-			return out;
+					return out;
+				})(),
+				money: 0,
+				staminaMax: STAMINA_MAX,
+				stamina: STAMINA_MAX,
+				inventory: makeEmptyInventory(),
+				plots: {},
+				animals: [],
+				prices: initialPrices,
+				priceTrends: initialPriceTrends,
+				newspaper: "Sleep to start a new day and generate today's market newspaper.",
+				log: ["Welcome to your farm."],
+				modal: null,
+				modalIndex: 0,
+				quantityPrompt: null,
+				waterRipplePhase: false,
+				pauseGame: false,
+				dayTransition: null,
+				dayTransitionPrompt: nextDayPrompts[0],
+				dayTransitionStage: "intro",
+				dayTransitionClosePhase: "idle",
+				dayTransitionStarsState: createDayTransitionStars(),
+				currentDayEarned: 0,
+				previousDayEarned: 0,
+				totalEarned: 0,
+				playerEmoji: starterWardrobeLooks[0],
+				showTiredFace: false,
+				showForestHit: false,
+				isBathing: false,
+				ownedWardrobeLooks: [...starterWardrobeLooks],
+				tools: initialToolLevels,
+				barnTier: 1,
+				pendingBarnUpgrade: false,
+				hasTractor: false,
+				hasHeadlamp: false,
+				pendingTractorDelivery: false,
+				tractorParked: false,
+				isDrivingTractor: false,
+				tractorFacing: 1,
+				tractorImplement: null,
+				tractorImplementOn: false,
+				tractorSeedItem: null,
+				tractorDriverEmoji: null,
+				waterLevel: 0,
+				waterRefillTile: null,
+				starterChestOpened: false,
+				beachBottlePos: rollBeachBottleSpawn(townBeachBottleTiles, randomInt),
+				beachShellDrops: rollBeachShellDrops(townBeachBottleTiles, keyForPos, randomInt),
+				sketchyMerchantActive: randomRoll() < 0.25,
+				sketchyMerchantStock: generateSketchyMerchantStock(initialPrices),
+				traderActive: randomRoll() < 0.5,
+				traderTrades: generateTraderTrades(),
+				doctorVendorActive: randomRoll() < 1 / 3,
+				doctorUsedToday: false,
+				petVendorActive: randomRoll() < 0.5,
+				ownedPet: null,
+				pendingPet: null,
+				petTile: null,
+				petFacing: 1,
+				petHeartTile: null,
+				townNpcTiles: townNpcAnchors,
+				boatTiles: initialBoatTiles,
+				npcDailyAssignments: generateDailyAssignmentsForNpcs(Object.keys(townNpcNames)),
+				npcTalkedToday: {},
+				fishing: null,
+				isOrdering: false,
+				cafeObservation: "",
+				isDoctorCompounding: false,
+				doctorObservation: "",
+				clouds: [],
+				grassWindBands: [],
+				animalTiles: {},
+				animalAnchors: {},
+				farmForestBlockers,
+				farmCaveBlockers,
+				petGraveObstacles: {},
+				pendingPetGravePos: null,
+				farmWeedObstacles: generateInitialFarmWeedField(
+					mapLayouts.farm,
+					farmForestBlockers,
+					farmCaveBlockers,
+					new Set<string>(),
+					STARTER_CHEST_POS,
+				),
+				farmEggDrops: {},
+			};
 		},
 	);
-	const [money, setMoney] = useState(0);
-	const [staminaMax, setStaminaMax] = useState(STAMINA_MAX);
-	const [stamina, setStamina] = useState(STAMINA_MAX);
-	const [inventory, setInventory] = useState<Inventory>(makeEmptyInventory);
-	const [plots, setPlots] = useState<Record<string, Plot>>({});
-	const [animals, setAnimals] = useState<Animal[]>([]);
-	const [prices, setPrices] = useState<PriceState>(initialPrices);
-	const [priceTrends, setPriceTrends] =
-		useState<PriceTrendState>(initialPriceTrends);
-	const [newspaper, setNewspaper] = useState(
-		"Sleep to start a new day and generate today's market newspaper.",
-	);
-	const [log, setLog] = useState<string[]>(["Welcome to your farm."]);
-	const [modal, setModal] = useState<ModalState | null>(null);
-	const [modalIndex, setModalIndex] = useState(0);
-	const [quantityPrompt, setQuantityPrompt] =
-		useState<QuantityPromptState | null>(null);
+	const {
+		player,
+		day,
+		forestLayout,
+		forestEnemies,
+		forestObstacles,
+		forestChest,
+		forestBonusChests,
+		forestLevel,
+		forestEntranceDoorPos,
+		forestForwardExitPos,
+		forestExitSide,
+		forestLastTurn,
+		forestIsBonusLevel,
+		forestLockedToday,
+		forestFog,
+		caveFog,
+		caveLayout,
+		caveRubble,
+		caveEnemies,
+		caveObstacles,
+		caveLevel,
+		caveEntranceDoorPos,
+		caveLevelOneExitPos,
+		caveLadderPos,
+		caveStartingRockCount,
+		caveLockedToday,
+		currentWeather,
+		cafeShopkeeperX,
+		shopDecorByMap,
+		money,
+		staminaMax,
+		stamina,
+		inventory,
+		plots,
+		animals,
+		prices,
+		priceTrends,
+		newspaper,
+		log,
+		modal,
+		modalIndex,
+		quantityPrompt,
+		waterRipplePhase,
+		pauseGame,
+		dayTransition,
+		dayTransitionPrompt,
+		dayTransitionStage,
+		dayTransitionClosePhase,
+		dayTransitionStarsState,
+		currentDayEarned,
+		previousDayEarned,
+		totalEarned,
+		playerEmoji,
+		showTiredFace,
+		showForestHit,
+		isBathing,
+		ownedWardrobeLooks,
+		tools,
+		barnTier,
+		pendingBarnUpgrade,
+		hasTractor,
+		hasHeadlamp,
+		pendingTractorDelivery,
+		tractorParked,
+		isDrivingTractor,
+		tractorFacing,
+		tractorImplement,
+		tractorImplementOn,
+		tractorSeedItem,
+		tractorDriverEmoji,
+		waterLevel,
+		waterRefillTile,
+		starterChestOpened,
+		beachBottlePos,
+		beachShellDrops,
+		sketchyMerchantActive,
+		sketchyMerchantStock,
+		traderActive,
+		traderTrades,
+		doctorVendorActive,
+		doctorUsedToday,
+		petVendorActive,
+		ownedPet,
+		pendingPet,
+		petTile,
+		petFacing,
+		petHeartTile,
+		townNpcTiles,
+		boatTiles,
+		npcDailyAssignments,
+		npcTalkedToday,
+		fishing,
+		isOrdering,
+		cafeObservation,
+		isDoctorCompounding,
+		doctorObservation,
+		clouds,
+		grassWindBands,
+		animalTiles,
+		animalAnchors,
+		farmForestBlockers,
+		farmCaveBlockers,
+		petGraveObstacles,
+		pendingPetGravePos,
+		farmWeedObstacles,
+		farmEggDrops,
+	} = gameState;
 	const quantityParentMenuRef = useRef<{
 		modal: ModalState;
 		index: number;
 	} | null>(null);
 	const quantityPromptRef = useRef<QuantityPromptState | null>(null);
-	const [waterRipplePhase, setWaterRipplePhase] = useState(false);
-	const [pauseGame, setPauseGame] = useState(false);
-	const [dayTransition, setDayTransition] = useState<DayTransitionState | null>(
-		null,
-	);
-	const [dayTransitionPrompt, setDayTransitionPrompt] = useState<string>(
-		nextDayPrompts[0],
-	);
-	const [dayTransitionStage, setDayTransitionStage] = useState<
-		"intro" | "day" | "earned" | "final"
-	>("intro");
-	const [dayTransitionClosePhase, setDayTransitionClosePhase] = useState<
-		"idle" | "card" | "backdrop"
-	>("idle");
-	const [dayTransitionStarsState, setDayTransitionStarsState] = useState<
-		DayTransitionStar[]
-	>(() => createDayTransitionStars());
 	const dayTransitionTimersRef = useRef<number[]>([]);
 	const dayTransitionCloseTimersRef = useRef<number[]>([]);
-	const [currentDayEarned, setCurrentDayEarned] = useState(0);
-	const [previousDayEarned, setPreviousDayEarned] = useState(0);
-	const [totalEarned, setTotalEarned] = useState(0);
-	const [playerEmoji, setPlayerEmoji] = useState<string>(
-		starterWardrobeLooks[0],
-	);
-	const [showTiredFace, setShowTiredFace] = useState(false);
-	const [showForestHit, setShowForestHit] = useState(false);
-	const [isBathing, setIsBathing] = useState(false);
-	const [ownedWardrobeLooks, setOwnedWardrobeLooks] = useState<string[]>([
-		...starterWardrobeLooks,
-	]);
-	const [tools, setTools] = useState<ToolLevels>(initialToolLevels);
-	const [barnTier, setBarnTier] = useState<BarnTier>(1);
-	const [pendingBarnUpgrade, setPendingBarnUpgrade] = useState(false);
-	const [hasTractor, setHasTractor] = useState(false);
-	const [hasHeadlamp, setHasHeadlamp] = useState(false);
-	const [pendingTractorDelivery, setPendingTractorDelivery] = useState(false);
-	const [tractorParked, setTractorParked] = useState(false);
-	const [isDrivingTractor, setIsDrivingTractor] = useState(false);
-	const [tractorFacing, setTractorFacing] = useState<1 | -1>(1);
-	const [tractorImplement, setTractorImplement] = useState<TractorImplement | null>(
-		null,
-	);
-	const [tractorImplementOn, setTractorImplementOn] = useState(false);
-	const [tractorSeedItem, setTractorSeedItem] = useState<ItemId | null>(null);
-	const [tractorDriverEmoji, setTractorDriverEmoji] = useState<string | null>(null);
-	const [waterLevel, setWaterLevel] = useState(0);
-	const [waterRefillTile, setWaterRefillTile] = useState<{
-		map: MapId;
-		x: number;
-		y: number;
-	} | null>(null);
-	const [starterChestOpened, setStarterChestOpened] = useState(false);
-	const [beachBottlePos, setBeachBottlePos] = useState<{
-		x: number;
-		y: number;
-	} | null>(() => rollBeachBottleSpawn(townBeachBottleTiles, randomInt));
-	const [beachShellDrops, setBeachShellDrops] = useState<Record<string, boolean>>(
-		() => rollBeachShellDrops(townBeachBottleTiles, keyForPos, randomInt),
-	);
-	const [sketchyMerchantActive, setSketchyMerchantActive] = useState(
-		() => Math.random() < 0.25,
-	);
-	const [sketchyMerchantStock, setSketchyMerchantStock] = useState<
-		SketchyStockEntry[]
-	>(() => generateSketchyMerchantStock(initialPrices));
-	const [traderActive, setTraderActive] = useState(() => Math.random() < 0.5);
-	const [traderTrades, setTraderTrades] = useState<TraderTradeEntry[]>(
-		() => generateTraderTrades(),
-	);
-	const [doctorVendorActive, setDoctorVendorActive] = useState(
-		() => Math.random() < 1 / 3,
-	);
-	const [doctorUsedToday, setDoctorUsedToday] = useState(false);
-	const [petVendorActive, setPetVendorActive] = useState(() => Math.random() < 0.5);
-	const [ownedPet, setOwnedPet] = useState<PetEmoji | null>(null);
-	const [pendingPet, setPendingPet] = useState<PetEmoji | null>(null);
-	const [petTile, setPetTile] = useState<Point | null>(null);
-	const [petFacing, setPetFacing] = useState<1 | -1>(1);
-	const [petHeartTile, setPetHeartTile] = useState<Point | null>(null);
 	const petHeartTimeoutRef = useRef<number | null>(null);
-	const [townNpcTiles, setTownNpcTiles] = useState(townNpcAnchors);
-	const [boatTiles, setBoatTiles] = useState(initialBoatTiles);
-	const [npcDailyAssignments, setNpcDailyAssignments] = useState<
-		Record<string, NpcDailyAssignment>
-	>(() => generateDailyAssignmentsForNpcs(Object.keys(townNpcNames)));
-	const [npcTalkedToday, setNpcTalkedToday] = useState<Record<string, boolean>>(
-		{},
-	);
-	const [fishing, setFishing] = useState<FishingState | null>(null);
-	const [isOrdering, setIsOrdering] = useState(false);
-	const [cafeObservation, setCafeObservation] = useState("");
-	const [isDoctorCompounding, setIsDoctorCompounding] = useState(false);
-	const [doctorObservation, setDoctorObservation] = useState("");
-	const [clouds, setClouds] = useState<CloudSprite[]>([]);
-	const [grassWindBands, setGrassWindBands] = useState<
-		Array<{
-			id: number;
-			map: MapId;
-			frontX: number;
-			baseY: number;
-			frame: number;
-		}>
-	>([]);
 	const playerRef = useRef(player);
 	const ttsReadyRef = useRef(false);
-	const [animalTiles, setAnimalTiles] = useState<
-		Record<number, { x: number; y: number }>
-	>(() => ({}));
-	const [animalAnchors, setAnimalAnchors] = useState<
-		Record<number, { x: number; y: number }>
-	>(() => ({}));
-	const [farmForestBlockers, setFarmForestBlockers] = useState<
-		Record<string, boolean>
-	>(() => ({
-		...Object.fromEntries(
-			FARM_FOREST_BLOCKER_POSITIONS.map((pos) => [keyForPos(pos.x, pos.y), true]),
-		),
-		...initialFarmExpansionBlockers.wood,
-	}));
-	const [farmCaveBlockers, setFarmCaveBlockers] = useState<Record<string, number>>(
-		() => ({
-			...Object.fromEntries(
-				FARM_CAVE_BLOCKER_POSITIONS.map((pos) => [keyForPos(pos.x, pos.y), 24]),
-			),
-			...initialFarmExpansionBlockers.stone,
-		}),
-	);
-	const [petGraveObstacles, setPetGraveObstacles] = useState<Record<string, number>>(
-		{},
-	);
-	const [pendingPetGravePos, setPendingPetGravePos] = useState<Point | null>(null);
-	const [farmWeedObstacles, setFarmWeedObstacles] = useState<Record<string, boolean>>(
-		() =>
-			generateInitialFarmWeedField(
-				mapLayouts.farm,
-				farmForestBlockers,
-				farmCaveBlockers,
-				new Set<string>(),
-				STARTER_CHEST_POS,
-			),
-	);
-	const [farmEggDrops, setFarmEggDrops] = useState<Record<string, boolean>>({});
-	const activeMapLayouts = useMemo(
+	const setterCacheRef = useRef(new Map<keyof GameState, unknown>());
+	const setForKey = <K extends keyof GameState>(key: K) => {
+		const cached = setterCacheRef.current.get(key) as
+			| ((value: SetStateAction<GameState[K]>) => void)
+			| undefined;
+		if (cached) return cached;
+		const next = (value: SetStateAction<GameState[K]>) => {
+			dispatch({ type: "set", key, value } as GameStateAction);
+		};
+		setterCacheRef.current.set(key, next);
+		return next;
+	};
+	const setPlayer = setForKey("player");
+	const setDay = setForKey("day");
+	const setForestLayout = setForKey("forestLayout");
+	const setForestEnemies = setForKey("forestEnemies");
+	const setForestObstacles = setForKey("forestObstacles");
+	const setForestChest = setForKey("forestChest");
+	const setForestBonusChests = setForKey("forestBonusChests");
+	const setForestLevel = setForKey("forestLevel");
+	const setForestEntranceDoorPos = setForKey("forestEntranceDoorPos");
+	const setForestForwardExitPos = setForKey("forestForwardExitPos");
+	const setForestExitSide = setForKey("forestExitSide");
+	const setForestLastTurn = setForKey("forestLastTurn");
+	const setForestIsBonusLevel = setForKey("forestIsBonusLevel");
+	const setForestLockedToday = setForKey("forestLockedToday");
+	const setForestFog = setForKey("forestFog");
+	const setCaveFog = setForKey("caveFog");
+	const setCaveLayout = setForKey("caveLayout");
+	const setCaveRubble = setForKey("caveRubble");
+	const setCaveEnemies = setForKey("caveEnemies");
+	const setCaveObstacles = setForKey("caveObstacles");
+	const setCaveLevel = setForKey("caveLevel");
+	const setCaveEntranceDoorPos = setForKey("caveEntranceDoorPos");
+	const setCaveLevelOneExitPos = setForKey("caveLevelOneExitPos");
+	const setCaveLadderPos = setForKey("caveLadderPos");
+	const setCaveStartingRockCount = setForKey("caveStartingRockCount");
+	const setCaveLockedToday = setForKey("caveLockedToday");
+	const setCurrentWeather = setForKey("currentWeather");
+	const setCafeShopkeeperX = setForKey("cafeShopkeeperX");
+	const setMoney = setForKey("money");
+	const setStaminaMax = setForKey("staminaMax");
+	const setStamina = setForKey("stamina");
+	const setInventory = setForKey("inventory");
+	const setPlots = setForKey("plots");
+	const setAnimals = setForKey("animals");
+	const setPrices = setForKey("prices");
+	const setPriceTrends = setForKey("priceTrends");
+	const setNewspaper = setForKey("newspaper");
+	const setLog = setForKey("log");
+	const setModal = setForKey("modal");
+	const setModalIndex = setForKey("modalIndex");
+	const setQuantityPrompt = setForKey("quantityPrompt");
+	const setWaterRipplePhase = setForKey("waterRipplePhase");
+	const setPauseGame = setForKey("pauseGame");
+	const setDayTransition = setForKey("dayTransition");
+	const setDayTransitionPrompt = setForKey("dayTransitionPrompt");
+	const setDayTransitionStage = setForKey("dayTransitionStage");
+	const setDayTransitionClosePhase = setForKey("dayTransitionClosePhase");
+	const setDayTransitionStarsState = setForKey("dayTransitionStarsState");
+	const setCurrentDayEarned = setForKey("currentDayEarned");
+	const setPreviousDayEarned = setForKey("previousDayEarned");
+	const setTotalEarned = setForKey("totalEarned");
+	const setPlayerEmoji = setForKey("playerEmoji");
+	const setShowTiredFace = setForKey("showTiredFace");
+	const setShowForestHit = setForKey("showForestHit");
+	const setIsBathing = setForKey("isBathing");
+	const setOwnedWardrobeLooks = setForKey("ownedWardrobeLooks");
+	const setTools = setForKey("tools");
+	const setBarnTier = setForKey("barnTier");
+	const setPendingBarnUpgrade = setForKey("pendingBarnUpgrade");
+	const setHasTractor = setForKey("hasTractor");
+	const setHasHeadlamp = setForKey("hasHeadlamp");
+	const setPendingTractorDelivery = setForKey("pendingTractorDelivery");
+	const setTractorParked = setForKey("tractorParked");
+	const setIsDrivingTractor = setForKey("isDrivingTractor");
+	const setTractorFacing = setForKey("tractorFacing");
+	const setTractorImplement = setForKey("tractorImplement");
+	const setTractorImplementOn = setForKey("tractorImplementOn");
+	const setTractorSeedItem = setForKey("tractorSeedItem");
+	const setTractorDriverEmoji = setForKey("tractorDriverEmoji");
+	const setWaterLevel = setForKey("waterLevel");
+	const setWaterRefillTile = setForKey("waterRefillTile");
+	const setStarterChestOpened = setForKey("starterChestOpened");
+	const setBeachBottlePos = setForKey("beachBottlePos");
+	const setBeachShellDrops = setForKey("beachShellDrops");
+	const setSketchyMerchantActive = setForKey("sketchyMerchantActive");
+	const setSketchyMerchantStock = setForKey("sketchyMerchantStock");
+	const setTraderActive = setForKey("traderActive");
+	const setTraderTrades = setForKey("traderTrades");
+	const setDoctorVendorActive = setForKey("doctorVendorActive");
+	const setDoctorUsedToday = setForKey("doctorUsedToday");
+	const setPetVendorActive = setForKey("petVendorActive");
+	const setOwnedPet = setForKey("ownedPet");
+	const setPendingPet = setForKey("pendingPet");
+	const setPetTile = setForKey("petTile");
+	const setPetFacing = setForKey("petFacing");
+	const setPetHeartTile = setForKey("petHeartTile");
+	const setTownNpcTiles = setForKey("townNpcTiles");
+	const setBoatTiles = setForKey("boatTiles");
+	const setNpcDailyAssignments = setForKey("npcDailyAssignments");
+	const setNpcTalkedToday = setForKey("npcTalkedToday");
+	const setFishing = setForKey("fishing");
+	const setIsOrdering = setForKey("isOrdering");
+	const setCafeObservation = setForKey("cafeObservation");
+	const setIsDoctorCompounding = setForKey("isDoctorCompounding");
+	const setDoctorObservation = setForKey("doctorObservation");
+	const setClouds = setForKey("clouds");
+	const setGrassWindBands = setForKey("grassWindBands");
+	const setAnimalTiles = setForKey("animalTiles");
+	const setAnimalAnchors = setForKey("animalAnchors");
+	const setFarmForestBlockers = setForKey("farmForestBlockers");
+	const setFarmCaveBlockers = setForKey("farmCaveBlockers");
+	const setPetGraveObstacles = setForKey("petGraveObstacles");
+	const setPendingPetGravePos = setForKey("pendingPetGravePos");
+	const setFarmWeedObstacles = setForKey("farmWeedObstacles");
+	const setFarmEggDrops = setForKey("farmEggDrops");const activeMapLayouts = useMemo(
 		() => ({
 			...mapLayouts,
 			farm: buildFarmLayout(barnTier),
@@ -1273,11 +1404,11 @@ export function useGameRuntime() {
 		const fullDistance = 108 + 14;
 		const makeCloud = (spawnFromRight: boolean): CloudSprite => {
 			const startX = spawnFromRight
-				? 108 + Math.random() * 12
-				: Math.random() * 108;
+				? 108 + randomRoll() * 12
+				: randomRoll() * 108;
 			const baseDuration = rainy
-				? 44 + Math.random() * 18
-				: 52 + Math.random() * 24;
+				? 44 + randomRoll() * 18
+				: 52 + randomRoll() * 24;
 			const durationSec = Math.max(
 				10,
 				baseDuration * ((startX + 14) / fullDistance),
@@ -1285,10 +1416,10 @@ export function useGameRuntime() {
 			return {
 				id: nextCloudIdRef.current++,
 				startX,
-				y: 4 + Math.random() * 60,
-				size: rainy ? 1 + Math.random() * 0.45 : 0.95 + Math.random() * 0.35,
+				y: 4 + randomRoll() * 60,
+				size: rainy ? 1 + randomRoll() * 0.45 : 0.95 + randomRoll() * 0.35,
 				durationSec,
-				glyph: rainy ? "🌧️" : "☁️", // rainy cloud / cloud
+				glyph: rainy ? "Ã°Å¸Å’Â§Ã¯Â¸Â" : "Ã¢ËœÂÃ¯Â¸Â", // rainy cloud / cloud
 			};
 		};
 
@@ -1312,7 +1443,7 @@ export function useGameRuntime() {
 					next.push(makeCloud(true));
 				} else if (next.length < maxClouds) {
 					const spawnChance = rainy ? 0.42 : 0.28;
-					if (Math.random() < spawnChance) next.push(makeCloud(true));
+					if (randomRoll() < spawnChance) next.push(makeCloud(true));
 				}
 				return next;
 			});
@@ -1727,9 +1858,9 @@ export function useGameRuntime() {
 				}
 				return enemy;
 			}
-			if (Math.random() > 0.25) return enemy;
+			if (randomRoll() > 0.25) return enemy;
 			const shuffled = Object.values(npcMoveDirections).sort(
-				() => Math.random() - 0.5,
+				() => randomRoll() - 0.5,
 			);
 			for (const delta of shuffled) {
 				const nx = enemy.x + delta.dx;
@@ -1900,9 +2031,9 @@ export function useGameRuntime() {
 				}
 				return enemy;
 			}
-			if (Math.random() > 0.25) return enemy;
+			if (randomRoll() > 0.25) return enemy;
 			const shuffled = Object.values(npcMoveDirections).sort(
-				() => Math.random() - 0.5,
+				() => randomRoll() - 0.5,
 			);
 			for (const delta of shuffled) {
 				const nx = enemy.x + delta.dx;
@@ -1960,7 +2091,7 @@ export function useGameRuntime() {
 		nextNpcTiles: Record<string, { x: number; y: number }>,
 	) => {
 		if (pauseGame) return;
-		if (Math.random() > 0.25) return;
+		if (randomRoll() > 0.25) return;
 
 		const current = nextNpcTiles[npcKey];
 		const anchor = townNpcAnchors[npcKey];
@@ -1989,7 +2120,7 @@ export function useGameRuntime() {
 		nextAnimalTiles: Record<number, { x: number; y: number }>,
 	) => {
 		if (pauseGame) return;
-		if (Math.random() > 0.25) return;
+		if (randomRoll() > 0.25) return;
 
 		const current = nextAnimalTiles[animalId];
 		const anchor = animalAnchors[animalId];
@@ -2017,7 +2148,7 @@ export function useGameRuntime() {
 		nextBoatTiles: BoatTileMap,
 	) => {
 		if (pauseGame) return;
-		if (Math.random() > 0.25) return;
+		if (randomRoll() > 0.25) return;
 
 		const current = nextBoatTiles[boatKey];
 		if (!current) return;
@@ -2148,7 +2279,7 @@ export function useGameRuntime() {
 
 	const maybeMovePet = (current: Point) => {
 		if (pauseGame) return current;
-		if (Math.random() > 0.25) return current;
+		if (randomRoll() > 0.25) return current;
 		let attempts = 0;
 		while (attempts < 128) {
 			attempts += 1;
@@ -2165,7 +2296,7 @@ export function useGameRuntime() {
 		}
 		return current;
 	};
-	const gameState: GameStateSnapshot = {
+	const worldSimSnapshot: GameStateSnapshot = {
 		player,
 		day,
 		map: player.map,
@@ -2180,7 +2311,7 @@ export function useGameRuntime() {
 		setCaveEnemies,
 	};
 	useWorldSimulation({
-		...gameState,
+		...worldSimSnapshot,
 		...gameActions,
 		animals,
 		pauseGame,
@@ -2349,10 +2480,10 @@ export function useGameRuntime() {
 		if (tractorImplement === "plow") {
 			if (farmWeedObstacles[key]) {
 				setFarmWeedObstacles((prev) => ({ ...prev, [key]: false }));
-				if (Math.random() < 0.5) {
+				if (randomRoll() < 0.5) {
 					updateInventory("feed", 1);
 				}
-				if (Math.random() < 0.02) {
+				if (randomRoll() < 0.02) {
 					applyMoneyDelta(randomInt(1, 5));
 				}
 			}
@@ -2398,8 +2529,8 @@ export function useGameRuntime() {
 		if (tractorImplement === "harvest") {
 			if (farmWeedObstacles[key]) {
 				setFarmWeedObstacles((prev) => ({ ...prev, [key]: false }));
-				const gotFeed = Math.random() < 0.5;
-				const gotMoney = Math.random() < 0.02;
+				const gotFeed = randomRoll() < 0.5;
+				const gotMoney = randomRoll() < 0.02;
 				const lines: string[] = [];
 				if (gotFeed) {
 					updateInventory("feed", 1);
@@ -2451,7 +2582,7 @@ export function useGameRuntime() {
 
 	const enterTractor = (implement: TractorImplement, seedItem: ItemId | null = null) => {
 		setTractorDriverEmoji(playerEmoji);
-		setPlayerEmoji("🚜"); // tractor driving avatar
+		setPlayerEmoji("Ã°Å¸Å¡Å“"); // tractor driving avatar
 		setIsDrivingTractor(true);
 		setTractorImplement(implement);
 		setTractorImplementOn(false);
