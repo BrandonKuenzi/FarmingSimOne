@@ -1,25 +1,53 @@
-﻿import { motion } from "framer-motion";
+import React from "react";
+import { motion } from "framer-motion";
 import type { GameRuntimeViewModel } from "./viewModel";
 
-export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
+
+type MapViewportCtx = Pick<
+	GameRuntimeViewModel,
+	| "activeMapLayouts"
+	| "player"
+	| "isWindSlashOn"
+	| "renderedMap"
+	| "plots"
+	| "keyForPos"
+	| "currentWeather"
+	| "groundClassForTile"
+	| "isShopMap"
+	| "shopDecorByMap"
+	| "isFarmHouseDoorTile"
+	| "getDoorGroundClass"
+	| "isDrivingTractor"
+	| "fishing"
+	| "showTiredFace"
+	| "playerEmoji"
+	| "waterRefillTile"
+	| "isRippleWaterTile"
+	| "waterRipplePhase"
+	| "isAnimatedGrassTile"
+	| "grassFoliageVariant"
+	| "caveLadderPos"
+	| "caveRubble"
+	| "toVisual"
+	| "spriteTilesNeedingGround"
+	| "petFacing"
+	| "tractorFacing"
+	| "showForestHit"
+	| "getForestFogOpacity"
+	| "getCaveFogOpacity"
+	| "clouds"
+	| "setClouds"
+>;
+
+const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 	const {
-		onKeyDown,
-		shellRef,
-		day,
-		player,
-		currentWeather,
-		weatherEmojiById,
-		money,
-		stamina,
-		staminaMax,
-		waterLevel,
-		inventoryRows,
-		log,
 		activeMapLayouts,
+		player,
 		isWindSlashOn,
 		renderedMap,
 		plots,
 		keyForPos,
+		currentWeather,
 		groundClassForTile,
 		isShopMap,
 		shopDecorByMap,
@@ -45,90 +73,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
-		marketRows,
-		toolRows,
-		getToolTierName,
-		pendingTractorDelivery,
-		hasTractor,
-		hasHeadlamp,
-		newspaper,
-		isOrdering,
-		isDoctorCompounding,
-		doctorObservation,
-		cafeObservation,
-		modal,
-		modalIndex,
-		quantityPrompt,
-		selectModal,
-		getDealBadge,
-		prices,
-		initialPrices,
-		cancelQuantityPrompt,
-		moveQuantity,
-		moveModal,
-		moonPhases,
-		dayTransition,
-		dayTransitionStarsState,
-		dayTransitionStage,
-		dayTransitionClosePhase,
-		continueAfterSleep,
-		dayTransitionPrompt,
 	} = ctx;
 	return (
-		<div
-			className='game-shell'
-			tabIndex={0}
-			onKeyDown={onKeyDown}
-			ref={shellRef}
-		>
-			<div className='hud'>
-				<div>Day: {day}</div>
-				<div>Location: {player.map}</div>
-				<div>Current Weather: {weatherEmojiById[currentWeather]}</div>
-				<div>Money: ${money}</div>
-				<div className='stamina-wrap'>
-					<span title={`${stamina}/${staminaMax}`}>Stamina</span>
-					<div className='stamina-bar'>
-						<div
-							className={`stamina-fill ${stamina > 50 ? "high" : stamina > 30 ? "mid" : "low"}`}
-							style={{
-								width: `${(Math.max(0, Math.min(staminaMax, stamina)) / staminaMax) * 100}%`,
-							}}
-						/>
-					</div>
-				</div>
-			</div>
-
-			<div className='inventory inventory-strip'>
-				<div className='panel-title'>Inventory</div>
-				<ul className='inventory-row'>
-					<li
-						key='water-row'
-						className='inventory-item'
-					>
-						<span className='inventory-item-icon'>??</span> {/* water can */}
-						<span>Water:</span>
-						<span>{waterLevel}</span>
-					</li>
-					{inventoryRows.map((r) => (
-						<li
-							key={r.id}
-							className='inventory-item'
-						>
-							<span className='inventory-item-icon'>{r.icon}</span>
-							<span>{r.name}:</span>
-							<span>{r.amount}</span>
-						</li>
-					))}
-				</ul>
-			</div>
-
-			<div className='legend log-strip'>
-				<div className='log-list'>
-					<div className='small'>{log[0] ?? ""}</div>
-				</div>
-			</div>
-
 			<div className='map-wrap'>
 				<div
 					className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""}`}
@@ -199,18 +145,18 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										? {
 												glyph:
 													isDrivingTractor
-														? "??" // driving tractor
+														? "🚜" // driving tractor
 														: fishing && fishing.phase !== "success"
-														? "??" // fishing pole mode
+														? "🎣" // fishing pole mode
 														: showTiredFace
-															? "??" // tired face
+															? "🥱" // tired face
 															: playerEmoji,
 											}
 										: waterRefillTile &&
 											  waterRefillTile.map === player.map &&
 											  waterRefillTile.x === x &&
 											  waterRefillTile.y === y
-											? { glyph: "??", className: "tile-water" } // refill splash icon
+											? { glyph: "🫗", className: "tile-water" } // refill splash icon
 											: cell === "b" &&
 												  fishing?.phase === "waiting" &&
 												  fishing.map === player.map &&
@@ -222,7 +168,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 													}
 												: cell === "F" && fishing?.phase === "bite"
 													? {
-															glyph: "??", // fish bite icon
+															glyph: "🐟", // fish bite icon
 															className: "tile-water tile-fishing-catch",
 															overlayGlyph: fishing.requiredKey.toUpperCase(),
 														}
@@ -242,7 +188,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 																  caveLadderPos &&
 																  caveLadderPos.x === x &&
 																  caveLadderPos.y === y
-																? { glyph: "??", className: "tile-cave-next-ladder" } // next-level ladder
+																? { glyph: "🪜", className: "tile-cave-next-ladder" } // next-level ladder
 																: player.map === "cave" && cell === ")"
 																	? caveRubble[keyForPos(x, y)]
 																		? {
@@ -362,6 +308,195 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 				)}
 			</div>
 
+				);
+};
+
+const MemoMapViewport = React.memo(
+	MapViewport,
+	(prev, next) =>
+		prev.ctx.player === next.ctx.player &&
+		prev.ctx.activeMapLayouts === next.ctx.activeMapLayouts &&
+		prev.ctx.renderedMap === next.ctx.renderedMap &&
+		prev.ctx.plots === next.ctx.plots &&
+		prev.ctx.currentWeather === next.ctx.currentWeather &&
+		prev.ctx.shopDecorByMap === next.ctx.shopDecorByMap &&
+		prev.ctx.fishing === next.ctx.fishing &&
+		prev.ctx.isDrivingTractor === next.ctx.isDrivingTractor &&
+		prev.ctx.showTiredFace === next.ctx.showTiredFace &&
+		prev.ctx.playerEmoji === next.ctx.playerEmoji &&
+		prev.ctx.waterRefillTile === next.ctx.waterRefillTile &&
+		prev.ctx.waterRipplePhase === next.ctx.waterRipplePhase &&
+		prev.ctx.caveLadderPos === next.ctx.caveLadderPos &&
+		prev.ctx.caveRubble === next.ctx.caveRubble &&
+		prev.ctx.petFacing === next.ctx.petFacing &&
+		prev.ctx.tractorFacing === next.ctx.tractorFacing &&
+		prev.ctx.showForestHit === next.ctx.showForestHit &&
+		prev.ctx.clouds === next.ctx.clouds,
+);
+export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
+	const {
+		onKeyDown,
+		shellRef,
+		day,
+		player,
+		currentWeather,
+		weatherEmojiById,
+		money,
+		stamina,
+		staminaMax,
+		waterLevel,
+		inventoryRows,
+		log,
+		activeMapLayouts,
+		isWindSlashOn,
+		renderedMap,
+		plots,
+		keyForPos,
+		groundClassForTile,
+		isShopMap,
+		shopDecorByMap,
+		isFarmHouseDoorTile,
+		getDoorGroundClass,
+		fishing,
+		isDrivingTractor,
+		showTiredFace,
+		playerEmoji,
+		waterRefillTile,
+		isRippleWaterTile,
+		waterRipplePhase,
+		isAnimatedGrassTile,
+		grassFoliageVariant,
+		caveLadderPos,
+		caveRubble,
+		toVisual,
+		spriteTilesNeedingGround,
+		petFacing,
+		tractorFacing,
+		showForestHit,
+		getForestFogOpacity,
+		getCaveFogOpacity,
+		clouds,
+		setClouds,
+		marketRows,
+		toolRows,
+		getToolTierName,
+		pendingTractorDelivery,
+		hasTractor,
+		hasHeadlamp,
+		newspaper,
+		isOrdering,
+		isDoctorCompounding,
+		doctorObservation,
+		cafeObservation,
+		modal,
+		modalIndex,
+		quantityPrompt,
+		selectModal,
+		getDealBadge,
+		prices,
+		initialPrices,
+		cancelQuantityPrompt,
+		moveQuantity,
+		moveModal,
+		moonPhases,
+		dayTransition,
+		dayTransitionStarsState,
+		dayTransitionStage,
+		dayTransitionClosePhase,
+		continueAfterSleep,
+		dayTransitionPrompt,
+	} = ctx;
+	return (
+		<div
+			className='game-shell'
+			tabIndex={0}
+			onKeyDown={onKeyDown}
+			ref={shellRef}
+		>
+			<div className='hud'>
+				<div>Day: {day}</div>
+				<div>Location: {player.map}</div>
+				<div>Current Weather: {weatherEmojiById[currentWeather]}</div>
+				<div>Money: ${money}</div>
+				<div className='stamina-wrap'>
+					<span title={`${stamina}/${staminaMax}`}>Stamina</span>
+					<div className='stamina-bar'>
+						<div
+							className={`stamina-fill ${stamina > 50 ? "high" : stamina > 30 ? "mid" : "low"}`}
+							style={{
+								width: `${(Math.max(0, Math.min(staminaMax, stamina)) / staminaMax) * 100}%`,
+							}}
+						/>
+					</div>
+				</div>
+			</div>
+
+			<div className='inventory inventory-strip'>
+				<div className='panel-title'>Inventory</div>
+				<ul className='inventory-row'>
+					<li
+						key='water-row'
+						className='inventory-item'
+					>
+						<span className='inventory-item-icon'>🫗</span> {/* water can */}
+						<span>Water:</span>
+						<span>{waterLevel}</span>
+					</li>
+					{inventoryRows.map((r) => (
+						<li
+							key={r.id}
+							className='inventory-item'
+						>
+							<span className='inventory-item-icon'>{r.icon}</span>
+							<span>{r.name}:</span>
+							<span>{r.amount}</span>
+						</li>
+					))}
+				</ul>
+			</div>
+
+			<div className='legend log-strip'>
+				<div className='log-list'>
+					<div className='small'>{log[0] ?? ""}</div>
+				</div>
+			</div>
+
+			<MemoMapViewport
+				ctx={{
+					activeMapLayouts,
+					player,
+					isWindSlashOn,
+					renderedMap,
+					plots,
+					keyForPos,
+					currentWeather,
+					groundClassForTile,
+					isShopMap,
+					shopDecorByMap,
+					isFarmHouseDoorTile,
+					getDoorGroundClass,
+					fishing,
+					isDrivingTractor,
+					showTiredFace,
+					playerEmoji,
+					waterRefillTile,
+					isRippleWaterTile,
+					waterRipplePhase,
+					isAnimatedGrassTile,
+					grassFoliageVariant,
+					caveLadderPos,
+					caveRubble,
+					toVisual,
+					spriteTilesNeedingGround,
+					petFacing,
+					tractorFacing,
+					showForestHit,
+					getForestFogOpacity,
+					getCaveFogOpacity,
+					clouds,
+					setClouds,
+				}}
+			/>
 			<div className='info-grid'>
 				<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 					<div className='controls-market-row'>
@@ -380,7 +515,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										<span>{row.name}:</span>{" "}
 										<span>
 											${row.price}{" "}
-											{row.trend > 0 ? "??" : row.trend < 0 ? "??" : ""} {/* market trend */}
+											{row.trend > 0 ? "📈" : row.trend < 0 ? "📉" : ""} {/* market trend */}
 										</span>
 									</li>
 								))}

@@ -27,12 +27,26 @@ export type GameStateActions = {
 	setPetFacing: Dispatch<SetStateAction<1 | -1>>;
 	setForestEnemies: Dispatch<SetStateAction<ForestEnemy[]>>;
 	setCaveEnemies: Dispatch<SetStateAction<ForestEnemy[]>>;
+	dispatchBatch?: (updates: {
+		townNpcTiles?: TownNpcTileMap;
+		boatTiles?: BoatTileMap;
+		animalTiles?: AnimalTileMap;
+		petTile?: Point | null;
+		petFacing?: 1 | -1;
+		forestEnemies?: ForestEnemy[];
+		caveEnemies?: ForestEnemy[];
+	}) => void;
 };
 
 export type WorldSimulationState = {
 	animals: Array<{ id: number }>;
 	pauseGame: boolean;
 	playerRef: MutableRefObject<Position>;
+	townNpcTiles: TownNpcTileMap;
+	boatTiles: BoatTileMap;
+	animalTiles: AnimalTileMap;
+	petTile: Point | null;
+	petFacing: 1 | -1;
 	forestChest: ForestChest;
 	forestObstacles: ForestObstacle[];
 	forestBonusChests: ForestChest[];

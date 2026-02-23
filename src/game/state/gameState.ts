@@ -151,7 +151,10 @@ export type GameStateAction = {
 		key: K;
 		value: SetStateAction<GameState[K]>;
 	};
-}[keyof GameState];
+}[keyof GameState] | {
+	type: "batch";
+	updates: Partial<{ [K in keyof GameState]: SetStateAction<GameState[K]> }>;
+};
 
 const resolveSetStateAction = <T,>(prev: T, next: SetStateAction<T>): T => {
 	return typeof next === "function" ? (next as (current: T) => T)(prev) : next;
@@ -161,10 +164,28 @@ export const gameStateReducer = (
 	state: GameState,
 	action: GameStateAction,
 ): GameState => {
-	if (action.type !== "set") return state;
-	const key = action.key as keyof GameState;
-	const current = state[key];
-	const next = resolveSetStateAction(current, action.value as SetStateAction<typeof current>);
-	if (Object.is(current, next)) return state;
-	return { ...state, [key]: next };
+	if (action.type === "set") {
+		const key = action.key as keyof GameState;
+		const current = state[key];
+		const next = resolveSetStateAction(current, action.value as SetStateAction<typeof current>);
+		if (Object.is(current, next)) return state;
+		return { ...state, [key]: next };
+	}
+
+	if (action.type === "batch") {
+		let nextState: GameState | null = null;
+		for (const key of Object.keys(action.updates) as Array<keyof GameState>) {
+			const update = action.updates[key];
+			if (update === undefined) continue;
+			const base = nextState ?? state;
+			const current = base[key];
+			const next = resolveSetStateAction(current, update as SetStateAction<typeof current>);
+			if (Object.is(current, next)) continue;
+			if (!nextState) nextState = { ...state };
+			(nextState as Record<keyof GameState, unknown>)[key] = next;
+		}
+		return nextState ?? state;
+	}
+
+	return state;
 };

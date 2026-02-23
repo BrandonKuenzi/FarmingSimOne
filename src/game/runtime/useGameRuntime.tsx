@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, type SetStateAction } from "react";
+﻿import { useEffect, useMemo, useReducer, useRef, type SetStateAction } from "react";
 import bgMusicSrc from "../../assets/bgMusic.mp3";
 import bgFarmSrc from "../../assets/bgFarm.ogg";
 import townBGSrc from "../../assets/GameBananaFeildloop.mp3";
@@ -685,6 +685,9 @@ export function useGameRuntime() {
 		setterCacheRef.current.set(key, next);
 		return next;
 	};
+	const dispatchBatch: NonNullable<GameStateActions["dispatchBatch"]> = (updates) => {
+		dispatch({ type: "batch", updates });
+	};
 	const setPlayer = setForKey("player");
 	const setDay = setForKey("day");
 	const setForestLayout = setForKey("forestLayout");
@@ -789,7 +792,8 @@ export function useGameRuntime() {
 	const setPetGraveObstacles = setForKey("petGraveObstacles");
 	const setPendingPetGravePos = setForKey("pendingPetGravePos");
 	const setFarmWeedObstacles = setForKey("farmWeedObstacles");
-	const setFarmEggDrops = setForKey("farmEggDrops");const activeMapLayouts = useMemo(
+	const setFarmEggDrops = setForKey("farmEggDrops");
+	const activeMapLayouts = useMemo(
 		() => ({
 			...mapLayouts,
 			farm: buildFarmLayout(barnTier),
@@ -1419,7 +1423,7 @@ export function useGameRuntime() {
 				y: 4 + randomRoll() * 60,
 				size: rainy ? 1 + randomRoll() * 0.45 : 0.95 + randomRoll() * 0.35,
 				durationSec,
-				glyph: rainy ? "Ã°Å¸Å’Â§Ã¯Â¸Â" : "Ã¢ËœÂÃ¯Â¸Â", // rainy cloud / cloud
+				glyph: rainy ? "🌧️" : "☁️", // rainy cloud / cloud
 			};
 		};
 
@@ -1436,16 +1440,16 @@ export function useGameRuntime() {
 		}
 		cloudIntervalRef.current = window.setInterval(() => {
 			setClouds((prev) => {
-				const next = [...prev];
 				const minClouds = rainy ? 7 : 2;
 				const maxClouds = rainy ? 10 : 3;
-				if (next.length < minClouds) {
-					next.push(makeCloud(true));
-				} else if (next.length < maxClouds) {
-					const spawnChance = rainy ? 0.42 : 0.28;
-					if (randomRoll() < spawnChance) next.push(makeCloud(true));
+				if (prev.length < minClouds) {
+					return [...prev, makeCloud(true)];
 				}
-				return next;
+				if (prev.length < maxClouds) {
+					const spawnChance = rainy ? 0.42 : 0.28;
+					if (randomRoll() < spawnChance) return [...prev, makeCloud(true)];
+				}
+				return prev;
 			});
 		}, 1100);
 
@@ -2309,6 +2313,7 @@ export function useGameRuntime() {
 		setPetFacing,
 		setForestEnemies,
 		setCaveEnemies,
+		dispatchBatch,
 	};
 	useWorldSimulation({
 		...worldSimSnapshot,
@@ -2316,6 +2321,11 @@ export function useGameRuntime() {
 		animals,
 		pauseGame,
 		playerRef,
+		townNpcTiles,
+		boatTiles,
+		animalTiles,
+		petTile,
+		petFacing,
 		forestChest,
 		forestObstacles,
 		forestBonusChests,
@@ -2582,7 +2592,7 @@ export function useGameRuntime() {
 
 	const enterTractor = (implement: TractorImplement, seedItem: ItemId | null = null) => {
 		setTractorDriverEmoji(playerEmoji);
-		setPlayerEmoji("Ã°Å¸Å¡Å“"); // tractor driving avatar
+		setPlayerEmoji("🚜"); // tractor driving avatar
 		setIsDrivingTractor(true);
 		setTractorImplement(implement);
 		setTractorImplementOn(false);
@@ -3489,6 +3499,7 @@ export function useGameRuntime() {
 
 	return renderGameRuntimeView(viewCtx);
 }
+
 
 
 
