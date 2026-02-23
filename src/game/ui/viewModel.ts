@@ -103,4 +103,12 @@ export type GameRuntimeViewModel = {
 	dayTransitionClosePhase: "idle" | "card" | "backdrop";
 	continueAfterSleep: () => void;
 	dayTransitionPrompt: string;
+	isSaveLoadMenuOpen: boolean;
+	canSaveGame: boolean;
+	saveDisabledMessage: string | null;
+	saveLoadStatus: string | null;
+	toggleSaveLoadMenu: () => void;
+	closeSaveLoadMenu: () => void;
+	saveGameToFile: () => void;
+	loadGameFromFilePicker: () => void;
 };

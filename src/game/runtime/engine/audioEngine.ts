@@ -28,6 +28,7 @@ type AudioSources = {
 	notificationSoundSrc: string;
 	forestMusicSrc: string;
 	caveMusicSrc: string;
+	spaceBgSrc: string;
 	gotRewardSoundSrc: string;
 	snakeSoundSrc: string;
 	bearSoundSrc: string;
@@ -39,6 +40,7 @@ type AudioSources = {
 	meowSoundSrc: string;
 	woofSoundSrc: string;
 	tractorSoundSrc: string;
+	sighSoundSrc: string;
 };
 
 type AudioRefs = {
@@ -49,6 +51,7 @@ type AudioRefs = {
 	houseMusicRef: AudioRef;
 	forestMusicRef: AudioRef;
 	caveMusicRef: AudioRef;
+	bureaucracyMusicRef: AudioRef;
 	chaChingRef: AudioRef;
 	endOfDayRef: AudioRef;
 	hoeSoundRef: AudioRef;
@@ -68,6 +71,7 @@ type AudioRefs = {
 	meowSoundRef: AudioRef;
 	woofSoundRef: AudioRef;
 	tractorSoundRef: AudioRef;
+	sighSoundRef: AudioRef;
 	cafeOrderMusicRef: AudioRef;
 	currentAreaMusicRef: AudioRef;
 	ttsReadyRef: MutableRefObject<boolean>;
@@ -106,6 +110,9 @@ export const initializeAudioEngine = ({
 	refs.caveMusicRef.current = new Audio(sources.caveMusicSrc);
 	refs.caveMusicRef.current.preload = "auto";
 	refs.caveMusicRef.current.loop = true;
+	refs.bureaucracyMusicRef.current = new Audio(sources.spaceBgSrc);
+	refs.bureaucracyMusicRef.current.preload = "auto";
+	refs.bureaucracyMusicRef.current.loop = true;
 	refs.chaChingRef.current = new Audio(sources.chaChingSrc);
 	refs.chaChingRef.current.preload = "auto";
 	refs.endOfDayRef.current = new Audio(sources.endOfDaySrc);
@@ -146,6 +153,8 @@ export const initializeAudioEngine = ({
 	refs.tractorSoundRef.current = new Audio(sources.tractorSoundSrc);
 	refs.tractorSoundRef.current.preload = "auto";
 	refs.tractorSoundRef.current.loop = true;
+	refs.sighSoundRef.current = new Audio(sources.sighSoundSrc);
+	refs.sighSoundRef.current.preload = "auto";
 	refs.cafeOrderMusicRef.current = new Audio(sources.cafeOrderMusicSrc);
 	refs.cafeOrderMusicRef.current.preload = "auto";
 	refs.cafeOrderMusicRef.current.loop = true;
@@ -282,6 +291,10 @@ export const createAudioActions = ({
 		stopAndResetSound(refs.tractorSoundRef.current);
 	};
 
+	const playSigh = () => {
+		playOneShot(refs.sighSoundRef.current);
+	};
+
 	const speakNpcLine = (line: string) => {
 		speakLine(line, refs.ttsReadyRef.current);
 	};
@@ -307,6 +320,7 @@ export const createAudioActions = ({
 		playPetSound,
 		startTractorLoop,
 		stopTractorLoop,
+		playSigh,
 		speakNpcLine,
 	};
 };

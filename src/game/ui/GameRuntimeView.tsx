@@ -1,7 +1,16 @@
 import React from "react";
 import { motion } from "framer-motion";
 import type { GameRuntimeViewModel } from "./viewModel";
+import { BUREAUCRACY_EXIT_POS } from "../world/layout";
 
+const bureaucracyFloppyGlyphs = ["💾", "🖴"] as const;
+const getBureaucracyStarGlyph = (star: { id: number; left: number; top: number; glyph: string }) => {
+	const roll = (star.id * 17 + Math.floor(star.left) + Math.floor(star.top)) % 10;
+	if (roll < 2) {
+		return bureaucracyFloppyGlyphs[roll % bureaucracyFloppyGlyphs.length]!;
+	}
+	return star.glyph;
+};
 
 type MapViewportCtx = Pick<
 	GameRuntimeViewModel,
@@ -37,6 +46,7 @@ type MapViewportCtx = Pick<
 	| "getCaveFogOpacity"
 	| "clouds"
 	| "setClouds"
+	| "dayTransitionStarsState"
 >;
 
 const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
@@ -73,12 +83,38 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
+		dayTransitionStarsState,
 	} = ctx;
 	return (
 			<div className='map-wrap'>
 				<div
-					className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""}`}
+					className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""} ${player.map === "bureaucracy_office" ? "map-bureaucracy" : ""}`}
 				>
+					{player.map === "bureaucracy_office" && (
+						<div className='day-stars-layer bureaucracy-stars-layer'>
+							{dayTransitionStarsState.map((star) => (
+								<motion.div
+									key={`bureaucracy-star-${star.id}`}
+									className='day-star'
+									style={{
+										left: `${star.left}%`,
+										top: `${star.top}%`,
+										fontSize: `${star.size}px`,
+									}}
+									initial={{ opacity: 0, scale: 1 }}
+									animate={{ opacity: [0, 0.35, 0], scale: [1, 1.03, 1] }}
+									transition={{
+										duration: star.duration,
+										delay: 0,
+										repeat: Infinity,
+										ease: "linear",
+									}}
+								>
+									{getBureaucracyStarGlyph(star)}
+								</motion.div>
+							))}
+						</div>
+					)}
 					<div className='grass-wind-overlay'>
 						{activeMapLayouts[player.map].map((row, y) => (
 							<div
@@ -141,6 +177,14 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 											glyph: cell,
 											className: groundClassBase ?? "tile-floor",
 										}
+									: player.map === "bureaucracy_office" &&
+										  x === BUREAUCRACY_EXIT_POS.x &&
+										  y === BUREAUCRACY_EXIT_POS.y + 2
+										? { glyph: "🌍", className: "tile-earth-dim" }
+									: player.map === "bureaucracy_office" && cell === "j"
+										? { glyph: "🧑‍💼", className: "tile-floor" }
+									: player.map === "bureaucracy_office" && cell === "x"
+										? { glyph: "🟫", className: "tile-floor" }
 									: cell === "P"
 										? {
 												glyph:
@@ -331,7 +375,8 @@ const MemoMapViewport = React.memo(
 		prev.ctx.petFacing === next.ctx.petFacing &&
 		prev.ctx.tractorFacing === next.ctx.tractorFacing &&
 		prev.ctx.showForestHit === next.ctx.showForestHit &&
-		prev.ctx.clouds === next.ctx.clouds,
+		prev.ctx.clouds === next.ctx.clouds &&
+		prev.ctx.dayTransitionStarsState === next.ctx.dayTransitionStarsState,
 );
 export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 	const {
@@ -405,6 +450,14 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		dayTransitionClosePhase,
 		continueAfterSleep,
 		dayTransitionPrompt,
+		isSaveLoadMenuOpen,
+		canSaveGame,
+		saveDisabledMessage,
+		saveLoadStatus,
+		toggleSaveLoadMenu,
+		closeSaveLoadMenu,
+		saveGameToFile,
+		loadGameFromFilePicker,
 	} = ctx;
 	return (
 		<div
@@ -413,7 +466,52 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 			onKeyDown={onKeyDown}
 			ref={shellRef}
 		>
+			{isSaveLoadMenuOpen && (
+				<div
+					className='save-load-overlay'
+					onClick={closeSaveLoadMenu}
+				>
+					<div
+						className='save-load-panel'
+						onClick={(event) => event.stopPropagation()}
+					>
+						<div className='panel-title'>Menu</div>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={saveGameToFile}
+							disabled={!canSaveGame}
+						>
+							Save
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={loadGameFromFilePicker}
+						>
+							Load
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={closeSaveLoadMenu}
+						>
+							Close
+						</button>
+						{saveDisabledMessage && <div className='small'>{saveDisabledMessage}</div>}
+						{saveLoadStatus && <div className='small'>{saveLoadStatus}</div>}
+					</div>
+				</div>
+			)}
 			<div className='hud'>
+				<button
+					type='button'
+					className='save-load-menu-button'
+					onClick={toggleSaveLoadMenu}
+					aria-label='Open save and load menu'
+				>
+					🍔
+				</button>
 				<div>Day: {day}</div>
 				<div>Location: {player.map}</div>
 				<div>Current Weather: {weatherEmojiById[currentWeather]}</div>
@@ -495,6 +593,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					getCaveFogOpacity,
 					clouds,
 					setClouds,
+					dayTransitionStarsState,
 				}}
 			/>
 			<div className='info-grid'>

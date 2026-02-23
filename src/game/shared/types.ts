@@ -5,6 +5,7 @@ export type MapId =
 	| "town"
 	| "forest"
 	| "cave"
+	| "bureaucracy_office"
 	| "seed_shop"
 	| "feed_shop"
 	| "animal_shop"

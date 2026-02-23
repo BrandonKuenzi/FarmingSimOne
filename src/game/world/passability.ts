@@ -1,4 +1,5 @@
 export const isPassableChar = (c: string): boolean => {
+	if (c === " ") return false;
 	if (
 		c === "#" ||
 		c === "T" ||
