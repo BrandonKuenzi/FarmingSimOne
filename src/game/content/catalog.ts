@@ -1,4 +1,4 @@
-import type { AnimalDef, AnimalType, CropDef, CropId, ItemId, PetEmoji, SnakePatrolState } from "../shared/types";
+import type { AnimalDef, AnimalType, CropDef, CropId, ItemId, SnakePatrolState } from "../shared/types";
 
 export const makeSnakeDirections = (enemies: Array<{ id: number; type: string }>) =>
 	Object.fromEntries(
@@ -119,5 +119,3 @@ export const itemIcons: Record<ItemId, string> = {
 	ruby: "🔴", // red gem proxy
 	coral_fruit: "🪸", // coral
 };
-
-export const petOptions: PetEmoji[] = ["🐈", "🐈‍⬛", "🐕", "🐩"]; // cat, black cat, dog, poodle
