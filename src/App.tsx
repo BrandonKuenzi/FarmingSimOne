@@ -145,6 +145,7 @@ import {
 	getDealBadge,
 	getSeedSellbackPrice,
 } from "./game/systems/commerce";
+import { evolveFarmWeeds, generateInitialFarmWeedField } from "./game/systems/weeds";
 import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
@@ -634,160 +635,6 @@ const initialPriceTrends: PriceTrendState = {
 	coral_fruit: 0,
 };
 
-const farmWeedSpreadDirections = [
-	{ dx: -1, dy: -1 },
-	{ dx: 0, dy: -1 },
-	{ dx: 1, dy: -1 },
-	{ dx: -1, dy: 0 },
-	{ dx: 1, dy: 0 },
-	{ dx: -1, dy: 1 },
-	{ dx: 0, dy: 1 },
-	{ dx: 1, dy: 1 },
-];
-const canPlaceFarmWeedAt = (
-	x: number,
-	y: number,
-	occupiedWeeds: Set<string>,
-	plotKeys: Set<string>,
-	forestBlockers: Record<string, boolean>,
-	caveBlockers: Record<string, number>,
-	includeStarterChestBlock: boolean,
-) => {
-	if (x < 1 || y < 1 || x >= FARM_WIDTH - 1 || y >= FARM_HEIGHT - 1) return false;
-	if (mapLayouts.farm[y]?.[x] !== ",") return false;
-	const key = keyForPos(x, y);
-	if (occupiedWeeds.has(key)) return false;
-	if (plotKeys.has(key)) return false;
-	if (forestBlockers[key]) return false;
-	if ((caveBlockers[key] ?? 0) > 0) return false;
-	if (
-		includeStarterChestBlock &&
-		x === STARTER_CHEST_POS.x &&
-		y === STARTER_CHEST_POS.y
-	)
-		return false;
-	return true;
-};
-const rollRandomFarmWeedDrops = (
-	occupiedWeeds: Set<string>,
-	plotKeys: Set<string>,
-	forestBlockers: Record<string, boolean>,
-	caveBlockers: Record<string, number>,
-	includeStarterChestBlock: boolean,
-) => {
-	const dropCount = randomInt(0, 2);
-	if (dropCount <= 0) return;
-	const candidates: Array<{ x: number; y: number }> = [];
-	for (let y = 1; y < FARM_HEIGHT - 1; y += 1) {
-		for (let x = 1; x < FARM_WIDTH - 1; x += 1) {
-			if (
-				canPlaceFarmWeedAt(
-					x,
-					y,
-					occupiedWeeds,
-					plotKeys,
-					forestBlockers,
-					caveBlockers,
-					includeStarterChestBlock,
-				)
-			) {
-				candidates.push({ x, y });
-			}
-		}
-	}
-	const picks = candidates.sort(() => Math.random() - 0.5).slice(0, dropCount);
-	picks.forEach(({ x, y }) => {
-		occupiedWeeds.add(keyForPos(x, y));
-	});
-};
-const generateInitialFarmWeedField = (
-	forestBlockers: Record<string, boolean>,
-	caveBlockers: Record<string, number>,
-	plotKeys: Set<string>,
-) => {
-	const weeds = new Set<string>();
-	const blobCount = randomInt(3, 5);
-	for (let i = 0; i < blobCount; i += 1) {
-		const cx = randomInt(Math.floor(FARM_WIDTH * 0.62), FARM_WIDTH - 3);
-		const cy = randomInt(Math.floor(FARM_HEIGHT * 0.6), FARM_HEIGHT - 3);
-		const radiusX = randomInt(1, 2);
-		const radiusY = randomInt(1, 2);
-		for (let y = cy - radiusY; y <= cy + radiusY; y += 1) {
-			for (let x = cx - radiusX; x <= cx + radiusX; x += 1) {
-				if (Math.random() < 0.35) continue;
-				if (canPlaceFarmWeedAt(x, y, weeds, plotKeys, forestBlockers, caveBlockers, true)) {
-					weeds.add(keyForPos(x, y));
-				}
-			}
-		}
-	}
-	if (weeds.size < 1) {
-		for (let y = FARM_HEIGHT - 3; y >= Math.floor(FARM_HEIGHT * 0.55); y -= 1) {
-			for (let x = FARM_WIDTH - 3; x >= Math.floor(FARM_WIDTH * 0.58); x -= 1) {
-				if (canPlaceFarmWeedAt(x, y, weeds, plotKeys, forestBlockers, caveBlockers, true)) {
-					weeds.add(keyForPos(x, y));
-					y = -1;
-					break;
-				}
-			}
-		}
-	}
-	return Object.fromEntries(Array.from(weeds).map((key) => [key, true])) as Record<
-		string,
-		boolean
-	>;
-};
-const evolveFarmWeeds = (
-	prev: Record<string, boolean>,
-	forestBlockers: Record<string, boolean>,
-	caveBlockers: Record<string, number>,
-	plotKeys: Set<string>,
-	includeStarterChestBlock: boolean,
-) => {
-	const weeds = new Set<string>(
-		Object.entries(prev)
-			.filter(([, present]) => present)
-			.map(([key]) => key),
-	);
-	const baseWeeds = Array.from(weeds);
-	baseWeeds.forEach((key) => {
-		if (Math.random() >= 0.5) return;
-		const [xStr, yStr] = key.split(",");
-		const x = Number(xStr);
-		const y = Number(yStr);
-		if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-		const dir =
-			farmWeedSpreadDirections[
-				randomInt(0, farmWeedSpreadDirections.length - 1)
-			]!;
-		const nx = x + dir.dx;
-		const ny = y + dir.dy;
-		if (
-			canPlaceFarmWeedAt(
-				nx,
-				ny,
-				weeds,
-				plotKeys,
-				forestBlockers,
-				caveBlockers,
-				includeStarterChestBlock,
-			)
-		) {
-			weeds.add(keyForPos(nx, ny));
-		}
-	});
-	rollRandomFarmWeedDrops(
-		weeds,
-		plotKeys,
-		forestBlockers,
-		caveBlockers,
-		includeStarterChestBlock,
-	);
-	return Object.fromEntries(Array.from(weeds).map((key) => [key, true])) as Record<
-		string,
-		boolean
-	>;
-};
 const weatherOptions: WeatherId[] = ["sunny", "windy", "rainy"];
 const randomWeather = (): WeatherId =>
 	weatherOptions[randomInt(0, weatherOptions.length - 1)]!;
@@ -1248,7 +1095,14 @@ function App() {
 	);
 	const [pendingPetGravePos, setPendingPetGravePos] = useState<Point | null>(null);
 	const [farmWeedObstacles, setFarmWeedObstacles] = useState<Record<string, boolean>>(
-		() => generateInitialFarmWeedField(farmForestBlockers, farmCaveBlockers, new Set<string>()),
+		() =>
+			generateInitialFarmWeedField(
+				mapLayouts.farm,
+				farmForestBlockers,
+				farmCaveBlockers,
+				new Set<string>(),
+				STARTER_CHEST_POS,
+			),
 	);
 	const [farmEggDrops, setFarmEggDrops] = useState<Record<string, boolean>>({});
 	const activeMapLayouts = useMemo(
@@ -4742,10 +4596,12 @@ function App() {
 		setFarmWeedObstacles((prev) =>
 			evolveFarmWeeds(
 				prev,
+				mapLayouts.farm,
 				farmForestBlockers,
 				farmCaveBlockers,
 				new Set(Object.keys(plots)),
 				false,
+				STARTER_CHEST_POS,
 			),
 		);
 
