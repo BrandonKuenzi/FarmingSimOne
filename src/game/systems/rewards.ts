@@ -1,6 +1,7 @@
 import { allWardrobeLooks, cafeMenuItems } from "../config/gameplay";
 import { animalDefs, cropDefs, highValueChestAnimalTypes, standardCropIds } from "../content/catalog";
 import { getRandomCropId, toolNames, TOOL_MAX_LEVEL } from "./tools";
+import { randomRoll } from "../shared/random";
 import type { AnimalType, ItemId, ToolId, ToolLevels } from "../shared/types";
 
 type RewardContext = {
@@ -55,14 +56,14 @@ export const openHighValueForestChestReward = (ctx: {
 	spawnAnimalInBarn: (type: AnimalType) => boolean;
 	openRewardPopup: (line: string) => void;
 }): void => {
-	const roll = Math.random() * 100;
+	const roll = randomRoll() * 100;
 	const canGrantAnimalReward = ctx.animalsCount < ctx.barnAnimalCap && ctx.canSpawnAnimal;
 	let rewardLine = "";
 	if (roll < 50) {
 		const foundMoney = ctx.randomInt(50, 200);
 		ctx.applyMoneyDelta(foundMoney);
 		rewardLine = `You found $${foundMoney} in the chest.`;
-		if (Math.random() < 0.2) {
+		if (randomRoll() < 0.2) {
 			ctx.updateInventory("iron", 1);
 			rewardLine += " Also found Iron +1.";
 		}
@@ -71,7 +72,7 @@ export const openHighValueForestChestReward = (ctx: {
 		const amount = ctx.randomInt(5, 15);
 		ctx.updateInventory(cropDefs[pick].seedItem, amount);
 		rewardLine = `You found ${cropDefs[pick].name} Seed x${amount}.`;
-		if (Math.random() < 0.2) {
+		if (randomRoll() < 0.2) {
 			ctx.updateInventory("iron", 1);
 			rewardLine += " Also found Iron +1.";
 		}
@@ -82,7 +83,7 @@ export const openHighValueForestChestReward = (ctx: {
 		ctx.applyMoneyDelta(foundMoney);
 		ctx.updateInventory(cropDefs[pick].seedItem, amount);
 		rewardLine = `Lucky chest! $${foundMoney} and ${cropDefs[pick].name} Seed x${amount}.`;
-		if (Math.random() < 0.35) {
+		if (randomRoll() < 0.35) {
 			ctx.updateInventory("iron", 1);
 			rewardLine += " Also found Iron +1.";
 		}
@@ -148,8 +149,8 @@ export const rollBeachBottleReward = (ctx: {
 		: canGrantAnimalReward
 			? 75
 			: 65;
-	const roll = Math.random() * maxRoll;
-	const gemRoll = Math.random() * 100;
+	const roll = randomRoll() * maxRoll;
+	const gemRoll = randomRoll() * 100;
 	if (gemRoll < 1) {
 		ctx.updateInventory("diamond", 1);
 		return "Diamond";

@@ -1,4 +1,4 @@
-import { randomInt } from "../shared/random";
+import { randomInt, randomRoll } from "../shared/random";
 import type { ItemId, PriceState, SketchyStockEntry, TraderTradeEntry } from "../shared/types";
 
 export type DealBadge =
@@ -40,7 +40,7 @@ export const getMarketBasePrice = (itemId: ItemId, baseMarketPrice: number): num
 };
 
 export const getSketchyPriceMultiplier = () => {
-	const roll = Math.random();
+	const roll = randomRoll();
 	if (roll < 0.2) return 0.8;
 	if (roll < 0.4) return 0.7;
 	if (roll < 0.6) return 0.5;
@@ -73,7 +73,7 @@ const sketchyItemPool: ItemId[] = [
 
 export const generateSketchyMerchantStock = (marketPrices: PriceState) => {
 	const distinct = randomInt(2, 5);
-	const chosen = [...sketchyItemPool].sort(() => Math.random() - 0.5).slice(0, distinct);
+	const chosen = [...sketchyItemPool].sort(() => randomRoll() - 0.5).slice(0, distinct);
 	return chosen.map((item) => {
 		const basePrice = marketPrices[item];
 		const price = Math.max(1, Math.floor(basePrice * getSketchyPriceMultiplier()));

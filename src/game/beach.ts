@@ -1,6 +1,7 @@
 export type XY = { x: number; y: number };
 type RandomIntFn = (min: number, max: number) => number;
 type KeyForPosFn = (x: number, y: number) => string;
+import { randomRoll } from "./shared/random";
 
 export const collectBeachTiles = (row: string, y: number): XY[] => {
 	const out: XY[] = [];
@@ -14,7 +15,7 @@ export const rollBeachBottleSpawn = (
 	tiles: XY[],
 	randomInt: RandomIntFn,
 ): XY | null => {
-	if (Math.random() >= 0.2) return null;
+	if (randomRoll() >= 0.2) return null;
 	if (tiles.length < 1) return null;
 	return tiles[randomInt(0, tiles.length - 1)]!;
 };
@@ -27,7 +28,7 @@ export const rollBeachShellDrops = (
 ) => {
 	const count = randomInt(0, 3);
 	const available = tiles.filter((pos) => !blockedKeys.has(keyForPos(pos.x, pos.y)));
-	const picks = [...available].sort(() => Math.random() - 0.5).slice(0, count);
+	const picks = [...available].sort(() => randomRoll() - 0.5).slice(0, count);
 	return Object.fromEntries(
 		picks.map((pos) => [keyForPos(pos.x, pos.y), true]),
 	) as Record<string, boolean>;

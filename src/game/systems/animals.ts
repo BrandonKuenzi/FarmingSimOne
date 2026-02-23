@@ -1,4 +1,5 @@
 import { keyForPos } from "../shared/coords";
+import { randomRoll } from "../shared/random";
 import type { Animal, Point } from "../shared/types";
 
 type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
@@ -64,7 +65,7 @@ export const getEggDropNearChicken = ({
 	isPassableChar: (c: string) => boolean;
 	chickenEggOffsets: Array<{ dx: number; dy: number }>;
 }): Point | null => {
-	const candidates = [...chickenEggOffsets].sort(() => Math.random() - 0.5);
+	const candidates = [...chickenEggOffsets].sort(() => randomRoll() - 0.5);
 	for (const { dx, dy } of candidates) {
 		const x = chickenPos.x + dx;
 		const y = chickenPos.y + dy;

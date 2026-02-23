@@ -1,4 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { randomRoll } from "../shared/random";
 import type { NpcDailyAssignment } from "../../npcDialogue";
 import type { InteractionsContext } from "./interactions";
 import type {
@@ -477,8 +478,8 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 			if (!trySpendStamina(1)) return;
 			setFarmWeedObstacles((prev: Record<string, boolean>) => ({ ...prev, [farmTargetKey]: false }));
 			playHoe();
-			const gotFeed = Math.random() < 0.5;
-			const gotMoney = Math.random() < 0.02;
+			const gotFeed = randomRoll() < 0.5;
+			const gotMoney = randomRoll() < 0.02;
 			const lines: string[] = [];
 			if (gotFeed) {
 				updateInventory("feed", 1);
@@ -539,7 +540,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					openHighValueForestChestReward();
 					return;
 				}
-				const roll = Math.random();
+				const roll = randomRoll();
 				let line = "";
 				if (roll < 0.2) {
 					const options: Array<"food" | "money" | "seeds" | "iron"> = [
@@ -557,11 +558,11 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					line = grantBonusChestRewardSet(["seeds"]);
 				} else if (roll < 0.8) {
 					const options = ["food", "money", "seeds", "iron"] as const;
-					const shuffled = [...options].sort(() => Math.random() - 0.5);
+					const shuffled = [...options].sort(() => randomRoll() - 0.5);
 					line = grantBonusChestRewardSet([shuffled[0]!, shuffled[1]!]);
 				} else {
 					const options = ["food", "money", "seeds", "iron"] as const;
-					const withIron = Math.random() < 0.5;
+					const withIron = randomRoll() < 0.5;
 					line = grantBonusChestRewardSet(
 						withIron ? [...options] : ["food", "money", "seeds"],
 					);
@@ -575,8 +576,8 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				if (!trySpendStamina(1)) return;
 				setForestObstacles((prev: ForestObstacle[]) => prev.filter((o: ForestObstacle) => o.id !== obstacle.id));
 				playHoe();
-				const gotFeed = Math.random() < 0.5;
-				const gotMoney = Math.random() < 0.02;
+				const gotFeed = randomRoll() < 0.5;
+				const gotMoney = randomRoll() < 0.02;
 				const lines: string[] = [];
 				if (gotFeed) {
 					updateInventory("feed", 1);
@@ -601,7 +602,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				setForestObstacles((prev: ForestObstacle[]) => prev.filter((o: ForestObstacle) => o.id !== obstacle.id));
 				playHoe();
 				const seedChance = getSmashAxeWoodSeedChance(smashAxeLevel);
-				if (Math.random() < seedChance) {
+				if (randomRoll() < seedChance) {
 					const cropId = getRandomCropId(standardCropIds, randomInt);
 					const seedItem = cropDefs[cropId].seedItem;
 					updateInventory(seedItem, 1);
@@ -633,7 +634,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					const swingsLeft = Math.ceil(nextHitsRemaining / damage);
 					addLog(`You chip the rock. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`);
 				} else {
-					if (Math.random() < getSmashAxeIronChance(smashAxeLevel)) {
+					if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 						updateInventory("iron", 1);
 						playYaya();
 						addLog("You broke the rock and found Iron +1.");
@@ -669,23 +670,23 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					addLog(`You chip the cave rock. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`);
 				} else {
 					let foundGem = false;
-					if (caveLevel >= 10 && Math.random() < 1 / 40) {
+					if (caveLevel >= 10 && randomRoll() < 1 / 40) {
 						updateInventory("diamond", 1);
 						playYaya();
 						addLog("You found a Diamond! (+1)");
 						foundGem = true;
-					} else if (caveLevel >= 5 && Math.random() < 1 / 30) {
+					} else if (caveLevel >= 5 && randomRoll() < 1 / 30) {
 						updateInventory("emerald", 1);
 						playYaya();
 						addLog("You found an Emerald! (+1)");
 						foundGem = true;
-					} else if (Math.random() < 1 / 10) {
+					} else if (randomRoll() < 1 / 10) {
 						updateInventory("ruby", 1);
 						playYaya();
 						addLog("You found a Ruby! (+1)");
 						foundGem = true;
 					}
-					if (!foundGem && Math.random() < getSmashAxeIronChance(smashAxeLevel)) {
+					if (!foundGem && randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 						updateInventory("iron", 1);
 						playYaya();
 						addLog("You broke the cave rock and found Iron +1.");
@@ -695,7 +696,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					if (!caveLadderPos) {
 						const remainingRocks = caveObstacles.filter((o: ForestObstacle) => o.id !== obstacle.id).length;
 						const revealChance = 1 / 12;
-						if (remainingRocks <= 0 || Math.random() < revealChance) {
+						if (remainingRocks <= 0 || randomRoll() < revealChance) {
 							setCaveLadderPos({ x: obstacle.x, y: obstacle.y });
 							addLog("A ladder appears leading deeper into the cave.");
 						}
@@ -718,7 +719,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				setFarmForestBlockers((prev: Record<string, boolean>) => ({ ...prev, [blockerKey]: false }));
 				playHoe();
 				const seedChance = getSmashAxeWoodSeedChance(smashAxeLevel);
-				if (Math.random() < seedChance) {
+				if (randomRoll() < seedChance) {
 					const cropId = getRandomCropId(standardCropIds, randomInt);
 					const seedItem = cropDefs[cropId].seedItem;
 					updateInventory(seedItem, 1);
@@ -756,7 +757,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 						`You chip the cave blockage. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`,
 					);
 				} else {
-					if (Math.random() < getSmashAxeIronChance(smashAxeLevel)) {
+					if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 						updateInventory("iron", 1);
 						playYaya();
 						addLog("You smashed the cave blockage and found Iron +1.");
@@ -793,7 +794,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					addLog(
 						`You chip the gravestone. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`,
 					);
-				} else if (Math.random() < getSmashAxeIronChance(smashAxeLevel)) {
+				} else if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 					updateInventory("iron", 1);
 					playYaya();
 					addLog("You smashed the gravestone and found Iron +1.");

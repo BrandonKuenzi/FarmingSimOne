@@ -36,6 +36,7 @@ import {
 } from "../world/npcs";
 import { isShopMap, vendorByShopMap } from "../world/navigation";
 import { rollLivestockYield } from "./tools";
+import { randomRoll } from "../shared/random";
 import type {
 	Animal,
 	Inventory,
@@ -197,7 +198,7 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 					),
 				);
 				playPluck();
-				if (Math.random() < 0.25) {
+				if (randomRoll() < 0.25) {
 					const lines = isCowLikeAnimal(animal.type)
 						? cowHarvestTtsLines
 						: sheepHarvestTtsLines;
@@ -512,7 +513,7 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 				generateDailyAssignmentsForNpcs([key])[key];
 			const firstTalkToday = !npcTalkedToday[key];
 			const tipText = townTips[randomInt(0, townTips.length - 1)]!;
-			const isTip = !firstTalkToday && Math.random() < 0.5;
+			const isTip = !firstTalkToday && randomRoll() < 0.5;
 			const line = firstTalkToday
 				? generateNpcGreetingLine(assignment)
 				: isTip

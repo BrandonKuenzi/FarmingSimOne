@@ -1,5 +1,5 @@
 import { keyForPos } from "../shared/coords";
-import { randomInt } from "../shared/random";
+import { randomInt, randomRoll } from "../shared/random";
 import { FARM_HEIGHT, FARM_WIDTH } from "../world/layout";
 
 const farmWeedSpreadDirections = [
@@ -66,7 +66,7 @@ const rollRandomFarmWeedDrops = (
 			}
 		}
 	}
-	const picks = candidates.sort(() => Math.random() - 0.5).slice(0, dropCount);
+	const picks = candidates.sort(() => randomRoll() - 0.5).slice(0, dropCount);
 	picks.forEach(({ x, y }) => occupiedWeeds.add(keyForPos(x, y)));
 };
 
@@ -86,7 +86,7 @@ export const generateInitialFarmWeedField = (
 		const radiusY = randomInt(1, 2);
 		for (let y = cy - radiusY; y <= cy + radiusY; y += 1) {
 			for (let x = cx - radiusX; x <= cx + radiusX; x += 1) {
-				if (Math.random() < 0.35) continue;
+				if (randomRoll() < 0.35) continue;
 				if (
 					canPlaceFarmWeedAt(
 						x,
@@ -147,7 +147,7 @@ export const evolveFarmWeeds = (
 	);
 	const baseWeeds = Array.from(weeds);
 	baseWeeds.forEach((key) => {
-		if (Math.random() >= 0.5) return;
+		if (randomRoll() >= 0.5) return;
 		const [xStr, yStr] = key.split(",");
 		const x = Number(xStr);
 		const y = Number(yStr);

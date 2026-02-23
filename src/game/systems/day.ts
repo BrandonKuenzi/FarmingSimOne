@@ -8,6 +8,7 @@ import type {
 	TraderTradeEntry,
 	WeatherId,
 } from "../shared/types";
+import { randomRoll } from "../shared/random";
 
 export const advancePlotsForNewDay = (
 	prevPlots: Record<string, Plot>,
@@ -55,7 +56,7 @@ export const rollDailyMarketState = ({
 } => {
 	const newPrices: PriceState = { ...oldPrices };
 	const newTrends: PriceTrendState = { ...initialPriceTrends };
-	const shuffled = [...priceItems].sort(() => Math.random() - 0.5);
+	const shuffled = [...priceItems].sort(() => randomRoll() - 0.5);
 	const changedItems = shuffled.slice(0, Math.min(2, shuffled.length));
 	changedItems.forEach((item) => {
 		newPrices[item] = Math.max(
@@ -88,14 +89,14 @@ export const rollDailyVendorState = ({
 	doctorVendorActive: boolean;
 	petVendorActive: boolean;
 } => {
-	const showSketchy = Math.random() < 0.25;
-	const showTrader = Math.random() < 0.5;
+	const showSketchy = randomRoll() < 0.25;
+	const showTrader = randomRoll() < 0.5;
 	return {
 		showSketchy,
 		sketchyStock: showSketchy ? generateSketchyMerchantStock(newPrices) : [],
 		showTrader,
 		traderTrades: showTrader ? generateTraderTrades() : [],
-		doctorVendorActive: Math.random() < 1 / 3,
-		petVendorActive: !ownedPet && !deliveredPet && Math.random() < 0.5,
+		doctorVendorActive: randomRoll() < 1 / 3,
+		petVendorActive: !ownedPet && !deliveredPet && randomRoll() < 0.5,
 	};
 };
