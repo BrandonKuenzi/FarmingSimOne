@@ -35,18 +35,13 @@ import {
 } from "../../npcDialogue";
 import {
 	boatDialogArray,
-	cafeWaitingObservations,
 	cowHarvestTtsLines,
 	doctorFinishedTodayLine,
 	doctorGrindingMedicineSpeech,
 	doctorIntroLines,
-	doctorWaitingObservations,
 	dontTouchSketchy,
 	gotAllClothesDialog,
 	gotAllToolsDialog,
-	orderCompleteDialog,
-	orderMiddleDialog,
-	orderStartedDialog,
 	petVendorSoldLine,
 	sheepHarvestTtsLines,
 	sketchyMerchantIntro,
@@ -147,12 +142,6 @@ import {
 } from "../systems/sound";
 import { speakLine } from "../systems/tts";
 import {
-	nextCafeObservation as nextCafeObservationRule,
-	nextDoctorObservation as nextDoctorObservationRule,
-	nextDoctorSpeechLine as nextDoctorSpeechLineRule,
-	orderLine as orderLineRule,
-} from "../systems/dialogue";
-import {
 	grantBonusChestRewardSet as grantBonusChestRewardSetRule,
 	openHighValueForestChestReward as openHighValueForestChestRewardRule,
 	rollBeachBottleReward,
@@ -193,13 +182,19 @@ import {
 } from "../systems/animals";
 import { handleLateInteractionBlocks } from "../systems/interactions";
 import {
-	handleGameKeyDown,
 	moveModalCursor,
 	moveQuantitySelection,
 	selectModalOption,
+	type GameKeyDownContext,
 } from "../systems/input";
 import { runInteract } from "../systems/playerInteract";
+import { createServiceOrderActions } from "../systems/serviceOrders";
 import { renderGameRuntimeView } from "../ui/GameRuntimeView";
+import type { GameRuntimeViewModel } from "../ui/viewModel";
+import { createAreaMusicController } from "./areaMusic";
+import type { GameStateActions, GameStateSnapshot } from "./contracts";
+import { useInputRouter } from "./useInputRouter";
+import { useWorldSimulation } from "./worldSimulation";
 import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
@@ -1075,202 +1070,37 @@ export function useGameRuntime() {
 		[],
 	);
 
-	const getAreaMusicForMap = (mapId: MapId) => {
-		if (mapId === "farm") return farmMusicRef.current;
-		if (mapId === "town" || isShopMap(mapId)) return townMusicRef.current;
-		if (mapId === "forest") return forestMusicRef.current;
-		if (mapId === "cave") return caveMusicRef.current;
-		return houseMusicRef.current;
-	};
-
-	const stopAreaFade = () => {
-		if (musicFadeIntervalRef.current !== null) {
-			window.clearInterval(musicFadeIntervalRef.current);
-			musicFadeIntervalRef.current = null;
-		}
-		musicFadeFromRef.current = null;
-		musicFadeToRef.current = null;
-	};
-
-	const stopTownBeachFade = () => {
-		if (townBeachFadeIntervalRef.current !== null) {
-			window.clearInterval(townBeachFadeIntervalRef.current);
-			townBeachFadeIntervalRef.current = null;
-		}
-	};
-
-	const markBgMusicTransition = (durationMs: number) => {
-		bgMusicTransitionUntilRef.current = Date.now() + durationMs + 250;
-	};
-
-	const stopStaleBackgroundTracks = () => {
-		const now = Date.now();
-		const allowed = new Set<HTMLAudioElement>();
-		const areaTracks = [
-			farmMusicRef.current,
-			townMusicRef.current,
-			houseMusicRef.current,
-			forestMusicRef.current,
-			caveMusicRef.current,
-			endOfDayRef.current,
-			cafeOrderMusicRef.current,
-			beachAmbienceRef.current,
-		].filter((t): t is HTMLAudioElement => t !== null);
-
-		if (musicFadeFromRef.current) allowed.add(musicFadeFromRef.current);
-		if (musicFadeToRef.current) allowed.add(musicFadeToRef.current);
-
-		if (dayTransition) {
-			if (endOfDayRef.current) allowed.add(endOfDayRef.current);
-		} else if (isOrdering || isDoctorCompounding) {
-			if (cafeOrderMusicRef.current) allowed.add(cafeOrderMusicRef.current);
-		} else if (!fishing) {
-			const intended = getAreaMusicForMap(playerRef.current.map);
-			if (intended) allowed.add(intended);
-			if (
-				playerRef.current.map === "town" ||
-				townBeachFadeIntervalRef.current !== null
-			) {
-				if (townMusicRef.current) allowed.add(townMusicRef.current);
-				if (beachAmbienceRef.current) allowed.add(beachAmbienceRef.current);
-			}
-		}
-
-		const withinTransitionWindow = now < bgMusicTransitionUntilRef.current;
-		areaTracks.forEach((track) => {
-			if (allowed.has(track)) return;
-			if (withinTransitionWindow) return;
-			if (!track.paused) {
-				track.pause();
-			}
-			track.currentTime = 0;
-			track.volume = 1;
-		});
-	};
-
-	const fadeTownAndBeach = (
-		targetTownVolume: number,
-		targetBeachVolume: number,
-		durationMs = 650,
-	) => {
-		const townTrack = townMusicRef.current;
-		const beachTrack = beachAmbienceRef.current;
-		if (!townTrack || !beachTrack) return;
-		stopTownBeachFade();
-		const startTown = townTrack.volume;
-		const startBeach = beachTrack.volume;
-		const deltaTown = targetTownVolume - startTown;
-		const deltaBeach = targetBeachVolume - startBeach;
-		if (Math.abs(deltaTown) < 0.001 && Math.abs(deltaBeach) < 0.001) return;
-		markBgMusicTransition(durationMs);
-		const tickMs = 50;
-		let elapsed = 0;
-		townBeachFadeIntervalRef.current = window.setInterval(() => {
-			elapsed += tickMs;
-			const t = Math.min(elapsed / durationMs, 1);
-			townTrack.volume = startTown + deltaTown * t;
-			beachTrack.volume = startBeach + deltaBeach * t;
-			if (t >= 1) {
-				stopTownBeachFade();
-			}
-		}, tickMs);
-	};
-
-	const stopEndOfDaySong = () => {
-		const track = endOfDayRef.current;
-		if (!track) return;
-		track.volume = 1;
-		track.loop = false;
-		track.pause();
-		track.currentTime = 0;
-		track.load();
-		track.loop = true;
-	};
-
-	const fadeOutCurrentAreaMusic = (durationMs = 450) => {
-		const track = currentAreaMusicRef.current;
-		if (!track) return;
-		stopAreaFade();
-		musicFadeFromRef.current = track;
-		musicFadeToRef.current = null;
-		markBgMusicTransition(durationMs);
-		const tickMs = 50;
-		const startVolume = track.volume;
-		let elapsed = 0;
-		musicFadeIntervalRef.current = window.setInterval(() => {
-			elapsed += tickMs;
-			const t = Math.min(elapsed / durationMs, 1);
-			track.volume = Math.max(0, startVolume * (1 - t));
-			if (t >= 1) {
-				stopAreaFade();
-				track.pause();
-				track.currentTime = 0;
-				track.volume = 1;
-				stopStaleBackgroundTracks();
-			}
-		}, tickMs);
-	};
-
-	const switchAreaMusic = (
-		target: HTMLAudioElement | null,
-		instant = false,
-	) => {
-		if (!target) return;
-		stopAreaFade();
-		stopEndOfDaySong();
-
-		const current = currentAreaMusicRef.current;
-		if (!current) {
-			target.volume = 1;
-			void target.play().catch(() => undefined);
-			currentAreaMusicRef.current = target;
-			stopStaleBackgroundTracks();
-			return;
-		}
-
-		if (current === target) {
-			if (current.paused) {
-				current.volume = 1;
-				void current.play().catch(() => undefined);
-			}
-			stopStaleBackgroundTracks();
-			return;
-		}
-
-		if (instant) {
-			current.pause();
-			current.currentTime = 0;
-			target.volume = 1;
-			void target.play().catch(() => undefined);
-			currentAreaMusicRef.current = target;
-			stopStaleBackgroundTracks();
-			return;
-		}
-
-		target.volume = 0;
-		void target.play().catch(() => undefined);
-		const durationMs = 2000;
-		musicFadeFromRef.current = current;
-		musicFadeToRef.current = target;
-		markBgMusicTransition(durationMs);
-		const tickMs = 50;
-		let elapsed = 0;
-		musicFadeIntervalRef.current = window.setInterval(() => {
-			elapsed += tickMs;
-			const t = Math.min(elapsed / durationMs, 1);
-			current.volume = 1 - t;
-			target.volume = t;
-			if (t >= 1) {
-				stopAreaFade();
-				current.pause();
-				current.currentTime = 0;
-				current.volume = 1;
-				target.volume = 1;
-				stopStaleBackgroundTracks();
-			}
-		}, tickMs);
-		currentAreaMusicRef.current = target;
-	};
+	const {
+		getAreaMusicForMap,
+		stopAreaFade,
+		stopTownBeachFade,
+		stopStaleBackgroundTracks,
+		fadeTownAndBeach,
+		fadeOutCurrentAreaMusic,
+		switchAreaMusic,
+		crossFadeEndOfDayTo,
+	} = createAreaMusicController({
+		isShopMap,
+		playerRef,
+		hasDayTransition: !!dayTransition,
+		isOrdering,
+		isDoctorCompounding,
+		isFishing: !!fishing,
+		farmMusicRef,
+		townMusicRef,
+		beachAmbienceRef,
+		houseMusicRef,
+		forestMusicRef,
+		caveMusicRef,
+		endOfDayRef,
+		cafeOrderMusicRef,
+		currentAreaMusicRef,
+		musicFadeFromRef,
+		musicFadeToRef,
+		musicFadeIntervalRef,
+		bgMusicTransitionUntilRef,
+		townBeachFadeIntervalRef,
+	});
 
 	const clearFishingTimers = () => {
 		clearFishingTimersSystem({
@@ -1694,45 +1524,6 @@ export function useGameRuntime() {
 			// Lighter density for subtler effect.
 			return (x * 5 + y * 7 + wind.frame) % 2 === 0;
 		});
-	};
-
-	const crossFadeEndOfDayTo = (target: HTMLAudioElement | null, durationMs = 1000) => {
-		const endTrack = endOfDayRef.current;
-		if (!target) {
-			stopEndOfDaySong();
-			return;
-		}
-		if (!endTrack) {
-			target.volume = 1;
-			void target.play().catch(() => undefined);
-			currentAreaMusicRef.current = target;
-			return;
-		}
-		stopAreaFade();
-		target.volume = 0;
-		void target.play().catch(() => undefined);
-		if (endTrack) {
-			musicFadeFromRef.current = endTrack;
-		}
-		musicFadeToRef.current = target;
-		markBgMusicTransition(durationMs);
-		const tickMs = 50;
-		let elapsed = 0;
-		musicFadeIntervalRef.current = window.setInterval(() => {
-			elapsed += tickMs;
-			const t = Math.min(elapsed / durationMs, 1);
-			endTrack.volume = 1 - t;
-			target.volume = t;
-			if (t >= 1) {
-				stopAreaFade();
-				endTrack.pause();
-				endTrack.currentTime = 0;
-				endTrack.volume = 1;
-				target.volume = 1;
-				currentAreaMusicRef.current = target;
-				stopStaleBackgroundTracks();
-			}
-		}, tickMs);
 	};
 
 	const getForestFogTargetOpacity = (
@@ -2297,79 +2088,6 @@ export function useGameRuntime() {
 		if (next) nextBoatTiles[boatKey] = next;
 	};
 
-	useEffect(() => {
-		const interval = window.setInterval(() => {
-			setTownNpcTiles((prev) => {
-				const next = { ...prev };
-				Object.keys(townNpcNames).forEach((npcKey) => {
-					maybeMoveNPC(npcKey, next);
-				});
-				return next;
-			});
-			setBoatTiles((prev) => {
-				const next = { ...prev };
-				(
-					Object.keys(boatNpcEmojis) as Array<keyof typeof boatNpcEmojis>
-				).forEach((boatKey) => {
-					maybeMoveBoat(boatKey, next);
-				});
-				return next;
-			});
-			setAnimalTiles((prev) => {
-				const next = { ...prev };
-				animals.forEach((a) => {
-					maybeMoveAnimal(a.id, next);
-				});
-				return next;
-			});
-			setPetTile((prev) => {
-				if (!prev || playerRef.current.map !== "farm") return prev;
-				const next = maybeMovePet(prev);
-				if (next.x < prev.x) setPetFacing(1);
-				else if (next.x > prev.x) setPetFacing(-1);
-				return next;
-			});
-		}, 1000);
-
-		return () => window.clearInterval(interval);
-	}, [
-		animals,
-		animalAnchors,
-		farmEggDrops,
-		farmForestBlockers,
-		farmCaveBlockers,
-		petGraveObstacles,
-		farmWeedObstacles,
-		plots,
-		day,
-		starterChestOpened,
-		petVendorActive,
-		ownedPet,
-		pauseGame,
-	]);
-
-	useEffect(() => {
-		const interval = window.setInterval(() => {
-			forestEnemyTickRef.current += 1;
-			const isHalfTick = forestEnemyTickRef.current % 2 === 1;
-			setForestEnemies((prev) =>
-				prev.map((enemy) => maybeMoveForestEnemy(enemy, isHalfTick)),
-			);
-		}, 500);
-		return () => window.clearInterval(interval);
-	}, [pauseGame, activeMapLayouts, forestObstacles, forestChest, forestBonusChests]);
-
-	useEffect(() => {
-		const interval = window.setInterval(() => {
-			caveEnemyTickRef.current += 1;
-			const isHalfTick = caveEnemyTickRef.current % 2 === 1;
-			setCaveEnemies((prev) =>
-				prev.map((enemy) => maybeMoveCaveEnemy(enemy, isHalfTick)),
-			);
-		}, 500);
-		return () => window.clearInterval(interval);
-	}, [pauseGame, activeMapLayouts, caveObstacles, caveLadderPos]);
-
 	const addLog = (line: string) => {
 		setLog([line]);
 	};
@@ -2502,6 +2220,57 @@ export function useGameRuntime() {
 		}
 		return current;
 	};
+	const gameState: GameStateSnapshot = {
+		player,
+		day,
+		map: player.map,
+	};
+	const gameActions: GameStateActions = {
+		setTownNpcTiles,
+		setBoatTiles: setBoatTiles as unknown as GameStateActions["setBoatTiles"],
+		setAnimalTiles,
+		setPetTile,
+		setPetFacing,
+		setForestEnemies,
+		setCaveEnemies,
+	};
+	useWorldSimulation({
+		...gameState,
+		...gameActions,
+		animals,
+		pauseGame,
+		playerRef,
+		forestChest,
+		forestObstacles,
+		forestBonusChests,
+		caveObstacles,
+		caveLadderPos,
+		activeMapLayouts,
+		maybeMoveNPC,
+		maybeMoveBoat: (boatKey, nextTiles) => {
+			maybeMoveBoat(
+				boatKey as keyof typeof boatNpcEmojis,
+				nextTiles as unknown as Record<keyof typeof boatNpcEmojis, { x: number; y: number }>,
+			);
+		},
+		maybeMoveAnimal,
+		maybeMovePet,
+		maybeMoveForestEnemy,
+		maybeMoveCaveEnemy,
+		forestEnemyTickRef,
+		caveEnemyTickRef,
+		townNpcNames,
+		boatNpcKeys: Object.keys(boatNpcEmojis),
+		farmEggDrops,
+		farmForestBlockers,
+		farmCaveBlockers,
+		petGraveObstacles,
+		farmWeedObstacles,
+		plots,
+		starterChestOpened,
+		petVendorActive,
+		ownedPet,
+	});
 	const continueForestDungeon = (fromMenu = false) => {
 		const nextLevel = forestLevel + 1;
 		const nextForest = generateForestState({
@@ -2967,168 +2736,6 @@ export function useGameRuntime() {
 		});
 	};
 
-	const orderLine = (template: string, orderedItem: string) =>
-		orderLineRule(template, orderedItem);
-	const nextCafeObservation = (orderedItem: string) =>
-		nextCafeObservationRule(randomInt, orderedItem);
-	const nextDoctorSpeechLine = () => nextDoctorSpeechLineRule(randomInt);
-	const nextDoctorObservation = () => nextDoctorObservationRule(randomInt);
-	const clearDoctorMedicineTimers = () => {
-		if (doctorProcessTimeoutRef.current !== null) {
-			window.clearTimeout(doctorProcessTimeoutRef.current);
-			doctorProcessTimeoutRef.current = null;
-		}
-		if (doctorRewardTimeoutRef.current !== null) {
-			window.clearTimeout(doctorRewardTimeoutRef.current);
-			doctorRewardTimeoutRef.current = null;
-		}
-		if (doctorObservationIntervalRef.current !== null) {
-			window.clearInterval(doctorObservationIntervalRef.current);
-			doctorObservationIntervalRef.current = null;
-		}
-	};
-	const startDoctorMedicine = () => {
-		stopAreaFade();
-		if (currentAreaMusicRef.current) {
-			currentAreaMusicRef.current.pause();
-		}
-		if (cafeOrderMusicRef.current) {
-			cafeOrderMusicRef.current.currentTime = 0;
-			void cafeOrderMusicRef.current.play().catch(() => undefined);
-		}
-		closeMenu();
-		clearDoctorMedicineTimers();
-		setDoctorUsedToday(true);
-		setIsDoctorCompounding(true);
-		setPauseGame(true);
-		const tick = () => {
-			const spoken = nextDoctorSpeechLine();
-			const observed = nextDoctorObservation();
-			speakNpcLine(spoken);
-			setDoctorObservation(observed);
-		};
-		tick();
-		doctorObservationIntervalRef.current = window.setInterval(tick, 5000);
-		doctorProcessTimeoutRef.current = window.setTimeout(() => {
-			clearDoctorMedicineTimers();
-			setIsDoctorCompounding(false);
-			setDoctorObservation("");
-			const doneLine = "OK. Drink up.";
-			speakNpcLine(doneLine);
-			addLog(doneLine);
-			playMunch();
-			doctorRewardTimeoutRef.current = window.setTimeout(() => {
-				playGotReward();
-				setStaminaMax((prevMax) => {
-					const nextMax = prevMax + 20;
-					setStamina((s) => Math.min(nextMax, s + 20));
-					return nextMax;
-				});
-				addLog("Your maximum stamina increased by 20.");
-				if (cafeOrderMusicRef.current) {
-					cafeOrderMusicRef.current.pause();
-					cafeOrderMusicRef.current.currentTime = 0;
-				}
-				switchAreaMusic(getAreaMusicForMap(playerRef.current.map), true);
-				setPauseGame(false);
-				doctorRewardTimeoutRef.current = null;
-			}, 1000);
-			doctorProcessTimeoutRef.current = null;
-		}, 20000);
-	};
-
-	const startCafeOrder = (item: CafeOrderItem) => {
-		stopAreaFade();
-		if (currentAreaMusicRef.current) {
-			currentAreaMusicRef.current.pause();
-		}
-		if (cafeOrderMusicRef.current) {
-			cafeOrderMusicRef.current.currentTime = 0;
-			void cafeOrderMusicRef.current.play().catch(() => undefined);
-		}
-		closeMenu();
-		setIsOrdering(true);
-		setCafeObservation(nextCafeObservation(item.name));
-		const started = orderLine(
-			orderStartedDialog[randomInt(0, orderStartedDialog.length - 1)]!,
-			item.name,
-		);
-		speakNpcLine(started);
-		addLog(started);
-
-		if (orderMidTimeoutRef.current !== null) {
-			window.clearTimeout(orderMidTimeoutRef.current);
-		}
-		if (orderCompleteTimeoutRef.current !== null) {
-			window.clearTimeout(orderCompleteTimeoutRef.current);
-		}
-		if (orderRewardTimeoutRef.current !== null) {
-			window.clearTimeout(orderRewardTimeoutRef.current);
-		}
-		if (cafeObservationIntervalRef.current !== null) {
-			window.clearInterval(cafeObservationIntervalRef.current);
-		}
-		cafeObservationIntervalRef.current = window.setInterval(() => {
-			setCafeObservation(nextCafeObservation(item.name));
-		}, 5000);
-
-		const extraMiddleSteps =
-			item.name === "Pizza"
-				? 2
-				: item.name === "Hamburger" || item.name === "Salad"
-					? 1
-					: 0;
-		const middleStepCount = 1 + extraMiddleSteps;
-		let remainingMiddleSteps = middleStepCount;
-
-		const finishOrder = () => {
-			playMunch();
-			setStamina((s) => Math.min(staminaMax, s + item.stamina));
-			setIsOrdering(false);
-			setCafeObservation("");
-			if (cafeObservationIntervalRef.current !== null) {
-				window.clearInterval(cafeObservationIntervalRef.current);
-				cafeObservationIntervalRef.current = null;
-			}
-			if (cafeOrderMusicRef.current) {
-				cafeOrderMusicRef.current.pause();
-				cafeOrderMusicRef.current.currentTime = 0;
-			}
-			switchAreaMusic(getAreaMusicForMap(playerRef.current.map), true);
-			orderMidTimeoutRef.current = null;
-			orderCompleteTimeoutRef.current = null;
-			orderRewardTimeoutRef.current = null;
-		};
-
-		const runMiddleStep = () => {
-			const mid = orderMiddleDialog[randomInt(0, orderMiddleDialog.length - 1)]!;
-			speakNpcLine(mid);
-			addLog(mid);
-			remainingMiddleSteps -= 1;
-			if (remainingMiddleSteps > 0) {
-				orderMidTimeoutRef.current = window.setTimeout(
-					runMiddleStep,
-					randomInt(5, 12) * 1000,
-				);
-				return;
-			}
-			orderCompleteTimeoutRef.current = window.setTimeout(() => {
-				const done = orderLine(
-					orderCompleteDialog[randomInt(0, orderCompleteDialog.length - 1)]!,
-					item.name,
-				);
-				speakNpcLine(done);
-				addLog(done);
-				orderRewardTimeoutRef.current = window.setTimeout(finishOrder, 1500);
-			}, randomInt(5, 12) * 1000);
-		};
-
-		orderMidTimeoutRef.current = window.setTimeout(
-			runMiddleStep,
-			randomInt(5, 12) * 1000,
-		);
-	};
-
 	const openMenu = (title: string, body: string[], options: ModalOption[]) => {
 		openMenuController({
 			title,
@@ -3183,6 +2790,37 @@ export function useGameRuntime() {
 			setModalIndex,
 		});
 	};
+
+	const { startDoctorMedicine, startCafeOrder } = createServiceOrderActions({
+		stopAreaFade,
+		currentAreaMusicRef,
+		cafeOrderMusicRef,
+		closeMenu,
+		playerRef,
+		getAreaMusicForMap,
+		switchAreaMusic,
+		randomInt,
+		speakNpcLine,
+		addLog,
+		playMunch,
+		playGotReward,
+		setDoctorUsedToday,
+		setIsDoctorCompounding,
+		setPauseGame,
+		setDoctorObservation,
+		setStaminaMax,
+		setStamina,
+		setIsOrdering,
+		setCafeObservation,
+		staminaMax,
+		orderMidTimeoutRef,
+		orderCompleteTimeoutRef,
+		orderRewardTimeoutRef,
+		cafeObservationIntervalRef,
+		doctorProcessTimeoutRef,
+		doctorRewardTimeoutRef,
+		doctorObservationIntervalRef,
+	});
 
 	const countOpenBarnTiles = (occupied: Record<number, { x: number; y: number }>) => {
 		const rows = activeMapLayouts[animalsMap];
@@ -3753,51 +3391,47 @@ export function useGameRuntime() {
 		});
 	};
 
-	const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-		handleGameKeyDown(
-			{
-				applyMoneyDelta,
-				updateInventory,
-				addLog,
-				isDrivingTractor,
-				tractorImplementOn,
-				tractorImplement,
-				tractorSeedItem,
-				inventory,
-				setTractorImplementOn,
-				playBad,
-				applyTractorImplementAt,
-				player,
-				isBathing,
-				stopBathing,
-				dayTransition,
-				dayTransitionStage,
-				dayTransitionClosePhase,
-				continueAfterSleep,
-				isOrdering,
-				isDoctorCompounding,
-				fishing,
-				endFishing,
-				clearFishingTimers,
-				setFishing,
-				playYaya,
-				fishingResolveTimeoutRef,
-				modal,
-				quantityPrompt,
-				getAreaMusicForMap,
-				switchAreaMusic,
-				moveQuantity,
-				moveModal,
-				movePlayer,
-				interact,
-				cancelQuantityPrompt,
-				vendorMenuTitles,
-				closeMenu,
-				selectModal,
-			},
-			e,
-		);
+	const inputContext: GameKeyDownContext = {
+		applyMoneyDelta,
+		updateInventory,
+		addLog,
+		isDrivingTractor,
+		tractorImplementOn,
+		tractorImplement,
+		tractorSeedItem,
+		inventory,
+		setTractorImplementOn,
+		playBad,
+		applyTractorImplementAt,
+		player,
+		isBathing,
+		stopBathing,
+		dayTransition,
+		dayTransitionStage,
+		dayTransitionClosePhase,
+		continueAfterSleep,
+		isOrdering,
+		isDoctorCompounding,
+		fishing,
+		endFishing,
+		clearFishingTimers,
+		setFishing,
+		playYaya,
+		fishingResolveTimeoutRef,
+		modal,
+		quantityPrompt,
+		getAreaMusicForMap,
+		switchAreaMusic,
+		moveQuantity,
+		moveModal,
+		movePlayer,
+		interact,
+		cancelQuantityPrompt,
+		vendorMenuTitles,
+		closeMenu,
+		selectModal,
 	};
+	const onKeyDown = useInputRouter(inputContext);
 
 	const renderedMap = useMemo(() => {
 		const base = activeMapLayouts[player.map].map((r) => r.split(""));
@@ -4102,7 +3736,7 @@ export function useGameRuntime() {
 			: []),
 	];
 
-	const viewCtx = {
+	const viewCtx: GameRuntimeViewModel = {
 		onKeyDown,
 		shellRef,
 		day,

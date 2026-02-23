@@ -71,47 +71,49 @@ export const selectModalOption = (ctx: {
 	modal.options[modalIndex]?.onSelect();
 };
 
+export type GameKeyDownContext = {
+	applyMoneyDelta: (delta: number) => void;
+	updateInventory: (item: ItemId, amount: number) => void;
+	addLog: (line: string) => void;
+	isDrivingTractor: boolean;
+	tractorImplementOn: boolean;
+	tractorImplement: TractorImplement | null;
+	tractorSeedItem: ItemId | null;
+	inventory: Inventory;
+	setTractorImplementOn: Dispatch<SetStateAction<boolean>>;
+	playBad: () => void;
+	applyTractorImplementAt: (x: number, y: number, forceOn?: boolean) => void;
+	player: { map: MapId; x: number; y: number };
+	isBathing: boolean;
+	stopBathing: (line?: string) => void;
+	dayTransition: DayTransitionState | null;
+	dayTransitionStage: string;
+	dayTransitionClosePhase: string;
+	continueAfterSleep: () => void;
+	isOrdering: boolean;
+	isDoctorCompounding: boolean;
+	fishing: FishingState | null;
+	endFishing: () => void;
+	clearFishingTimers: () => void;
+	setFishing: Dispatch<SetStateAction<FishingState | null>>;
+	playYaya: () => void;
+	fishingResolveTimeoutRef: MutableRefObject<number | null>;
+	modal: ModalState | null;
+	quantityPrompt: QuantityPromptState | null;
+	getAreaMusicForMap: (map: MapId) => HTMLAudioElement | null;
+	switchAreaMusic: (nextTrack: HTMLAudioElement | null, immediate?: boolean) => void;
+	moveQuantity: (delta: number) => void;
+	moveModal: (dir: Dir) => void;
+	movePlayer: (dir: Dir) => void;
+	interact: (dir: Dir) => void;
+	cancelQuantityPrompt: () => void;
+	vendorMenuTitles: Set<string>;
+	closeMenu: () => void;
+	selectModal: () => void;
+};
+
 export const handleGameKeyDown = (
-	ctx: {
-		applyMoneyDelta: (delta: number) => void;
-		updateInventory: (item: ItemId, amount: number) => void;
-		addLog: (line: string) => void;
-		isDrivingTractor: boolean;
-		tractorImplementOn: boolean;
-		tractorImplement: TractorImplement | null;
-		tractorSeedItem: ItemId | null;
-		inventory: Inventory;
-		setTractorImplementOn: Dispatch<SetStateAction<boolean>>;
-		playBad: () => void;
-		applyTractorImplementAt: (x: number, y: number, forceOn?: boolean) => void;
-		player: { map: MapId; x: number; y: number };
-		isBathing: boolean;
-		stopBathing: (line?: string) => void;
-		dayTransition: DayTransitionState | null;
-		dayTransitionStage: string;
-		dayTransitionClosePhase: string;
-		continueAfterSleep: () => void;
-		isOrdering: boolean;
-		isDoctorCompounding: boolean;
-		fishing: FishingState | null;
-		endFishing: () => void;
-		clearFishingTimers: () => void;
-		setFishing: Dispatch<SetStateAction<FishingState | null>>;
-		playYaya: () => void;
-		fishingResolveTimeoutRef: MutableRefObject<number | null>;
-		modal: ModalState | null;
-		quantityPrompt: QuantityPromptState | null;
-		getAreaMusicForMap: (map: MapId) => HTMLAudioElement | null;
-		switchAreaMusic: (nextTrack: HTMLAudioElement | null, immediate?: boolean) => void;
-		moveQuantity: (delta: number) => void;
-		moveModal: (dir: Dir) => void;
-		movePlayer: (dir: Dir) => void;
-		interact: (dir: Dir) => void;
-		cancelQuantityPrompt: () => void;
-		vendorMenuTitles: Set<string>;
-		closeMenu: () => void;
-		selectModal: () => void;
-	},
+	ctx: GameKeyDownContext,
 	e: KeyboardEvent<HTMLDivElement>,
 ): void => {
 	const key = e.key.toLowerCase();

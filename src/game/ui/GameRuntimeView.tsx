@@ -1,8 +1,79 @@
-﻿// @ts-nocheck
-import { motion } from "framer-motion";
+﻿import { motion } from "framer-motion";
+import type { GameRuntimeViewModel } from "./viewModel";
 
-export const renderGameRuntimeView = (ctx: any) => {
-const {_,active,activeMapLayouts,amount,an,animals,arrives,Arrow,b,backdrop,badge,banner,bar,barn,baseUnitPrice,bed,bite,bobber,body,Boolean,brown,buy,cafeObservation,can,cancel,candidate,card,cave,caveLadderPos,caveRubble,cell,center,cloud,clouds,color,column,confirm,content,continueAfterSleep,controls,crops,Current,currentWeather,d,daily,data,day,dayTransition,dayTransitionClosePhase,dayTransitionPrompt,dayTransitionStage,dayTransitionStarsState,deal,dealBadge,dealMeta,dirt,display,doctorObservation,doorGroundClass,driving,dry,durationSec,earned,earnings,easeInOut,easeOut,em,emoji,Esc,F,face,farm,Feed,fill,final,fish,fishing,flex,flexDirection,floor,focus,fog,foliage,fontSize,footer,forest,G,game,gap,getCaveFogOpacity,getDealBadge,getDoorGroundClass,getForestFogOpacity,getToolTierName,glyph,grass,grassFoliageVariant,grid,groundClass,groundClassBase,groundClassForTile,groundTile,grow,has,hasHeadlamp,hasTractor,Headlamp,high,highlight,hit,house,hud,i,icon,id,idle,idx,info,initialPrices,interact,intro,inventory,inventoryRows,isAnimatedGrassTile,isDoctorCompounding,isDrivenTractorCell,isDrivingTractor,isFarmHouseDoorTile,isOn,isOrdering,isPetGlyphCell,isRippleWaterTile,isShopDecorTile,isShopMap,isWindSlashOn,item,itemId,keyForPos,Keys,label,ladder,layer,left,legend,length,level,li,line,linear,list,Location,log,low,marginTop,market,marketRows,Max,menu,menus,mid,min,modal,modalIndex,mode,money,moon,moonPhases,More,move,name,navigate,newspaper,next,ok,on,onAnimationComplete,one,opt,option,options,order,overlay,overlayGlyph,overnight,owned,P,pane,panel,path,pending,pendingTractorDelivery,petFacing,phase,Plant,player,playerEmoji,Please,plot,plots,pole,prev,previousDayEarned,price,prices,px,quantity,quantityPrompt,r,rainy,rainyFarmSoil,refill,renderedMap,repeat,requiredKey,ripple,row,rubble,S,scale,scaleUp,scaleX,seeds,select,selectedOption,sell,setClouds,shadow,shell,shellRef,shopDecorByMap,shouldFlipGlyph,showForestHit,showTiredFace,size,Sleep,slice,small,so,soil,Space,splash,spriteTilesNeedingGround,stamina,staminaMax,star,stars,start,startsWith,startX,stat,strip,subtext,success,T,text,the,they,tile,TIP,tips,tired,to,tomorrow,tool,toolRows,Tools,top,total,totalEarned,toUpperCase,toVisual,town,tractor,tractorFacing,Transaction,transform,tree,trend,ul,unitPrice,Use,value,vendors,Visit,visual,W,wait,waiting,Wardrobe,WASD,water,watered,waterLevel,waterRefillTile,waterRipplePhase,Weather,weatherEmojiById,wet,width,wind,withGround,wrap,x,y,yesterday} = ctx;
+export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
+	const {
+		onKeyDown,
+		shellRef,
+		day,
+		player,
+		currentWeather,
+		weatherEmojiById,
+		money,
+		stamina,
+		staminaMax,
+		waterLevel,
+		inventoryRows,
+		log,
+		activeMapLayouts,
+		isWindSlashOn,
+		renderedMap,
+		plots,
+		keyForPos,
+		groundClassForTile,
+		isShopMap,
+		shopDecorByMap,
+		isFarmHouseDoorTile,
+		getDoorGroundClass,
+		fishing,
+		isDrivingTractor,
+		showTiredFace,
+		playerEmoji,
+		waterRefillTile,
+		isRippleWaterTile,
+		waterRipplePhase,
+		isAnimatedGrassTile,
+		grassFoliageVariant,
+		caveLadderPos,
+		caveRubble,
+		toVisual,
+		spriteTilesNeedingGround,
+		petFacing,
+		tractorFacing,
+		showForestHit,
+		getForestFogOpacity,
+		getCaveFogOpacity,
+		clouds,
+		setClouds,
+		marketRows,
+		toolRows,
+		getToolTierName,
+		pendingTractorDelivery,
+		hasTractor,
+		hasHeadlamp,
+		newspaper,
+		isOrdering,
+		isDoctorCompounding,
+		doctorObservation,
+		cafeObservation,
+		modal,
+		modalIndex,
+		quantityPrompt,
+		selectModal,
+		getDealBadge,
+		prices,
+		initialPrices,
+		cancelQuantityPrompt,
+		moveQuantity,
+		moveModal,
+		moonPhases,
+		dayTransition,
+		dayTransitionStarsState,
+		dayTransitionStage,
+		dayTransitionClosePhase,
+		continueAfterSleep,
+		dayTransitionPrompt,
+	} = ctx;
 	return (
 		<div
 			className='game-shell'
@@ -35,7 +106,7 @@ const {_,active,activeMapLayouts,amount,an,animals,arrives,Arrow,b,backdrop,badg
 						key='water-row'
 						className='inventory-item'
 					>
-						<span className='inventory-item-icon'>🫗</span> {/* water can */}
+						<span className='inventory-item-icon'>??</span> {/* water can */}
 						<span>Water:</span>
 						<span>{waterLevel}</span>
 					</li>
@@ -128,18 +199,18 @@ const {_,active,activeMapLayouts,amount,an,animals,arrives,Arrow,b,backdrop,badg
 										? {
 												glyph:
 													isDrivingTractor
-														? "🚜" // driving tractor
+														? "??" // driving tractor
 														: fishing && fishing.phase !== "success"
-														? "🎣" // fishing pole mode
+														? "??" // fishing pole mode
 														: showTiredFace
-															? "🥱" // tired face
+															? "??" // tired face
 															: playerEmoji,
 											}
 										: waterRefillTile &&
 											  waterRefillTile.map === player.map &&
 											  waterRefillTile.x === x &&
 											  waterRefillTile.y === y
-											? { glyph: "🫗", className: "tile-water" } // refill splash icon
+											? { glyph: "??", className: "tile-water" } // refill splash icon
 											: cell === "b" &&
 												  fishing?.phase === "waiting" &&
 												  fishing.map === player.map &&
@@ -151,7 +222,7 @@ const {_,active,activeMapLayouts,amount,an,animals,arrives,Arrow,b,backdrop,badg
 													}
 												: cell === "F" && fishing?.phase === "bite"
 													? {
-															glyph: "🐟", // fish bite icon
+															glyph: "??", // fish bite icon
 															className: "tile-water tile-fishing-catch",
 															overlayGlyph: fishing.requiredKey.toUpperCase(),
 														}
@@ -171,7 +242,7 @@ const {_,active,activeMapLayouts,amount,an,animals,arrives,Arrow,b,backdrop,badg
 																  caveLadderPos &&
 																  caveLadderPos.x === x &&
 																  caveLadderPos.y === y
-																? { glyph: "🪜", className: "tile-cave-next-ladder" } // next-level ladder
+																? { glyph: "??", className: "tile-cave-next-ladder" } // next-level ladder
 																: player.map === "cave" && cell === ")"
 																	? caveRubble[keyForPos(x, y)]
 																		? {
@@ -309,7 +380,7 @@ const {_,active,activeMapLayouts,amount,an,animals,arrives,Arrow,b,backdrop,badg
 										<span>{row.name}:</span>{" "}
 										<span>
 											${row.price}{" "}
-											{row.trend > 0 ? "📈" : row.trend < 0 ? "📉" : ""} {/* market trend */}
+											{row.trend > 0 ? "??" : row.trend < 0 ? "??" : ""} {/* market trend */}
 										</span>
 									</li>
 								))}
@@ -411,7 +482,7 @@ const {_,active,activeMapLayouts,amount,an,animals,arrives,Arrow,b,backdrop,badg
 									<div className='quantity-pane'>
 										<div className='quantity-focus'>
 											<div>Amount:</div>
-											<div>{`◂ ${quantityPrompt.value} ▸`}</div>
+											<div>{`? ${quantityPrompt.value} ?`}</div>
 										</div>
 										<div className='small quantity-footer'>
 											Space to confirm. Esc to cancel
@@ -596,3 +667,4 @@ const {_,active,activeMapLayouts,amount,an,animals,arrives,Arrow,b,backdrop,badg
 		</div>
 	);
 };
+
