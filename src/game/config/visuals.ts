@@ -49,7 +49,7 @@ const tileVisuals: Record<string, VisualCell> = {
 	V: { glyph: "🛀" },
 	j: { glyph: "🙂" },
 	l: { glyph: "🪟" },
-	x: { glyph: "🧱" },
+	x: { glyph: "🟫" },
 	h: { glyph: "🪑" },
 	B: { glyph: "", className: "tile-barn-wall" },
 	H: { glyph: "🧱" },

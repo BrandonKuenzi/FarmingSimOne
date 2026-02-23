@@ -21,6 +21,9 @@ export const CAVE_GATE_Y = Math.max(2, FOREST_GATE_Y - 3);
 export const TOWN_COAST_WALL_Y = 12;
 export const TOWN_SAND_Y = TOWN_COAST_WALL_Y + 1;
 export const TOWN_OCEAN_START_Y = TOWN_SAND_Y + 1;
+export const BUREAUCRACY_ENTRY_POS = { x: 12, y: 9 };
+export const BUREAUCRACY_EXIT_POS = { x: 12, y: 11 };
+export const BUREAUCRACY_SAVARIO_POS = { x: 12, y: 5 };
 
 export const BARN_MAX_TIER: BarnTier = 5;
 export const BARN_TIER_NAMES: Record<BarnTier, string> = {
@@ -599,6 +602,30 @@ export const buildCavePlaceholderLayout = (): string[] => {
 	return grid.map((row) => row.join(""));
 };
 
+export const buildBureaucracyOfficeLayout = (): string[] => {
+	const width = 24;
+	const height = 14;
+	const grid = Array.from({ length: height }, () =>
+		Array.from({ length: width }, () => " "),
+	);
+	const roomLeft = 6;
+	const roomTop = 2;
+	const roomRight = 17;
+	const roomBottom = 11;
+	for (let y = roomTop; y <= roomBottom; y += 1) {
+		for (let x = roomLeft; x <= roomRight; x += 1) {
+			const onWall = x === roomLeft || x === roomRight || y === roomTop || y === roomBottom;
+			grid[y]![x] = onWall ? "#" : ".";
+		}
+	}
+	for (let x = 9; x <= 15; x += 1) {
+		grid[6]![x] = "x";
+	}
+	grid[BUREAUCRACY_SAVARIO_POS.y]![BUREAUCRACY_SAVARIO_POS.x] = "j";
+	grid[BUREAUCRACY_EXIT_POS.y]![BUREAUCRACY_EXIT_POS.x] = " ";
+	return grid.map((row) => row.join(""));
+};
+
 export const mapLayouts: Record<MapId, string[]> = {
 	farm: buildFarmLayout(1),
 	house: [
@@ -614,6 +641,7 @@ export const mapLayouts: Record<MapId, string[]> = {
 	town: buildTownLayout(),
 	forest: buildForestPlaceholderLayout(),
 	cave: buildCavePlaceholderLayout(),
+	bureaucracy_office: buildBureaucracyOfficeLayout(),
 	seed_shop: buildShopLayout(),
 	feed_shop: buildShopLayout(),
 	animal_shop: buildShopLayout(),
@@ -637,6 +665,7 @@ export const mapTiles: Record<MapId, Tile[][]> = Object.fromEntries(
 	(Object.keys(mapLayouts) as MapId[]).map((mapId) => {
 		const rows = mapLayouts[mapId].map((row) =>
 			row.split("").map((c) => {
+				if (c === " ") return { icon: " ", passable: false, label: "Void" };
 				if (c === "#") return wall;
 				if (c === ".") return floor;
 				if (c === ",") return grass;

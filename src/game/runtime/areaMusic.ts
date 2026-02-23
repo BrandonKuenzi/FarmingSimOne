@@ -33,6 +33,7 @@ type AreaMusicControllerInput = {
 	houseMusicRef: AudioRef;
 	forestMusicRef: AudioRef;
 	caveMusicRef: AudioRef;
+	bureaucracyMusicRef: AudioRef;
 	endOfDayRef: AudioRef;
 	cafeOrderMusicRef: AudioRef;
 	currentAreaMusicRef: AudioRef;
@@ -59,6 +60,7 @@ export const createAreaMusicController = (
 		houseMusicRef,
 		forestMusicRef,
 		caveMusicRef,
+		bureaucracyMusicRef,
 		endOfDayRef,
 		cafeOrderMusicRef,
 		currentAreaMusicRef,
@@ -74,6 +76,7 @@ export const createAreaMusicController = (
 		if (mapId === "town" || isShopMap(mapId)) return townMusicRef.current;
 		if (mapId === "forest") return forestMusicRef.current;
 		if (mapId === "cave") return caveMusicRef.current;
+		if (mapId === "bureaucracy_office") return bureaucracyMusicRef.current;
 		return houseMusicRef.current;
 	};
 
@@ -106,6 +109,7 @@ export const createAreaMusicController = (
 			houseMusicRef.current,
 			forestMusicRef.current,
 			caveMusicRef.current,
+			bureaucracyMusicRef.current,
 			endOfDayRef.current,
 			cafeOrderMusicRef.current,
 			beachAmbienceRef.current,

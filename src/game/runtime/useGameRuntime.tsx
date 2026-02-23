@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useReducer, useRef, type SetStateAction } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type SetStateAction } from "react";
 import bgMusicSrc from "../../assets/bgMusic.mp3";
 import bgFarmSrc from "../../assets/bgFarm.ogg";
 import townBGSrc from "../../assets/GameBananaFeildloop.mp3";
@@ -15,6 +15,7 @@ import cafeOrderMusicSrc from "../../assets/SpaceStore.mp3";
 import notificationSoundSrc from "../../assets/shuffle.m4a";
 import forestMusicSrc from "../../assets/GameDeepForest.mp3";
 import caveMusicSrc from "../../assets/CaveTheme.mp3";
+import spaceBgSrc from "../../assets/SpaceBG.mp3";
 import gotRewardSoundSrc from "../../assets/gotReward.mp3";
 import snakeSoundSrc from "../../assets/snake.m4a";
 import bearSoundSrc from "../../assets/bear.m4a";
@@ -26,6 +27,7 @@ import seagullsSoundSrc from "../../assets/seagulls.mp3";
 import meowSoundSrc from "../../assets/meow.m4a";
 import woofSoundSrc from "../../assets/woof.m4a";
 import tractorSoundSrc from "../../assets/tractor.wav";
+import sighSoundSrc from "../../assets/sigh.m4a";
 import {
 	generateDailyAssignmentsForNpcs,
 	generateNpcDialogLine,
@@ -77,6 +79,9 @@ import {
 import { makeGaryBottleMessage } from "../content/garyBottle";
 import { rollBeachBottleSpawn, rollBeachShellDrops } from "../world/beach";
 import {
+	BUREAUCRACY_ENTRY_POS,
+	BUREAUCRACY_EXIT_POS,
+	BUREAUCRACY_SAVARIO_POS,
 	BARN_EXTERIOR_ENTRY_XS,
 	BARN_EXTERIOR_ENTRY_Y,
 	BARN_MAX_TIER,
@@ -303,7 +308,74 @@ import {
 import { groundClassForTile, spriteTilesNeedingGround, toVisual } from "../config/visuals";
 import { applyMoneyDeltaState, updateInventoryState } from "../state/actions";
 import { gameStateReducer, type GameState, type GameStateAction } from "../state/gameState";
-export function useGameRuntime() {
+import {
+	fromSaveGameData,
+	parseSaveGame,
+	serializeSaveGame,
+	toSaveGameData,
+} from "../state/saveGame";
+
+const BUREAUCRACY_SPAWN = {
+	map: "bureaucracy_office" as const,
+	x: BUREAUCRACY_ENTRY_POS.x,
+	y: BUREAUCRACY_ENTRY_POS.y,
+};
+const savarioLines = [
+	"Oh. Good. You're back.",
+	"We restored your progress. Please misplace it less impressively.",
+	"The Committee noted your absence. Welcome back, probably.",
+	"Yes. Everything appears... adequately restored.",
+	"Your save file is waiting for you, hop on down.",
+	"I pulled up your save file, it's down below.",
+	"Your save file is just outside the office.",
+] as const;
+const saveFileNameA = [
+	"DontHackThisFile",
+	"EditMeAtYourOwnRisk",
+	"SuperEncryptedSaveFile",
+	"TotallyUntamperableData",
+	"CommitteeApprovedProgress",
+	"DefinitelyNotJustJson",
+	"BureaucraticallySealedSave",
+	"LegallyDistinctBackupPlan",
+	"FinePrintIncludedSave",
+	"NotSuspiciousAtAll",
+	"PleaseDontOpenInNotepad",
+	"DefinitelyNoCheatsInside",
+	"ProductivitySimulationArchive",
+	"ExtremelyOfficialDocument",
+	"TaxCompliantTurnipLedger",
+	"FarmerNumberSevenReport",
+	"HighlyClassifiedPotatoes",
+	"UnreasonablyNormalDataFile",
+	"ArchiveOfQuestionableChoices",
+	"ProgressBarEvidence",
+	"CommitteeEyesOnly",
+	"DoNotFeedAfterMidnight",
+	"TotallyBalancedGameState",
+	"OopsAllJsonAgain",
+	"VerySecureTrustMe",
+	"AuditFriendlyAdventureLog",
+	"LegitSaveNoReally",
+	"PermitPendingSave",
+	"RiskAssessedRuralData",
+	"EmergencyTurnipProtocol",
+] as const;
+
+const formatSaveTimestamp = (date: Date): string => {
+	const pad = (value: number) => String(value).padStart(2, "0");
+	return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+};
+
+const randomSaveFilePrefix = () =>
+	saveFileNameA[Math.floor(Math.random() * saveFileNameA.length)]!;
+
+type GameRuntimeBootOptions = {
+	bootSaveJson?: string | null;
+};
+
+export function useGameRuntime(options?: GameRuntimeBootOptions) {
+	const bootSaveJson = options?.bootSaveJson ?? null;
 	const shellRef = useRef<HTMLDivElement | null>(null);
 	const notificationRef = useRef<HTMLAudioElement | null>(null);
 	const farmMusicRef = useRef<HTMLAudioElement | null>(null);
@@ -312,6 +384,7 @@ export function useGameRuntime() {
 	const houseMusicRef = useRef<HTMLAudioElement | null>(null);
 	const forestMusicRef = useRef<HTMLAudioElement | null>(null);
 	const caveMusicRef = useRef<HTMLAudioElement | null>(null);
+	const bureaucracyMusicRef = useRef<HTMLAudioElement | null>(null);
 	const chaChingRef = useRef<HTMLAudioElement | null>(null);
 	const endOfDayRef = useRef<HTMLAudioElement | null>(null);
 	const hoeSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -331,6 +404,7 @@ export function useGameRuntime() {
 	const meowSoundRef = useRef<HTMLAudioElement | null>(null);
 	const woofSoundRef = useRef<HTMLAudioElement | null>(null);
 	const tractorSoundRef = useRef<HTMLAudioElement | null>(null);
+	const sighSoundRef = useRef<HTMLAudioElement | null>(null);
 	const cafeOrderMusicRef = useRef<HTMLAudioElement | null>(null);
 	const currentAreaMusicRef = useRef<HTMLAudioElement | null>(null);
 	const musicFadeIntervalRef = useRef<number | null>(null);
@@ -352,6 +426,7 @@ export function useGameRuntime() {
 	const orderMidTimeoutRef = useRef<number | null>(null);
 	const orderCompleteTimeoutRef = useRef<number | null>(null);
 	const orderRewardTimeoutRef = useRef<number | null>(null);
+	const savarioResponseTimeoutRef = useRef<number | null>(null);
 	const cafeObservationIntervalRef = useRef<number | null>(null);
 	const doctorProcessTimeoutRef = useRef<number | null>(null);
 	const doctorRewardTimeoutRef = useRef<number | null>(null);
@@ -408,7 +483,7 @@ export function useGameRuntime() {
 				...initialFarmExpansionBlockers.stone,
 			};
 			return {
-				player: { map: "farm", x: 6, y: 10 },
+				player: bootSaveJson ? { ...BUREAUCRACY_SPAWN } : { map: "farm", x: 6, y: 10 },
 				day: 1,
 				forestLayout: initialForestStateRef.current.layout,
 				forestEnemies: initialForestStateRef.current.enemies,
@@ -555,6 +630,8 @@ export function useGameRuntime() {
 			};
 		},
 	);
+	const [isSaveLoadMenuOpen, setIsSaveLoadMenuOpen] = useState(false);
+	const [saveLoadStatus, setSaveLoadStatus] = useState<string | null>(null);
 	const {
 		player,
 		day,
@@ -671,6 +748,8 @@ export function useGameRuntime() {
 	const dayTransitionTimersRef = useRef<number[]>([]);
 	const dayTransitionCloseTimersRef = useRef<number[]>([]);
 	const petHeartTimeoutRef = useRef<number | null>(null);
+	const savarioLineIndexRef = useRef(0);
+	const bootSaveHandledRef = useRef(false);
 	const playerRef = useRef(player);
 	const ttsReadyRef = useRef(false);
 	const setterCacheRef = useRef(new Map<keyof GameState, unknown>());
@@ -807,6 +886,12 @@ export function useGameRuntime() {
 	const activeMapRows = activeMapLayouts[player.map];
 	const width = activeMapRows[0]?.length ?? 0;
 	const height = activeMapRows.length;
+	const canSaveGame = player.map === "farm" || player.map === "town";
+	const saveDisabledMessage = canSaveGame
+		? null
+		: player.map === "bureaucracy_office"
+			? "No saving in intake. Form 27-B says one reality shift per visit."
+			: "No saving in the forest/cave. Bureaucracy says the moss eats paperwork.";
 	const animalsMap: MapId = isBarnExternal(barnTier) ? "barn" : "farm";
 	const barnInteriorBounds = useMemo(() => {
 		if (animalsMap === "farm") return getFarmBarnInteriorBounds(barnTier);
@@ -893,6 +978,7 @@ export function useGameRuntime() {
 				houseMusicRef,
 				forestMusicRef,
 				caveMusicRef,
+				bureaucracyMusicRef,
 				chaChingRef,
 				endOfDayRef,
 				hoeSoundRef,
@@ -912,6 +998,7 @@ export function useGameRuntime() {
 				meowSoundRef,
 				woofSoundRef,
 				tractorSoundRef,
+				sighSoundRef,
 				cafeOrderMusicRef,
 				currentAreaMusicRef,
 				ttsReadyRef,
@@ -933,6 +1020,7 @@ export function useGameRuntime() {
 				notificationSoundSrc,
 				forestMusicSrc,
 				caveMusicSrc,
+				spaceBgSrc,
 				gotRewardSoundSrc,
 				snakeSoundSrc,
 				bearSoundSrc,
@@ -944,6 +1032,7 @@ export function useGameRuntime() {
 				meowSoundSrc,
 				woofSoundSrc,
 				tractorSoundSrc,
+				sighSoundSrc,
 			},
 		});
 	}, []);
@@ -969,6 +1058,7 @@ export function useGameRuntime() {
 		playPetSound,
 		startTractorLoop,
 		stopTractorLoop,
+		playSigh,
 		speakNpcLine,
 	} = createAudioActions({
 		refs: {
@@ -979,6 +1069,7 @@ export function useGameRuntime() {
 			houseMusicRef,
 			forestMusicRef,
 			caveMusicRef,
+			bureaucracyMusicRef,
 			chaChingRef,
 			endOfDayRef,
 			hoeSoundRef,
@@ -998,6 +1089,7 @@ export function useGameRuntime() {
 			meowSoundRef,
 			woofSoundRef,
 			tractorSoundRef,
+			sighSoundRef,
 			cafeOrderMusicRef,
 			currentAreaMusicRef,
 			ttsReadyRef,
@@ -1011,13 +1103,14 @@ export function useGameRuntime() {
 	useEffect(() => {
 		if (startedRef.current) return;
 		startedRef.current = true;
+		if (bootSaveJson) return;
 		const initialTrack = farmMusicRef.current;
 		if (initialTrack) {
 			initialTrack.volume = 1;
 			void initialTrack.play().catch(() => undefined);
 			currentAreaMusicRef.current = initialTrack;
 		}
-	}, []);
+	}, [bootSaveJson]);
 
 	useEffect(
 		() => () => {
@@ -1068,6 +1161,10 @@ export function useGameRuntime() {
 			if (orderRewardTimeoutRef.current !== null) {
 				window.clearTimeout(orderRewardTimeoutRef.current);
 				orderRewardTimeoutRef.current = null;
+			}
+			if (savarioResponseTimeoutRef.current !== null) {
+				window.clearTimeout(savarioResponseTimeoutRef.current);
+				savarioResponseTimeoutRef.current = null;
 			}
 			if (cafeObservationIntervalRef.current !== null) {
 				window.clearInterval(cafeObservationIntervalRef.current);
@@ -1125,6 +1222,10 @@ export function useGameRuntime() {
 				caveMusicRef.current.pause();
 				caveMusicRef.current.currentTime = 0;
 			}
+			if (bureaucracyMusicRef.current) {
+				bureaucracyMusicRef.current.pause();
+				bureaucracyMusicRef.current.currentTime = 0;
+			}
 			if (tractorSoundRef.current) {
 				tractorSoundRef.current.pause();
 				tractorSoundRef.current.currentTime = 0;
@@ -1172,6 +1273,7 @@ export function useGameRuntime() {
 		houseMusicRef,
 		forestMusicRef,
 		caveMusicRef,
+		bureaucracyMusicRef,
 		endOfDayRef,
 		cafeOrderMusicRef,
 		currentAreaMusicRef,
@@ -1226,8 +1328,9 @@ export function useGameRuntime() {
 
 	useEffect(() => {
 		if (dayTransition) return;
+		if (bootSaveJson && !bootSaveHandledRef.current) return;
 		switchAreaMusic(getAreaMusicForMap(player.map), false);
-	}, [player.map, dayTransition]);
+	}, [player.map, dayTransition, bootSaveJson]);
 
 	useEffect(() => {
 		stopStaleBackgroundTracks();
@@ -1709,6 +1812,13 @@ export function useGameRuntime() {
 			return false;
 		if (map === "town" && beachShellDrops[keyForPos(x, y)]) return false;
 		if (map === animalsMap && farmEggDrops[keyForPos(x, y)]) return false;
+		if (
+			map === "bureaucracy_office" &&
+			x === BUREAUCRACY_EXIT_POS.x &&
+			y === BUREAUCRACY_EXIT_POS.y
+		) {
+			return true;
+		}
 		const tile = rows[y]?.[x] ?? "#";
 		return isPassableChar(tile);
 	};
@@ -2171,6 +2281,186 @@ export function useGameRuntime() {
 	const addLog = (line: string) => {
 		setLog([line]);
 	};
+	const dispatchWholeGameState = (nextState: GameState) => {
+		const updates = nextState as Partial<{
+			[K in keyof GameState]: SetStateAction<GameState[K]>;
+		}>;
+		dispatch({ type: "batch", updates });
+	};
+	const clearLoadTransientState = () => {
+		clearFishingTimers();
+		if (orderMidTimeoutRef.current !== null) {
+			window.clearTimeout(orderMidTimeoutRef.current);
+			orderMidTimeoutRef.current = null;
+		}
+		if (orderCompleteTimeoutRef.current !== null) {
+			window.clearTimeout(orderCompleteTimeoutRef.current);
+			orderCompleteTimeoutRef.current = null;
+		}
+		if (orderRewardTimeoutRef.current !== null) {
+			window.clearTimeout(orderRewardTimeoutRef.current);
+			orderRewardTimeoutRef.current = null;
+		}
+		if (savarioResponseTimeoutRef.current !== null) {
+			window.clearTimeout(savarioResponseTimeoutRef.current);
+			savarioResponseTimeoutRef.current = null;
+		}
+		if (cafeObservationIntervalRef.current !== null) {
+			window.clearInterval(cafeObservationIntervalRef.current);
+			cafeObservationIntervalRef.current = null;
+		}
+		if (doctorProcessTimeoutRef.current !== null) {
+			window.clearTimeout(doctorProcessTimeoutRef.current);
+			doctorProcessTimeoutRef.current = null;
+		}
+		if (doctorRewardTimeoutRef.current !== null) {
+			window.clearTimeout(doctorRewardTimeoutRef.current);
+			doctorRewardTimeoutRef.current = null;
+		}
+		if (doctorObservationIntervalRef.current !== null) {
+			window.clearInterval(doctorObservationIntervalRef.current);
+			doctorObservationIntervalRef.current = null;
+		}
+		dayTransitionTimersRef.current.forEach((id) => window.clearTimeout(id));
+		dayTransitionTimersRef.current = [];
+		dayTransitionCloseTimersRef.current.forEach((id) => window.clearTimeout(id));
+		dayTransitionCloseTimersRef.current = [];
+		quantityParentMenuRef.current = null;
+		quantityPromptRef.current = null;
+		stopTractorLoop();
+	};
+	const saveGameToFile = () => {
+		if (!canSaveGame) {
+			setSaveLoadStatus(saveDisabledMessage);
+			return;
+		}
+		try {
+			const saveData = toSaveGameData(gameState);
+			const json = serializeSaveGame(saveData);
+			const blob = new Blob([json], { type: "application/json" });
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement("a");
+			link.href = url;
+			link.download = `${randomSaveFilePrefix()}-${formatSaveTimestamp(new Date())}.json`;
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+			URL.revokeObjectURL(url);
+			setSaveLoadStatus("Saved. File stamped and approved by Town Hall.");
+		} catch {
+			setSaveLoadStatus("Save failed. The clipboard goblin dropped your paperwork.");
+		}
+	};
+	const applyLoadedGameState = (rawState: GameState) => {
+		const regeneratedForest = generateForestState({
+			level: Math.max(1, rawState.forestLevel),
+			entranceSide: "left",
+			entranceCoord: FOREST_GATE_Y,
+			lastTurn: rawState.forestLastTurn,
+		});
+		const regeneratedCave = generateCaveState({
+			level: Math.max(1, rawState.caveLevel),
+			entranceSide: "right",
+			entranceCoord: CAVE_GATE_Y,
+		});
+		const nextState: GameState = {
+			...rawState,
+			player: { ...BUREAUCRACY_SPAWN },
+			forestLayout: regeneratedForest.layout,
+			forestEnemies: regeneratedForest.enemies,
+			forestObstacles: regeneratedForest.obstacles,
+			forestChest: regeneratedForest.chest,
+			forestBonusChests: regeneratedForest.bonusChests,
+			forestLevel: regeneratedForest.level,
+			forestEntranceDoorPos: regeneratedForest.entranceDoor,
+			forestForwardExitPos: regeneratedForest.exitDoor,
+			forestExitSide: regeneratedForest.exitSide,
+			forestLastTurn: regeneratedForest.turnSign,
+			forestIsBonusLevel: regeneratedForest.isBonusLevel,
+			forestFog: {},
+			caveLayout: regeneratedCave.layout,
+			caveRubble: buildCaveRubble(regeneratedCave.layout),
+			caveEnemies: regeneratedCave.enemies,
+			caveObstacles: regeneratedCave.obstacles,
+			caveLevel: regeneratedCave.level,
+			caveEntranceDoorPos: regeneratedCave.entranceDoor,
+			caveLevelOneExitPos: regeneratedCave.levelOneExitInside,
+			caveLadderPos: null,
+			caveStartingRockCount: regeneratedCave.startingRockCount,
+			caveFog: {},
+			modal: null,
+			modalIndex: 0,
+			quantityPrompt: null,
+			fishing: null,
+			isOrdering: false,
+			isDoctorCompounding: false,
+			pauseGame: false,
+			dayTransition: null,
+			dayTransitionStage: "intro",
+			dayTransitionClosePhase: "idle",
+			showForestHit: false,
+		};
+		clearLoadTransientState();
+		playerRef.current = nextState.player;
+		forestSnakeDirsRef.current = makeSnakeDirections(nextState.forestEnemies);
+		forestAggroRef.current = {};
+		forestEnemyTickRef.current = 0;
+		caveBatDirsRef.current = makeSnakeDirections(nextState.caveEnemies);
+		caveAggroRef.current = {};
+		caveEnemyTickRef.current = 0;
+		savarioLineIndexRef.current = 0;
+		dispatchWholeGameState(nextState);
+		switchAreaMusic(getAreaMusicForMap(nextState.player.map), true);
+		addLog("Loaded save. Intake assigned: Savario.");
+		setSaveLoadStatus("Loaded. Report to Savario before returning to farm.");
+		setIsSaveLoadMenuOpen(false);
+	};
+	const loadGameFromFilePicker = () => {
+		const picker = document.createElement("input");
+		picker.type = "file";
+		picker.accept = ".json,application/json";
+		picker.onchange = () => {
+			const file = picker.files?.[0];
+			if (!file) return;
+			void file
+				.text()
+				.then((text) => {
+					const parsedSave = parseSaveGame(text);
+					if (!parsedSave) {
+						setSaveLoadStatus("Could not load that file. Wrong version or scrambled JSON.");
+						return;
+					}
+					const loadedState = fromSaveGameData(parsedSave);
+					applyLoadedGameState(loadedState);
+				})
+				.catch(() => {
+					setSaveLoadStatus("Load failed. That file reads like cursed confetti.");
+				});
+		};
+		picker.click();
+	};
+	const toggleSaveLoadMenu = () => {
+		setIsSaveLoadMenuOpen((prev) => {
+			const next = !prev;
+			if (next) setSaveLoadStatus(null);
+			return next;
+		});
+	};
+	const closeSaveLoadMenu = () => {
+		setIsSaveLoadMenuOpen(false);
+	};
+	useEffect(() => {
+		if (!bootSaveJson) return;
+		if (bootSaveHandledRef.current) return;
+		bootSaveHandledRef.current = true;
+		const parsedSave = parseSaveGame(bootSaveJson);
+		if (!parsedSave) {
+			setSaveLoadStatus("Could not load that file. Wrong version or scrambled JSON.");
+			return;
+		}
+		const loadedState = fromSaveGameData(parsedSave);
+		applyLoadedGameState(loadedState);
+	}, [bootSaveJson]);
 	const applyCaveDamage = (amount: number, source: string) => {
 		if (playerRef.current.map !== "cave" || amount <= 0) return;
 		playBad();
@@ -3069,6 +3359,29 @@ export function useGameRuntime() {
 	};
 
 	const interact = (dir: Dir) => {
+		if (player.map === "bureaucracy_office") {
+			const delta = dirDelta[dir];
+			const tx = player.x + delta.dx;
+			const ty = player.y + delta.dy;
+			const targetCell = activeMapLayouts.bureaucracy_office?.[ty]?.[tx] ?? "";
+			if (
+				(tx === BUREAUCRACY_SAVARIO_POS.x && ty === BUREAUCRACY_SAVARIO_POS.y) ||
+				targetCell === "x"
+			) {
+				const line = savarioLines[savarioLineIndexRef.current % savarioLines.length]!;
+				savarioLineIndexRef.current += 1;
+				playSigh();
+				if (savarioResponseTimeoutRef.current !== null) {
+					window.clearTimeout(savarioResponseTimeoutRef.current);
+				}
+				savarioResponseTimeoutRef.current = window.setTimeout(() => {
+					savarioResponseTimeoutRef.current = null;
+					speakNpcLine(line);
+					addLog(`Savario: ${line}`);
+				}, 3000);
+				return;
+			}
+		}
 		const interactCtx: PlayerInteractContext = {
 				modal,
 				fishing,
@@ -3495,12 +3808,15 @@ export function useGameRuntime() {
 		dayTransitionClosePhase,
 		continueAfterSleep,
 		dayTransitionPrompt,
+		isSaveLoadMenuOpen,
+		canSaveGame,
+		saveDisabledMessage,
+		saveLoadStatus,
+		toggleSaveLoadMenu,
+		closeSaveLoadMenu,
+		saveGameToFile,
+		loadGameFromFilePicker,
 	});
 
 	return renderGameRuntimeView(viewCtx);
 }
-
-
-
-
-

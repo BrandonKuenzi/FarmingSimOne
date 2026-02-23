@@ -24,7 +24,10 @@ export const vendorByShopMap: Partial<Record<MapId, VendorKey>> = Object.fromEnt
 
 export const isShopMap = (
 	mapId: MapId,
-): mapId is Exclude<MapId, "farm" | "house" | "barn" | "town" | "forest" | "cave"> =>
+): mapId is Exclude<
+	MapId,
+	"farm" | "house" | "barn" | "town" | "forest" | "cave" | "bureaucracy_office"
+> =>
 	mapId in vendorByShopMap;
 
 export const doors: Record<MapId, Door[]> = {
@@ -134,4 +137,12 @@ export const doors: Record<MapId, Door[]> = {
 	cafe_shop: [{ x: 7, y: 7, target: { map: "town", x: 45, y: 8 }, label: "Exit" }],
 	forest: [],
 	cave: [],
+	bureaucracy_office: [
+		{
+			x: 12,
+			y: 11,
+			target: { map: "farm", x: 28, y: 9 },
+			label: "Paperwork Complete",
+		},
+	],
 };
