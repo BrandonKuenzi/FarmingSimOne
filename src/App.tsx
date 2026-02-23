@@ -27,13 +27,7 @@ import seagullsSoundSrc from "./assets/seagulls.mp3";
 import meowSoundSrc from "./assets/meow.m4a";
 import woofSoundSrc from "./assets/woof.m4a";
 import tractorSoundSrc from "./assets/tractor.wav";
-import {
-	generateDailyAssignmentsForNpcs,
-	generateNpcDialogLine,
-	generateNpcGreetingLine,
-	generateOverfedAnimalLine,
-	type NpcDailyAssignment,
-} from "./npcDialogue";
+import { generateDailyAssignmentsForNpcs, type NpcDailyAssignment } from "./npcDialogue";
 import {
 	boatDialogArray,
 	cafeWaitingObservations,
@@ -192,6 +186,13 @@ import {
 	nextOpenBarnTileInBounds,
 	placeAnimalsInBounds,
 } from "./game/systems/animals";
+import { handleLateInteractionBlocks } from "./game/systems/interactions";
+import {
+	handleGameKeyDown,
+	moveModalCursor,
+	moveQuantitySelection,
+	selectModalOption,
+} from "./game/systems/input";
 import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
@@ -4296,608 +4297,126 @@ function App() {
 			return;
 		}
 
-		if (player.map === "farm") {
-			if (farmEggDrops[farmTargetKey]) {
-				setFarmEggDrops((prev) => {
-					const next = { ...prev };
-					delete next[farmTargetKey];
-					return next;
-				});
-				playPluck();
-				updateInventory("egg", 1);
-				addLog("Picked up an egg.");
-				return;
-			}
-			const nearAnimals = animals
-				.map((a) => {
-					const pos = animalTiles[a.id];
-					if (!pos) return null;
-					return { a, x: pos.x, y: pos.y };
-				})
-				.filter((n): n is { a: Animal; x: number; y: number } => n !== null);
-			const found = nearAnimals.find((n) => n.x === tx && n.y === ty);
-			if (found) {
-				const animal = found.a;
-				if (animal.type !== "chicken" && animal.hasProductReady) {
-					const product = animalDefs[animal.type].productItem;
-					const toolLevel =
-						isCowLikeAnimal(animal.type) ? tools.milkingGloves : tools.shears;
-					const produced = rollLivestockYield(toolLevel);
-					updateInventory(product, produced);
-					setAnimals((prev) =>
-						prev.map((a) =>
-							a.id === animal.id ? { ...a, hasProductReady: false } : a,
-						),
-					);
-					playPluck();
-					if (Math.random() < 0.25) {
-						const lines = isCowLikeAnimal(animal.type)
-							? cowHarvestTtsLines
-							: sheepHarvestTtsLines;
-						const line = lines[randomInt(0, lines.length - 1)]!;
-						speakNpcLine(line);
-					}
-					addLog(
-						`${isCowLikeAnimal(animal.type) ? "Milked" : "Sheared"} ${animalDefs[animal.type].name}: ${itemNames[product]} x${produced}.`,
-					);
-					return;
-				}
-				if (animal.fedToday) {
-					const line = generateOverfedAnimalLine(animalDefs[animal.type].name);
-					speakNpcLine(line);
-					addLog(line);
-					return;
-				}
-				if (inventory.feed <= 0) {
-					playBad();
-					addLog(`No feed left for ${animalDefs[animal.type].name}.`);
-					return;
-				}
-				setAnimals((prev) =>
-					prev.map((a) => (a.id === animal.id ? { ...a, fedToday: true } : a)),
-				);
-				updateInventory("feed", -1);
-				playMunch();
-				addLog(`${animalDefs[animal.type].name} was fed.`);
-				return;
-			}
-		}
-
 		if (
-			player.map === "tool_shop" &&
-			((targetBaseTile === "x" && tx >= 8) || targetBaseTile === "b")
-		) {
-			interactBuilderVendor();
+			handleLateInteractionBlocks({
+				playerMap: player.map,
+				tx,
+				ty,
+				targetBaseTile,
+				farmTargetKey,
+				farmEggDrops,
+				setFarmEggDrops,
+				animals,
+				animalTiles,
+				tools,
+				inventory,
+				money,
+				traderTrades,
+				sketchyMerchantStock,
+				boatTiles,
+				townNpcTiles,
+				npcDailyAssignments,
+				npcTalkedToday,
+				petVendorActive,
+				ownedPet,
+				pendingPet,
+				doctorVendorActive,
+				doctorUsedToday,
+				traderActive,
+				sketchyMerchantActive,
+				playPluck,
+				playBad,
+				playMunch,
+				playChaChing,
+				speakNpcLine,
+				addLog,
+				updateInventory,
+				canAfford,
+				applyMoneyDelta,
+				setAnimals,
+				setPendingPet,
+				setTraderTrades,
+				setSketchyMerchantStock,
+				setNpcTalkedToday,
+				interactVendor,
+				interactBuilderVendor,
+				startDoctorMedicine,
+				closeMenu,
+				openMenu,
+				openQuantityPrompt,
+				randomInt,
+			})
+		)
 			return;
-		}
-		if (player.map === "tool_shop") {
-			if ((targetBaseTile === "x" && tx <= 6) || targetBaseTile === "j") {
-				interactVendor("tool_vendor");
-				return;
-			}
-			if (targetBaseTile === "x" && tx === 7) {
-				return;
-			}
-		}
-		if (isShopMap(player.map)) {
-			const vendorKey = vendorByShopMap[player.map];
-			if (vendorKey && (targetBaseTile === "x" || targetBaseTile === "j")) {
-				interactVendor(vendorKey);
-				return;
-			}
-		}
-
-		if (player.map === "town") {
-			if (
-				petVendorActive &&
-				!ownedPet &&
-				tx === PET_VENDOR_POS.x &&
-				ty === PET_VENDOR_POS.y
-			) {
-				if (pendingPet) {
-					speakNpcLine(petVendorSoldLine);
-					addLog(petVendorSoldLine);
-					return;
-				}
-				const intro = "Looking to adopt an animal? Pick one!";
-				speakNpcLine(intro);
-				openMenu(
-					"Pet Adoption",
-					[intro],
-					[
-						...petOptions.map((pet) => ({
-							label: `${pet} $500`,
-							info: ["A loyal buddy for your farm."],
-							onSelect: () => {
-								if (!canAfford(500)) {
-									playBad();
-									addLog("Not enough money to adopt that pet.");
-									closeMenu();
-									return;
-								}
-								applyMoneyDelta(-500);
-								playChaChing();
-								setPendingPet(pet);
-								closeMenu();
-								speakNpcLine(petVendorSoldLine);
-								addLog(petVendorSoldLine);
-							},
-						})),
-						{ label: "Back", onSelect: closeMenu },
-					],
-				);
-				return;
-			}
-		if (doctorVendorActive && tx === DOCTOR_POS.x && ty === DOCTOR_POS.y) {
-			if (doctorUsedToday) {
-				speakNpcLine(doctorFinishedTodayLine);
-				addLog(doctorFinishedTodayLine);
-				return;
-			}
-			const intro =
-				doctorIntroLines[randomInt(0, doctorIntroLines.length - 1)]!;
-			speakNpcLine(intro);
-			openMenu(
-				"Doctor",
-					[
-						intro,
-						"Cost: 1 Diamond, 1 Emerald, 1 Ruby, and $1000.",
-					],
-					[
-						{
-							label: "Yes",
-							info: ["A custom treatment that increases max stamina by 20."],
-							onSelect: () => {
-								if (!canAfford(1000)) {
-									playBad();
-									addLog("Not enough money for treatment.");
-									closeMenu();
-									return;
-								}
-								if (
-									inventory.diamond < 1 ||
-									inventory.emerald < 1 ||
-									inventory.ruby < 1
-								) {
-									playBad();
-									addLog("You need 1 Diamond, 1 Emerald, and 1 Ruby.");
-									closeMenu();
-									return;
-								}
-								applyMoneyDelta(-1000);
-								updateInventory("diamond", -1);
-								updateInventory("emerald", -1);
-								updateInventory("ruby", -1);
-								playChaChing();
-								startDoctorMedicine();
-							},
-						},
-						{ label: "No", onSelect: closeMenu },
-					],
-				);
-				return;
-			}
-			if (traderActive && tx === TRADER_BOX_POS.x && ty === TRADER_BOX_POS.y) {
-				const line = traderBoxLines[randomInt(0, traderBoxLines.length - 1)]!;
-				speakNpcLine(line);
-				addLog(line);
-				return;
-			}
-			if (traderActive && tx === TRADER_HELI_POS.x && ty === TRADER_HELI_POS.y) {
-				const line = traderHeliLines[randomInt(0, traderHeliLines.length - 1)]!;
-				speakNpcLine(line);
-				addLog(line);
-				return;
-			}
-			if (traderActive && tx === TRADER_POS.x && ty === TRADER_POS.y) {
-				if (traderTrades.length <= 0) {
-					const line =
-						traderSoldOutLines[randomInt(0, traderSoldOutLines.length - 1)]!;
-					speakNpcLine(line);
-					addLog(line);
-					return;
-				}
-				const intro =
-					traderIntroLines[randomInt(0, traderIntroLines.length - 1)]!;
-				speakNpcLine(intro);
-				openMenu(
-					"Trader",
-					[intro],
-					[
-						...traderTrades.map((trade) => {
-							const maxCanTrade = Math.min(
-								trade.remaining,
-								inventory[trade.wantItem],
-							);
-							return {
-								label: `Trade ${itemNames[trade.wantItem]} -> ${itemNames[trade.giveItem]}`,
-								info: [
-									`Needs: ${itemNames[trade.wantItem]}`,
-									`Gives: ${itemNames[trade.giveItem]}`,
-									`You have: ${inventory[trade.wantItem]}`,
-									`Trader stock: ${trade.remaining}`,
-									"Rate: 1 for 1",
-								],
-								onSelect: () => {
-									openQuantityPrompt({
-										mode: "buy",
-										itemLabel: `${itemNames[trade.wantItem]} -> ${itemNames[trade.giveItem]}`,
-										max: maxCanTrade,
-										unitPrice: 0,
-										onConfirm: (quantity) => {
-											updateInventory(trade.wantItem, -quantity);
-											updateInventory(trade.giveItem, quantity);
-											setTraderTrades((prev) =>
-												prev
-													.map((t) =>
-														t.id === trade.id
-															? {
-																	...t,
-																	remaining: Math.max(0, t.remaining - quantity),
-																}
-															: t,
-													)
-													.filter((t) => t.remaining > 0),
-											);
-											playChaChing();
-											const line =
-												traderAfterSaleLines[
-													randomInt(0, traderAfterSaleLines.length - 1)
-												]!;
-											speakNpcLine(line);
-											addLog(line);
-										},
-									});
-								},
-							};
-						}),
-						{
-							label: "Back",
-							info: ["Close this shop menu."],
-							onSelect: closeMenu,
-						},
-					],
-				);
-				return;
-			}
-			if (
-				sketchyMerchantActive &&
-				sketchyMerchantStock.length > 0 &&
-				tx === SKETCHY_CRATE_POS.x &&
-				ty === SKETCHY_CRATE_POS.y
-			) {
-				const line =
-					dontTouchSketchy[randomInt(0, dontTouchSketchy.length - 1)]!;
-				speakNpcLine(line);
-				return;
-			}
-			if (
-				sketchyMerchantActive &&
-				tx === SKETCHY_MERCHANT_POS.x &&
-				ty === SKETCHY_MERCHANT_POS.y
-			) {
-				if (sketchyMerchantStock.length <= 0) {
-					const soldOutLine = "I aint got nothin more today";
-					speakNpcLine(soldOutLine);
-					addLog(soldOutLine);
-					return;
-				}
-				const intro =
-					sketchyMerchantIntro[
-						randomInt(0, sketchyMerchantIntro.length - 1)
-					]!;
-				speakNpcLine(intro);
-				openMenu(
-					"Sketchy Merchant",
-					[intro],
-					[
-						...sketchyMerchantStock.map((entry) => {
-							const maxCanBuy = Math.min(
-								entry.qty,
-								Math.floor(money / Math.max(1, entry.price)),
-							);
-							return {
-								label: `${itemNames[entry.item]} $${entry.price}`,
-								info: [
-									`Stock: ${entry.qty}`,
-									`You can buy now: ${maxCanBuy}`,
-									`Price: $${entry.price} each`,
-									`Item: ${itemNames[entry.item]}`,
-								],
-								dealMeta: {
-									itemId: entry.item,
-									mode: "buy" as const,
-									unitPrice: entry.price,
-									baseUnitPrice: entry.basePrice,
-								},
-								onSelect: () => {
-									openQuantityPrompt({
-										mode: "buy",
-										itemLabel: itemNames[entry.item],
-										max: maxCanBuy,
-										unitPrice: entry.price,
-										onConfirm: (quantity) => {
-											applyMoneyDelta(-entry.price * quantity);
-											updateInventory(entry.item, quantity);
-											setSketchyMerchantStock((prev) =>
-												prev
-													.map((stockEntry) =>
-														stockEntry.item === entry.item
-															? {
-																	...stockEntry,
-																	qty: Math.max(0, stockEntry.qty - quantity),
-																}
-															: stockEntry,
-													)
-													.filter((stockEntry) => stockEntry.qty > 0),
-											);
-											playChaChing();
-											const salesLine =
-												sketchyVendorSales[
-													randomInt(0, sketchyVendorSales.length - 1)
-												]!;
-											speakNpcLine(salesLine);
-											addLog(salesLine);
-										},
-									});
-								},
-							};
-						}),
-						{
-							label: "Back",
-							info: ["Close this shop menu."],
-							onSelect: closeMenu,
-						},
-					],
-				);
-				return;
-			}
-
-			const boat = Object.entries(boatTiles).find(
-				([, pos]) => pos.x === tx && pos.y === ty,
-			);
-			if (boat) {
-				const line = boatDialogArray[randomInt(0, boatDialogArray.length - 1)]!;
-				speakNpcLine(line);
-				addLog(line);
-				return;
-			}
-
-			const on = Object.entries(townNpcTiles).find(
-				([, pos]) => pos.x === tx && pos.y === ty,
-			);
-			if (!on) {
-				addLog("Nothing to interact with.");
-				return;
-			}
-
-			const key = on[0];
-			if (townNpcNames[key]) {
-				const assignment =
-					npcDailyAssignments[key] ??
-					generateDailyAssignmentsForNpcs([key])[key];
-				const firstTalkToday = !npcTalkedToday[key];
-				const tipText = townTips[randomInt(0, townTips.length - 1)]!;
-				const isTip = !firstTalkToday && Math.random() < 0.5;
-				const line = firstTalkToday
-					? generateNpcGreetingLine(assignment)
-					: isTip
-						? `TIP: ${tipText}`
-						: generateNpcDialogLine(assignment);
-				setNpcTalkedToday((prev) => ({ ...prev, [key]: true }));
-				speakNpcLine(isTip ? `Heres a tip: ${tipText}` : line);
-				openMenu(
-					townNpcNames[key]!,
-					[line],
-					[{ label: "Bye", onSelect: closeMenu }],
-				);
-				return;
-			}
-		}
 
 		addLog("Nothing to interact with.");
 	};
 
 	const moveModal = (dir: Dir) => {
-		if (!modal) return;
-		if (dir === "up") {
-			setModalIndex(
-				(idx) => (idx - 1 + modal.options.length) % modal.options.length,
-			);
-		} else if (dir === "down") {
-			setModalIndex((idx) => (idx + 1) % modal.options.length);
-		}
+		moveModalCursor(modal, dir, setModalIndex);
 	};
 
 	const moveQuantity = (delta: number) => {
-		setQuantityPrompt((prev) => {
-			if (!prev) return prev;
-			const nextValue = Math.max(
-				prev.min,
-				Math.min(prev.max, prev.value + delta),
-			);
-			return { ...prev, value: nextValue };
-		});
+		moveQuantitySelection(setQuantityPrompt, delta);
 	};
 
 	const selectModal = () => {
-		if (!modal) return;
-		playNotification();
-		if (quantityPrompt) {
-			const q = quantityPromptRef.current?.value ?? 0;
-			if (q > 0) {
-				quantityPromptRef.current?.onConfirm(q);
-				quantityParentMenuRef.current = null;
-				closeMenu();
-				return;
-			}
-			cancelQuantityPrompt();
-			return;
-		}
-		modal.options[modalIndex]?.onSelect();
+		selectModalOption({
+			modal,
+			modalIndex,
+			quantityPrompt,
+			quantityPromptRef,
+			quantityParentMenuRef,
+			playNotification,
+			closeMenu,
+			cancelQuantityPrompt,
+		});
 	};
 
 	const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-		const key = e.key.toLowerCase();
-
-		if (key === "p") {
-			e.preventDefault();
-			applyMoneyDelta(10000);
-			updateInventory("ruby", 10);
-			updateInventory("diamond", 10);
-			updateInventory("emerald", 10);
-			addLog("Debug boost: +$10,000, +10 Ruby, +10 Diamond, +10 Emerald.");
-			return;
-		}
-
-		if (isDrivingTractor && key === " ") {
-			e.preventDefault();
-			const nextOn = !tractorImplementOn;
-			if (nextOn && tractorImplement === "sow") {
-				if (!tractorSeedItem || inventory[tractorSeedItem] <= 0) {
-					setTractorImplementOn(false);
-					playBad();
-					addLog("Out of seeds");
-					return;
-				}
-			}
-			setTractorImplementOn(nextOn);
-			if (nextOn) {
-				applyTractorImplementAt(player.x, player.y, true);
-			}
-			return;
-		}
-
-		if (isBathing) {
-			e.preventDefault();
-			stopBathing("You step out of the bath.");
-			return;
-		}
-
-		if (
-			dayTransition &&
-			dayTransitionStage === "final" &&
-			dayTransitionClosePhase === "idle" &&
-			key === " "
-		) {
-			e.preventDefault();
-			continueAfterSleep();
-			return;
-		}
-
-		if (isOrdering || isDoctorCompounding) {
-			e.preventDefault();
-			return;
-		}
-
-		if (fishing) {
-			e.preventDefault();
-			if (fishing.phase === "waiting") {
-				playBad();
-				addLog("The fish got away.");
-				endFishing();
-				return;
-			}
-			if (fishing.phase !== "bite") return;
-			if (key.length !== 1) return;
-			if (key === fishing.requiredKey) {
-				clearFishingTimers();
-				setFishing((prev) => (prev ? { ...prev, phase: "success" } : prev));
-				playYaya();
-				updateInventory("fish", 1);
-				addLog("Nice catch! +1 Fish");
-				fishingResolveTimeoutRef.current = window.setTimeout(() => {
-					endFishing();
-				}, 2000);
-				return;
-			}
-			playBad();
-			addLog("You missed the bite.");
-			endFishing();
-			return;
-		}
-
-		if (!dayTransition && !modal) {
-			const activeAreaTrack = getAreaMusicForMap(player.map);
-			if (activeAreaTrack && activeAreaTrack.paused) {
-				switchAreaMusic(activeAreaTrack, true);
-			}
-		}
-
-		if (key === "w") {
-			e.preventDefault();
-			if (modal && quantityPrompt) moveQuantity(1);
-			else if (modal) moveModal("up");
-			else movePlayer("up");
-			return;
-		}
-		if (key === "s") {
-			e.preventDefault();
-			if (modal && quantityPrompt) moveQuantity(-1);
-			else if (modal) moveModal("down");
-			else movePlayer("down");
-			return;
-		}
-		if (key === "a") {
-			e.preventDefault();
-			if (modal && quantityPrompt) moveQuantity(-1);
-			else if (!modal) movePlayer("left");
-			return;
-		}
-
-		if (key === "escape" && modal && quantityPrompt) {
-			e.preventDefault();
-			cancelQuantityPrompt();
-			return;
-		}
-		if (
-			key === "escape" &&
-			modal &&
-			!quantityPrompt &&
-			vendorMenuTitles.has(modal.title)
-		) {
-			e.preventDefault();
-			closeMenu();
-			return;
-		}
-		if (key === "d") {
-			e.preventDefault();
-			if (modal && quantityPrompt) moveQuantity(1);
-			else if (!modal) movePlayer("right");
-			return;
-		}
-
-		if (key === "arrowup") {
-			e.preventDefault();
-			if (modal && quantityPrompt) moveQuantity(1);
-			else if (modal) moveModal("up");
-			else if (!modal) interact("up");
-			return;
-		}
-		if (key === "arrowdown") {
-			e.preventDefault();
-			if (modal && quantityPrompt) moveQuantity(-1);
-			else if (modal) moveModal("down");
-			else if (!modal) interact("down");
-			return;
-		}
-		if (key === "arrowleft") {
-			e.preventDefault();
-			if (modal && quantityPrompt) moveQuantity(-1);
-			else if (!modal) interact("left");
-			return;
-		}
-		if (key === "arrowright") {
-			e.preventDefault();
-			if (modal && quantityPrompt) moveQuantity(1);
-			else if (!modal) interact("right");
-			return;
-		}
-
-		if (key === " " || key === "enter") {
-			e.preventDefault();
-			if (modal) selectModal();
-		}
+		handleGameKeyDown(
+			{
+				applyMoneyDelta,
+				updateInventory,
+				addLog,
+				isDrivingTractor,
+				tractorImplementOn,
+				tractorImplement,
+				tractorSeedItem,
+				inventory,
+				setTractorImplementOn,
+				playBad,
+				applyTractorImplementAt,
+				player,
+				isBathing,
+				stopBathing,
+				dayTransition,
+				dayTransitionStage,
+				dayTransitionClosePhase,
+				continueAfterSleep,
+				isOrdering,
+				isDoctorCompounding,
+				fishing,
+				endFishing,
+				clearFishingTimers,
+				setFishing,
+				playYaya,
+				fishingResolveTimeoutRef,
+				modal,
+				quantityPrompt,
+				getAreaMusicForMap,
+				switchAreaMusic,
+				moveQuantity,
+				moveModal,
+				movePlayer,
+				interact,
+				cancelQuantityPrompt,
+				vendorMenuTitles,
+				closeMenu,
+				selectModal,
+			},
+			e,
+		);
 	};
 
 	const renderedMap = useMemo(() => {
