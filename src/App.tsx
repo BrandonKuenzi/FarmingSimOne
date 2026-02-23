@@ -137,6 +137,17 @@ import { nextAnimalTile, nextBoatTile, nextTownNpcTile } from "./game/systems/mo
 import { interactVendorMenu } from "./game/systems/vendors";
 import { interactBuilderVendorMenu } from "./game/systems/builder";
 import {
+	clearFishingTimers as clearFishingTimersSystem,
+	startFishingSequence,
+} from "./game/systems/fishing";
+import {
+	fadeOutAndStopSound,
+	playOneShot,
+	startLoopSound,
+	stopAndResetSound,
+} from "./game/systems/sound";
+import { speakLine } from "./game/systems/tts";
+import {
 	nextCafeObservation as nextCafeObservationRule,
 	nextDoctorObservation as nextDoctorObservationRule,
 	nextDoctorSpeechLine as nextDoctorSpeechLineRule,
@@ -148,6 +159,12 @@ import {
 	rollBeachBottleReward,
 } from "./game/systems/rewards";
 import { getFogTargetOpacity } from "./game/systems/vision";
+import {
+	cancelQuantityPrompt as cancelQuantityPromptMenu,
+	closeMenu as closeMenuController,
+	openMenu as openMenuController,
+	openQuantityPrompt as openQuantityPromptMenu,
+} from "./game/ui/menuController";
 import {
 	advancePlotsForNewDay,
 	resetAnimalsForNewDay,
@@ -790,45 +807,27 @@ function App() {
 	}, []);
 
 	const playNotification = () => {
-		const sound = notificationRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(notificationRef.current);
 	};
 
 	const playChaChing = () => {
-		const sound = chaChingRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(chaChingRef.current);
 	};
 
 	const playHoe = () => {
-		const sound = hoeSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(hoeSoundRef.current);
 	};
 
 	const playMunch = () => {
-		const sound = munchSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(munchSoundRef.current);
 	};
 
 	const playBad = () => {
-		const sound = badSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(badSoundRef.current);
 	};
 
 	const playTooTired = () => {
-		const sound = tooTiredRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(tooTiredRef.current);
 		setShowTiredFace(true);
 		if (tiredFaceTimeoutRef.current !== null) {
 			window.clearTimeout(tiredFaceTimeoutRef.current);
@@ -854,66 +853,39 @@ function App() {
 	};
 
 	const playWater = () => {
-		const sound = waterSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(waterSoundRef.current);
 	};
 
 	const playYaya = () => {
-		const sound = yayaSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(yayaSoundRef.current);
 	};
 
 	const playGotReward = () => {
-		const sound = gotRewardRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(gotRewardRef.current);
 	};
 
 	const playSnakeSound = () => {
-		const sound = snakeSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(snakeSoundRef.current);
 	};
 
 	const playBearSound = () => {
-		const sound = bearSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(bearSoundRef.current);
 	};
 
 	const playPooSound = () => {
-		const sound = pooSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(pooSoundRef.current);
 	};
 
 	const playBath = () => {
-		const sound = bathSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(bathSoundRef.current);
 	};
 
 	const playPluck = () => {
-		const sound = pluckSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(pluckSoundRef.current);
 	};
 
 	const playPloop = () => {
-		const sound = ploopSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(ploopSoundRef.current);
 	};
 
 	const playSeagulls = () => {
@@ -924,80 +896,33 @@ function App() {
 			seagullsFadeIntervalRef.current = null;
 		}
 		sound.volume = 1;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(sound);
 	};
 
 	const fadeOutSeagulls = (durationMs = 650) => {
-		const sound = seagullsSoundRef.current;
-		if (!sound) return;
-		if (seagullsFadeIntervalRef.current !== null) {
-			window.clearInterval(seagullsFadeIntervalRef.current);
-			seagullsFadeIntervalRef.current = null;
-		}
-		if (sound.paused || sound.volume <= 0) {
-			sound.volume = 1;
-			return;
-		}
-		const tickMs = 50;
-		const startVolume = sound.volume;
-		let elapsed = 0;
-		seagullsFadeIntervalRef.current = window.setInterval(() => {
-			elapsed += tickMs;
-			const t = Math.min(elapsed / durationMs, 1);
-			sound.volume = Math.max(0, startVolume * (1 - t));
-			if (t >= 1) {
-				if (seagullsFadeIntervalRef.current !== null) {
-					window.clearInterval(seagullsFadeIntervalRef.current);
-					seagullsFadeIntervalRef.current = null;
-				}
-				sound.pause();
-				sound.currentTime = 0;
-				sound.volume = 1;
-			}
-		}, tickMs);
+		fadeOutAndStopSound({
+			sound: seagullsSoundRef.current,
+			durationMs,
+			intervalRef: seagullsFadeIntervalRef,
+		});
 	};
 
 	const playPetSound = (pet: PetEmoji) => {
 		const isCat = pet === "🐈" || pet === "🐈‍⬛"; // cat variants meow
 		const sound = isCat ? meowSoundRef.current : woofSoundRef.current;
-		if (!sound) return;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		playOneShot(sound);
 	};
 
 	const startTractorLoop = () => {
-		const sound = tractorSoundRef.current;
-		if (!sound) return;
-		sound.volume = 0.7;
-		sound.currentTime = 0;
-		void sound.play().catch(() => undefined);
+		startLoopSound(tractorSoundRef.current, 0.7);
 	};
 
 	const stopTractorLoop = () => {
-		const sound = tractorSoundRef.current;
-		if (!sound) return;
-		sound.pause();
-		sound.currentTime = 0;
+		stopAndResetSound(tractorSoundRef.current);
 	};
 
 	const speakNpcLine = (line: string) => {
-		if (!ttsReadyRef.current) return;
-		const synth = window.speechSynthesis;
-		try {
-			synth.cancel();
-			const utterance = new SpeechSynthesisUtterance(line);
-			const voice = synth
-				.getVoices()
-				.find((v) => v.lang?.toLowerCase().startsWith("en"));
-			if (voice) utterance.voice = voice;
-			utterance.rate = 1;
-			utterance.pitch = 1;
-			utterance.volume = 1;
-			synth.speak(utterance);
-		} catch {
-			// Ignore TTS issues so gameplay isn't interrupted.
-		}
+		speakLine(line, ttsReadyRef.current);
 	};
 
 	useEffect(() => {
@@ -1340,22 +1265,12 @@ function App() {
 	};
 
 	const clearFishingTimers = () => {
-		if (fishingWaitTimeoutRef.current !== null) {
-			window.clearTimeout(fishingWaitTimeoutRef.current);
-			fishingWaitTimeoutRef.current = null;
-		}
-		if (fishingCatchTimeoutRef.current !== null) {
-			window.clearTimeout(fishingCatchTimeoutRef.current);
-			fishingCatchTimeoutRef.current = null;
-		}
-		if (fishingResolveTimeoutRef.current !== null) {
-			window.clearTimeout(fishingResolveTimeoutRef.current);
-			fishingResolveTimeoutRef.current = null;
-		}
-		if (fishingWaterIntervalRef.current !== null) {
-			window.clearInterval(fishingWaterIntervalRef.current);
-			fishingWaterIntervalRef.current = null;
-		}
+		clearFishingTimersSystem({
+			waitTimeoutRef: fishingWaitTimeoutRef,
+			catchTimeoutRef: fishingCatchTimeoutRef,
+			resolveTimeoutRef: fishingResolveTimeoutRef,
+			waterIntervalRef: fishingWaterIntervalRef,
+		});
 	};
 
 	const endFishing = () => {
@@ -1367,45 +1282,28 @@ function App() {
 	};
 
 	const startFishing = (map: MapId, x: number, y: number) => {
-		if (fishing || modal || dayTransition) return;
 		clearFishingTimers();
-		playWater();
-		fishingWaterIntervalRef.current = window.setInterval(() => {
-			playWater();
-		}, 3000);
-		fadeOutCurrentAreaMusic();
-		setFishing({
+		startFishingSequence({
 			map,
 			x,
 			y,
-			phase: "waiting",
-			requiredKey: "",
-		});
-		addLog("You cast your line...");
-		const maxWaitSeconds = getFishingRodMaxWaitSeconds(tools);
-		const waitMs = randomInt(2, maxWaitSeconds) * 1000;
-		fishingWaitTimeoutRef.current = window.setTimeout(() => {
-			const keys = "abcdefghijklmnopqrstuvwxyz";
-			const requiredKey = keys[randomInt(0, keys.length - 1)]!;
-			if (fishingWaterIntervalRef.current !== null) {
-				window.clearInterval(fishingWaterIntervalRef.current);
-				fishingWaterIntervalRef.current = null;
-			}
-			setFishing((prev) =>
-				prev
-					? {
-							...prev,
-							phase: "bite",
-							requiredKey,
-						}
-					: prev,
-			);
-			fishingCatchTimeoutRef.current = window.setTimeout(() => {
+			fishing,
+			hasBlockingModal: !!modal || !!dayTransition,
+			playWater,
+			fadeOutCurrentAreaMusic,
+			setFishing,
+			addLog,
+			maxWaitSeconds: getFishingRodMaxWaitSeconds(tools),
+			randomInt,
+			waitTimeoutRef: fishingWaitTimeoutRef,
+			catchTimeoutRef: fishingCatchTimeoutRef,
+			waterIntervalRef: fishingWaterIntervalRef,
+			onFishEscaped: () => {
 				playBad();
 				addLog("The fish got away.");
 				endFishing();
-			}, 2000);
-		}, waitMs);
+			},
+		});
 	};
 
 	useEffect(() => {
@@ -3224,36 +3122,39 @@ function App() {
 	};
 
 	const openMenu = (title: string, body: string[], options: ModalOption[]) => {
-		playNotification();
-		setPauseGame(true);
-		setModal({ title, body, options });
-		setModalIndex(0);
+		openMenuController({
+			title,
+			body,
+			options,
+			playNotification,
+			setPauseGame,
+			setModal,
+			setModalIndex,
+		});
 	};
 
 	const closeMenu = () => {
-		const wasBottleDialog = modal?.title === "Message In A Bottle";
-		playNotification();
-		setPauseGame(false);
-		setQuantityPrompt(null);
-		quantityParentMenuRef.current = null;
-		setModal(null);
-		setModalIndex(0);
-		if (wasBottleDialog) {
-			fadeOutSeagulls();
-		}
+		closeMenuController({
+			modal,
+			playNotification,
+			setPauseGame,
+			setQuantityPrompt,
+			quantityParentMenuRef,
+			setModal,
+			setModalIndex,
+			fadeOutSeagulls,
+		});
 	};
 
 	const cancelQuantityPrompt = () => {
-		const parent = quantityParentMenuRef.current;
-		if (parent) {
-			playNotification();
-			setQuantityPrompt(null);
-			setModal(parent.modal);
-			setModalIndex(parent.index);
-			quantityParentMenuRef.current = null;
-			return;
-		}
-		closeMenu();
+		cancelQuantityPromptMenu({
+			quantityParentMenuRef,
+			playNotification,
+			setQuantityPrompt,
+			setModal,
+			setModalIndex,
+			closeMenu,
+		});
 	};
 
 	const openQuantityPrompt = (cfg: {
@@ -3263,33 +3164,16 @@ function App() {
 		unitPrice: number;
 		onConfirm: (quantity: number) => void;
 	}) => {
-		const max = Math.max(0, cfg.max);
-		if (max < 1) {
-			addLog(
-				cfg.mode === "buy"
-					? "Cannot afford any quantity."
-					: "You do not have any to sell.",
-			);
-			return;
-		}
-		setQuantityPrompt({
-			min: 0,
-			max,
-			value: 1,
-			unitPrice: cfg.unitPrice,
-			mode: cfg.mode,
-			itemLabel: cfg.itemLabel,
-			onConfirm: cfg.onConfirm,
+		openQuantityPromptMenu({
+			cfg,
+			addLog,
+			setQuantityPrompt,
+			modal,
+			modalIndex,
+			quantityParentMenuRef,
+			openMenu,
+			setModalIndex,
 		});
-		if (modal) {
-			quantityParentMenuRef.current = { modal, index: modalIndex };
-		}
-		openMenu(
-			`${cfg.mode === "buy" ? "Buy" : "Sell"} Quantity`,
-			[`${cfg.itemLabel}`],
-			[],
-		);
-		setModalIndex(0);
 	};
 
 	const countOpenBarnTiles = (occupied: Record<number, { x: number; y: number }>) => {
