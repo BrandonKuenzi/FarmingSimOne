@@ -131,7 +131,6 @@ import {
 	TRADER_POS,
 } from "../world/npcs";
 import { isPassableChar } from "../world/passability";
-import { generateDailyNewspaper, generatePriceChange } from "../systems/news";
 import { nextAnimalTile, nextBoatTile, nextTownNpcTile } from "../systems/movement";
 import { interactVendorMenu } from "../systems/vendors";
 import { interactBuilderVendorMenu } from "../systems/builder";
@@ -165,6 +164,11 @@ import {
 } from "../systems/commerce";
 import { evolveFarmWeeds, generateInitialFarmWeedField } from "../systems/weeds";
 import { randomWeather, weatherEmojiById } from "../systems/weather";
+import {
+	buildUnlockFlagsFromProgress,
+	createInitialUnlockFlags,
+	resolveUnlockFlags,
+} from "../systems/unlocks";
 import {
 	grassFoliageVariant,
 	isAnimatedGrassTile,
@@ -202,6 +206,7 @@ import {
 import { useBathingRecovery } from "./engine/bathingEngine";
 import {
 	grantBonusChestRewardSet as grantBonusChestRewardSetEngine,
+	openCaveBonusChestReward as openCaveBonusChestRewardEngine,
 	openHighValueForestChestReward as openHighValueForestChestRewardEngine,
 	openRewardPopup as openRewardPopupEngine,
 } from "./engine/rewardEngine";
@@ -320,6 +325,7 @@ const BUREAUCRACY_SPAWN = {
 	x: BUREAUCRACY_ENTRY_POS.x,
 	y: BUREAUCRACY_ENTRY_POS.y,
 };
+const HEADLAMP_LETTER_POS = { x: 7, y: 8 } as const;
 const savarioLines = [
 	"Oh. Good. You're back.",
 	"We restored your progress. Please misplace it less impressively.",
@@ -503,10 +509,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				caveRubble: buildCaveRubble(initialCaveStateRef.current.layout),
 				caveEnemies: initialCaveStateRef.current.enemies,
 				caveObstacles: initialCaveStateRef.current.obstacles,
+				caveBonusChest: initialCaveStateRef.current.bonusChest,
+				caveIsBonusLevel: initialCaveStateRef.current.isBonusLevel,
 				caveLevel: initialCaveStateRef.current.level,
 				caveEntranceDoorPos: initialCaveStateRef.current.entranceDoor,
 				caveLevelOneExitPos: initialCaveStateRef.current.levelOneExitInside,
-				caveLadderPos: null,
+				caveLadderPos: initialCaveStateRef.current.ladderPos,
 				caveStartingRockCount: initialCaveStateRef.current.startingRockCount,
 				caveLockedToday: false,
 				currentWeather: randomWeather(),
@@ -577,6 +585,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				pendingBarnUpgrade: false,
 				hasTractor: false,
 				hasHeadlamp: false,
+				headlampLetterRead: false,
+				unlockFlags: buildUnlockFlagsFromProgress({
+					forestLevel: initialForestStateRef.current.level,
+					caveLevel: initialCaveStateRef.current.level,
+				}),
 				pendingTractorDelivery: false,
 				tractorParked: false,
 				isDrivingTractor: false,
@@ -653,6 +666,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		caveRubble,
 		caveEnemies,
 		caveObstacles,
+		caveBonusChest,
+		caveIsBonusLevel,
 		caveLevel,
 		caveEntranceDoorPos,
 		caveLevelOneExitPos,
@@ -695,6 +710,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		pendingBarnUpgrade,
 		hasTractor,
 		hasHeadlamp,
+		headlampLetterRead,
+		unlockFlags,
 		pendingTractorDelivery,
 		tractorParked,
 		isDrivingTractor,
@@ -751,6 +768,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const savarioLineIndexRef = useRef(0);
 	const bootSaveHandledRef = useRef(false);
 	const playerRef = useRef(player);
+	const animalsRef = useRef(animals);
+	const animalTilesRef = useRef(animalTiles);
+	const animalAnchorsRef = useRef(animalAnchors);
 	const ttsReadyRef = useRef(false);
 	const setterCacheRef = useRef(new Map<keyof GameState, unknown>());
 	const setForKey = <K extends keyof GameState>(key: K) => {
@@ -787,6 +807,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setCaveRubble = setForKey("caveRubble");
 	const setCaveEnemies = setForKey("caveEnemies");
 	const setCaveObstacles = setForKey("caveObstacles");
+	const setCaveBonusChest = setForKey("caveBonusChest");
+	const setCaveIsBonusLevel = setForKey("caveIsBonusLevel");
 	const setCaveLevel = setForKey("caveLevel");
 	const setCaveEntranceDoorPos = setForKey("caveEntranceDoorPos");
 	const setCaveLevelOneExitPos = setForKey("caveLevelOneExitPos");
@@ -828,6 +850,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setPendingBarnUpgrade = setForKey("pendingBarnUpgrade");
 	const setHasTractor = setForKey("hasTractor");
 	const setHasHeadlamp = setForKey("hasHeadlamp");
+	const setHeadlampLetterRead = setForKey("headlampLetterRead");
+	const setUnlockFlags = setForKey("unlockFlags");
 	const setPendingTractorDelivery = setForKey("pendingTractorDelivery");
 	const setTractorParked = setForKey("tractorParked");
 	const setIsDrivingTractor = setForKey("isDrivingTractor");
@@ -887,6 +911,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const width = activeMapRows[0]?.length ?? 0;
 	const height = activeMapRows.length;
 	const canSaveGame = player.map === "farm" || player.map === "town";
+	const headlampLetterVisible = unlockFlags.headlampVendorStock && !headlampLetterRead;
 	const saveDisabledMessage = canSaveGame
 		? null
 		: player.map === "bureaucracy_office"
@@ -1263,6 +1288,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	} = createAreaMusicController({
 		isShopMap,
 		playerRef,
+		forestIsBonusLevel,
+		caveIsBonusLevel,
 		hasDayTransition: !!dayTransition,
 		isOrdering,
 		isDoctorCompounding,
@@ -1330,18 +1357,33 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (dayTransition) return;
 		if (bootSaveJson && !bootSaveHandledRef.current) return;
 		switchAreaMusic(getAreaMusicForMap(player.map), false);
-	}, [player.map, dayTransition, bootSaveJson]);
+	}, [player.map, forestIsBonusLevel, caveIsBonusLevel, dayTransition, bootSaveJson]);
 
 	useEffect(() => {
 		stopStaleBackgroundTracks();
-	}, [player.map, dayTransition, isOrdering, isDoctorCompounding, fishing]);
+	}, [
+		player.map,
+		forestIsBonusLevel,
+		caveIsBonusLevel,
+		dayTransition,
+		isOrdering,
+		isDoctorCompounding,
+		fishing,
+	]);
 
 	useEffect(() => {
 		const interval = window.setInterval(() => {
 			stopStaleBackgroundTracks();
 		}, 900);
 		return () => window.clearInterval(interval);
-	}, [dayTransition, isOrdering, isDoctorCompounding, fishing]);
+	}, [
+		forestIsBonusLevel,
+		caveIsBonusLevel,
+		dayTransition,
+		isOrdering,
+		isDoctorCompounding,
+		fishing,
+	]);
 
 	useEffect(() => {
 		const beachTrack = beachAmbienceRef.current;
@@ -1380,6 +1422,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		playerRef.current = player;
 	}, [player]);
+
+	useEffect(() => {
+		animalsRef.current = animals;
+	}, [animals]);
+
+	useEffect(() => {
+		animalTilesRef.current = animalTiles;
+	}, [animalTiles]);
+
+	useEffect(() => {
+		animalAnchorsRef.current = animalAnchors;
+	}, [animalAnchors]);
 
 	useEffect(() => {
 		if (!isDrivingTractor) {
@@ -1438,6 +1492,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		if (player.map !== "cave") return;
 		const rows = activeMapLayouts.cave;
+		const torchSources = caveObstacles.filter((obstacle) => obstacle.type === "torch");
 		setCaveFog((prev) => {
 			let changed = false;
 			const next = { ...prev };
@@ -1447,7 +1502,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				for (let x = 0; x < row.length; x += 1) {
 					const key = keyForPos(x, y);
 					const current = prev[key] ?? 1;
-					const target = getForestFogTargetOpacity(x, y, player.x, player.y);
+					const playerTarget = getForestFogTargetOpacity(x, y, player.x, player.y);
+					let torchTarget = 1;
+					for (const torch of torchSources) {
+						const sourceTarget = getBaseFogTargetOpacityFromSource(
+							x,
+							y,
+							torch.x,
+							torch.y,
+						);
+						if (sourceTarget < torchTarget) torchTarget = sourceTarget;
+					}
+					const target = Math.min(playerTarget, torchTarget);
 					const updated = Math.min(current, target);
 					if (updated !== current) {
 						next[key] = updated;
@@ -1457,7 +1523,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			}
 			return changed ? next : prev;
 		});
-	}, [player.map, player.x, player.y, playerEmoji, hasHeadlamp, activeMapLayouts]);
+	}, [
+		player.map,
+		player.x,
+		player.y,
+		playerEmoji,
+		hasHeadlamp,
+		activeMapLayouts,
+		caveObstacles,
+	]);
 
 	useEffect(() => {
 		const shouldAnimate = isOrdering && player.map === "cafe_shop";
@@ -1682,6 +1756,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	}, [ownedWardrobeLooks, playerEmoji]);
 
 	useEffect(() => {
+		setUnlockFlags((prev) =>
+			resolveUnlockFlags(
+				{
+					forestLevel,
+					caveLevel,
+				},
+				prev,
+			),
+		);
+	}, [forestLevel, caveLevel]);
+
+	useEffect(() => {
 		quantityPromptRef.current = quantityPrompt;
 	}, [quantityPrompt]);
 
@@ -1716,6 +1802,19 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		playerY: number,
 	) =>
 		getFogTargetOpacity({ x: playerX, y: playerY }, x, y, playerEmoji, hasHeadlamp);
+
+	const getBaseFogTargetOpacityFromSource = (
+		x: number,
+		y: number,
+		sourceX: number,
+		sourceY: number,
+	) => {
+		const dist = Math.max(Math.abs(x - sourceX), Math.abs(y - sourceY));
+		if (dist <= 3) return 0;
+		if (dist <= 4) return 0.5;
+		if (dist <= 6) return 0.9;
+		return 1;
+	};
 
 	const getForestFogOpacity = (x: number, y: number) => {
 		if (player.map !== "forest") return 0;
@@ -1804,6 +1903,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (map === "farm" && farmWeedObstacles[keyForPos(x, y)]) return false;
 		if (map === "farm" && farmEggDrops[keyForPos(x, y)]) return false;
 		if (
+			map === "farm" &&
+			headlampLetterVisible &&
+			x === HEADLAMP_LETTER_POS.x &&
+			y === HEADLAMP_LETTER_POS.y
+		)
+			return false;
+		if (
 			map === "town" &&
 			beachBottlePos &&
 			beachBottlePos.x === x &&
@@ -1849,12 +1955,26 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return next;
 		});
 	};
+	const getPrioritizedChaseDirs = (
+		fromX: number,
+		fromY: number,
+		targetX: number,
+		targetY: number,
+	) =>
+		Object.values(npcMoveDirections)
+			.map((delta) => {
+				const nx = fromX + delta.dx;
+				const ny = fromY + delta.dy;
+				const distance = Math.max(Math.abs(targetX - nx), Math.abs(targetY - ny));
+				return { ...delta, distance };
+			})
+			.sort((a, b) => a.distance - b.distance);
 
 	const maybeMoveForestEnemy = (
 		enemy: ForestEnemy,
 		isHalfTick: boolean,
 	): ForestEnemy => {
-		if (pauseGame) return enemy;
+		if (simulationPaused) return enemy;
 		const playerNow = playerRef.current;
 		const playerInForest = playerNow.map === "forest";
 
@@ -1951,13 +2071,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			forestAggroRef.current[enemy.id] = playerInPoopArea;
 			if (!playerInPoopArea && isHalfTick) return enemy;
 			if (playerInPoopArea) {
-				const stepX = playerNow.x === enemy.x ? 0 : playerNow.x > enemy.x ? 1 : -1;
-				const stepY = playerNow.y === enemy.y ? 0 : playerNow.y > enemy.y ? 1 : -1;
-				const chaseDirs = [
-					{ dx: stepX, dy: stepY },
-					{ dx: stepX, dy: 0 },
-					{ dx: 0, dy: stepY },
-				];
+				const chaseDirs = getPrioritizedChaseDirs(
+					enemy.x,
+					enemy.y,
+					playerNow.x,
+					playerNow.y,
+				);
 				for (const delta of chaseDirs) {
 					const nx = enemy.x + delta.dx;
 					const ny = enemy.y + delta.dy;
@@ -1996,24 +2115,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const playerInBearArea =
 			playerInForest &&
 			Math.max(
-				Math.abs(playerNow.x - enemy.anchorX),
-				Math.abs(playerNow.y - enemy.anchorY),
-			) <= 3;
+				Math.abs(playerNow.x - enemy.x),
+				Math.abs(playerNow.y - enemy.y),
+			) <= 6;
 		const wasAggro = forestAggroRef.current[enemy.id] ?? false;
 		if (playerInBearArea && !wasAggro) playBearSound();
 		forestAggroRef.current[enemy.id] = playerInBearArea;
 		const targetX = playerInBearArea ? playerNow.x : enemy.anchorX;
 		const targetY = playerInBearArea ? playerNow.y : enemy.anchorY;
 		if (enemy.x === targetX && enemy.y === targetY) return enemy;
-		const stepX = targetX === enemy.x ? 0 : targetX > enemy.x ? 1 : -1;
-		const stepY = targetY === enemy.y ? 0 : targetY > enemy.y ? 1 : -1;
-		const candidates = [
-			{ dx: stepX, dy: stepY },
-			{ dx: stepX, dy: 0 },
-			{ dx: 0, dy: stepY },
-		].filter(
-			(d, idx, arr) => !(idx > 0 && d.dx === arr[0]!.dx && d.dy === arr[0]!.dy),
-		);
+		const candidates = getPrioritizedChaseDirs(enemy.x, enemy.y, targetX, targetY);
 
 		for (const delta of candidates) {
 			const nx = enemy.x + delta.dx;
@@ -2034,7 +2145,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		enemy: ForestEnemy,
 		isHalfTick: boolean,
 	): ForestEnemy => {
-		if (pauseGame) return enemy;
+		if (simulationPaused) return enemy;
 		const playerNow = playerRef.current;
 		const playerInCave = playerNow.map === "cave";
 
@@ -2057,8 +2168,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				}
 				return false;
 			};
-			const canStep = (nx: number, ny: number) =>
-				isPassableAt("cave", nx, ny) && !isCaveOccupied(nx, ny, enemy.id);
+			const canStep = (nx: number, ny: number) => {
+				if (nx < 0 || ny < 0) return false;
+				const rows = activeMapLayouts.cave;
+				if (!rows || ny >= rows.length || nx >= (rows[0]?.length ?? 0)) return false;
+				const tile = rows[ny]?.[nx] ?? "<";
+				if (!isCaveWalkableTile(tile) || isCaveBlockedTile(tile)) return false;
+				if (caveObstacleAt(nx, ny)) return false;
+				if (caveEnemies.some((e) => e.id !== enemy.id && e.x === nx && e.y === ny)) return false;
+				return true;
+			};
 			const tryHorizontal = (dir: -1 | 1): ForestEnemy | null => {
 				const nx = enemy.x + dir;
 				const ny = enemy.y;
@@ -2072,9 +2191,26 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				}
 				return { ...enemy, x: nx, y: ny };
 			};
+			const tryVertical = (dir: -1 | 1): ForestEnemy | null => {
+				const nx = enemy.x;
+				const ny = enemy.y + dir;
+				if (tryDamage(nx, ny)) return enemy;
+				if (!canStep(nx, ny)) return null;
+				state.vDir = dir;
+				state.verticalMode = true;
+				caveBatDirsRef.current[enemy.id] = state;
+				if (wasWithinOneTile) {
+					applyCaveDamage(20, "A bat");
+				}
+				return { ...enemy, x: nx, y: ny };
+			};
 			if (!state.verticalMode) {
 				const firstTry = tryHorizontal(state.hDir);
 				if (firstTry) return firstTry;
+				const firstVertical = tryVertical(state.vDir);
+				if (firstVertical) return firstVertical;
+				const oppositeVertical = tryVertical((state.vDir * -1) as -1 | 1);
+				if (oppositeVertical) return oppositeVertical;
 				const opposite = (state.hDir * -1) as -1 | 1;
 				const secondTry = tryHorizontal(opposite);
 				if (secondTry) return secondTry;
@@ -2083,31 +2219,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				caveBatDirsRef.current[enemy.id] = state;
 				return enemy;
 			}
+			const verticalNow = tryVertical(state.vDir);
+			if (verticalNow) return verticalNow;
 			const horizontalNow = tryHorizontal(state.hDir);
 			if (horizontalNow) return horizontalNow;
 			const horizontalOpposite = tryHorizontal((state.hDir * -1) as -1 | 1);
 			if (horizontalOpposite) return horizontalOpposite;
-			let nx = enemy.x;
-			let ny = enemy.y + state.vDir;
-			if (tryDamage(nx, ny)) return enemy;
-			if (canStep(nx, ny)) {
-				caveBatDirsRef.current[enemy.id] = state;
-				if (wasWithinOneTile) {
-					applyCaveDamage(20, "A bat");
-				}
-				return { ...enemy, x: nx, y: ny };
-			}
-			state.vDir = (state.vDir * -1) as -1 | 1;
-			nx = enemy.x;
-			ny = enemy.y + state.vDir;
-			if (tryDamage(nx, ny)) return enemy;
-			if (canStep(nx, ny)) {
-				caveBatDirsRef.current[enemy.id] = state;
-				if (wasWithinOneTile) {
-					applyCaveDamage(20, "A bat");
-				}
-				return { ...enemy, x: nx, y: ny };
-			}
+			const verticalOpposite = tryVertical((state.vDir * -1) as -1 | 1);
+			if (verticalOpposite) return verticalOpposite;
 			caveBatDirsRef.current[enemy.id] = state;
 			return enemy;
 		}
@@ -2124,13 +2243,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			caveAggroRef.current[enemy.id] = playerInPoopArea;
 			if (!playerInPoopArea && isHalfTick) return enemy;
 			if (playerInPoopArea) {
-				const stepX = playerNow.x === enemy.x ? 0 : playerNow.x > enemy.x ? 1 : -1;
-				const stepY = playerNow.y === enemy.y ? 0 : playerNow.y > enemy.y ? 1 : -1;
-				const chaseDirs = [
-					{ dx: stepX, dy: stepY },
-					{ dx: stepX, dy: 0 },
-					{ dx: 0, dy: stepY },
-				];
+				const chaseDirs = getPrioritizedChaseDirs(
+					enemy.x,
+					enemy.y,
+					playerNow.x,
+					playerNow.y,
+				);
 				for (const delta of chaseDirs) {
 					const nx = enemy.x + delta.dx;
 					const ny = enemy.y + delta.dy;
@@ -2167,24 +2285,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const playerInBearArea =
 			playerInCave &&
 			Math.max(
-				Math.abs(playerNow.x - enemy.anchorX),
-				Math.abs(playerNow.y - enemy.anchorY),
-			) <= 3;
+				Math.abs(playerNow.x - enemy.x),
+				Math.abs(playerNow.y - enemy.y),
+			) <= 6;
 		const wasAggro = caveAggroRef.current[enemy.id] ?? false;
 		if (playerInBearArea && !wasAggro) playBearSound();
 		caveAggroRef.current[enemy.id] = playerInBearArea;
 		const targetX = playerInBearArea ? playerNow.x : enemy.anchorX;
 		const targetY = playerInBearArea ? playerNow.y : enemy.anchorY;
 		if (enemy.x === targetX && enemy.y === targetY) return enemy;
-		const stepX = targetX === enemy.x ? 0 : targetX > enemy.x ? 1 : -1;
-		const stepY = targetY === enemy.y ? 0 : targetY > enemy.y ? 1 : -1;
-		const candidates = [
-			{ dx: stepX, dy: stepY },
-			{ dx: stepX, dy: 0 },
-			{ dx: 0, dy: stepY },
-		].filter(
-			(d, idx, arr) => !(idx > 0 && d.dx === arr[0]!.dx && d.dy === arr[0]!.dy),
-		);
+		const candidates = getPrioritizedChaseDirs(enemy.x, enemy.y, targetX, targetY);
 		for (const delta of candidates) {
 			const nx = enemy.x + delta.dx;
 			const ny = enemy.y + delta.dy;
@@ -2204,7 +2314,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		npcKey: string,
 		nextNpcTiles: Record<string, { x: number; y: number }>,
 	) => {
-		if (pauseGame) return;
+		if (simulationPaused) return;
 		if (randomRoll() > 0.25) return;
 
 		const current = nextNpcTiles[npcKey];
@@ -2233,11 +2343,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		animalId: number,
 		nextAnimalTiles: Record<number, { x: number; y: number }>,
 	) => {
-		if (pauseGame) return;
-		if (randomRoll() > 0.25) return;
+		if (simulationPaused) return;
+		const moveRoll = randomRoll();
+		if (moveRoll > 0.25) return;
 
 		const current = nextAnimalTiles[animalId];
-		const anchor = animalAnchors[animalId];
+		const anchor = animalAnchors[animalId] ?? current;
 		if (!current || !anchor) return;
 		const next = nextAnimalTile({
 			current,
@@ -2254,14 +2365,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			moveDirections: npcMoveDirections,
 			playerMapWhenBlocking: "farm",
 		});
-		if (next) nextAnimalTiles[animalId] = next;
+		if (next) {
+			nextAnimalTiles[animalId] = next;
+		}
 	};
 
 	const maybeMoveBoat = (
 		boatKey: keyof typeof boatNpcEmojis,
 		nextBoatTiles: BoatTileMap,
 	) => {
-		if (pauseGame) return;
+		if (simulationPaused) return;
 		if (randomRoll() > 0.25) return;
 
 		const current = nextBoatTiles[boatKey];
@@ -2279,6 +2392,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const addLog = (line: string) => {
+		if (playerRef.current.map === "cave") {
+			setLog([`Cave Level ${caveLevel}: ${line}`]);
+			return;
+		}
+		if (playerRef.current.map === "forest") {
+			setLog([`Forest Level ${forestLevel}: ${line}`]);
+			return;
+		}
 		setLog([line]);
 	};
 	const dispatchWholeGameState = (nextState: GameState) => {
@@ -2365,6 +2486,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 		const nextState: GameState = {
 			...rawState,
+			headlampLetterRead:
+				(rawState as Partial<GameState>).headlampLetterRead ?? false,
+			unlockFlags: resolveUnlockFlags(
+				{
+					forestLevel: rawState.forestLevel,
+					caveLevel: rawState.caveLevel,
+				},
+				{
+					...createInitialUnlockFlags(),
+					...(rawState as Partial<GameState>).unlockFlags,
+				},
+			),
 			player: { ...BUREAUCRACY_SPAWN },
 			forestLayout: regeneratedForest.layout,
 			forestEnemies: regeneratedForest.enemies,
@@ -2382,10 +2515,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			caveRubble: buildCaveRubble(regeneratedCave.layout),
 			caveEnemies: regeneratedCave.enemies,
 			caveObstacles: regeneratedCave.obstacles,
+			caveBonusChest: regeneratedCave.bonusChest,
+			caveIsBonusLevel: regeneratedCave.isBonusLevel,
 			caveLevel: regeneratedCave.level,
 			caveEntranceDoorPos: regeneratedCave.entranceDoor,
 			caveLevelOneExitPos: regeneratedCave.levelOneExitInside,
-			caveLadderPos: null,
+			caveLadderPos: regeneratedCave.ladderPos,
 			caveStartingRockCount: regeneratedCave.startingRockCount,
 			caveFog: {},
 			modal: null,
@@ -2519,10 +2654,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		caveAggroRef.current = {};
 		caveEnemyTickRef.current = 0;
 		setCaveObstacles(nextCave.obstacles);
+		setCaveBonusChest(nextCave.bonusChest);
+		setCaveIsBonusLevel(nextCave.isBonusLevel);
 		setCaveLevel(nextCave.level);
 		setCaveEntranceDoorPos(nextCave.entranceDoor);
 		setCaveLevelOneExitPos(nextCave.levelOneExitInside);
-		setCaveLadderPos(null);
+		setCaveLadderPos(nextCave.ladderPos);
 		setCaveStartingRockCount(nextCave.startingRockCount);
 		setCaveFog({});
 	};
@@ -2572,7 +2709,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const maybeMovePet = (current: Point) => {
-		if (pauseGame) return current;
+		if (simulationPaused) return current;
 		if (randomRoll() > 0.25) return current;
 		let attempts = 0;
 		while (attempts < 128) {
@@ -2595,6 +2732,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		day,
 		map: player.map,
 	};
+	const simulationPaused = pauseGame || isSaveLoadMenuOpen || !!modal;
 	const gameActions: GameStateActions = {
 		setTownNpcTiles,
 		setBoatTiles,
@@ -2609,7 +2747,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		...worldSimSnapshot,
 		...gameActions,
 		animals,
-		pauseGame,
+		pauseGame: simulationPaused,
 		playerRef,
 		townNpcTiles,
 		boatTiles,
@@ -2679,8 +2817,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			x: nextCave.entranceInside.x,
 			y: nextCave.entranceInside.y,
 		});
-		switchAreaMusic(getAreaMusicForMap("cave"), true);
-		addLog(`You descend deeper into the cave (Depth ${nextLevel}).`);
+		if (nextCave.isBonusLevel) {
+			switchAreaMusic(bureaucracyMusicRef.current, true);
+			addLog(`You found a quiet bonus cavern (Depth ${nextLevel}).`);
+		} else {
+			switchAreaMusic(caveMusicRef.current, true);
+			addLog(`You descend deeper into the cave (Depth ${nextLevel}).`);
+		}
 		if (fromMenu) closeMenu();
 	};
 	const openForestExitMenu = () => {
@@ -2910,6 +3053,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				tractorImplement,
 				tractorImplementOn,
 				isPassableAt,
+				handleBlockedStep: (map, x, y) => {
+					if (map !== "cave") return false;
+					const obstacle = caveObstacleAt(x, y);
+					if (!obstacle || obstacle.type !== "torch") return false;
+					applyCaveDamage(10, "A torch");
+					return true;
+				},
 				ownedPet,
 				petTile,
 				isOccupied,
@@ -2987,6 +3137,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			hasTractor,
 			pendingTractorDelivery,
 			hasHeadlamp,
+			unlockFlags,
 			randomInt,
 			canAfford,
 			applyMoneyDelta,
@@ -3134,6 +3285,82 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 	};
 
+	useEffect(() => {
+		if (animals.length <= 0) return;
+		const rows = activeMapLayouts[animalsMap];
+		const hasDuplicateIds = new Set(animals.map((a) => a.id)).size !== animals.length;
+		const occupiedKeys = new Set<string>();
+		let hasOverlappingTiles = false;
+		let hasMissingTile = false;
+		let hasMissingAnchor = false;
+		animals.forEach((animal) => {
+			const pos = animalTiles[animal.id];
+			if (!pos) {
+				hasMissingTile = true;
+				return;
+			}
+			const key = keyForPos(pos.x, pos.y);
+			if (occupiedKeys.has(key)) {
+				hasOverlappingTiles = true;
+				return;
+			}
+			occupiedKeys.add(key);
+			if (!animalAnchors[animal.id]) hasMissingAnchor = true;
+		});
+		if (!hasDuplicateIds && !hasOverlappingTiles && !hasMissingTile && !hasMissingAnchor)
+			return;
+
+		const usedIds = new Set<number>();
+		let nextId = Math.max(0, ...animals.map((a) => a.id)) + 1;
+		const nextAnimals: Animal[] = [];
+		const nextTiles: Record<number, Point> = {};
+		const nextAnchors: Record<number, Point> = {};
+		animals.forEach((animal) => {
+			let normalizedId = animal.id;
+			if (usedIds.has(normalizedId)) {
+				normalizedId = nextId;
+				nextId += 1;
+			}
+			usedIds.add(normalizedId);
+			const normalizedAnimal =
+				normalizedId === animal.id ? animal : { ...animal, id: normalizedId };
+			nextAnimals.push(normalizedAnimal);
+
+			const preferred = animalTiles[animal.id] ?? animalAnchors[animal.id] ?? null;
+			let chosen: Point | null = null;
+			if (preferred) {
+				const withinBounds =
+					preferred.x >= barnInteriorBounds.minX &&
+					preferred.x <= barnInteriorBounds.maxX &&
+					preferred.y >= barnInteriorBounds.minY &&
+					preferred.y <= barnInteriorBounds.maxY;
+				const passable = isPassableChar(rows[preferred.y]?.[preferred.x] ?? "#");
+				const used = Object.values(nextTiles).some(
+					(pos) => pos.x === preferred.x && pos.y === preferred.y,
+				);
+				if (withinBounds && passable && !used) {
+					chosen = preferred;
+				}
+			}
+			if (!chosen) {
+				chosen = nextOpenBarnTileInBounds({
+					occupied: nextTiles,
+					rows,
+					bounds: barnInteriorBounds,
+					isPassableChar,
+				});
+			}
+			if (!chosen && preferred) chosen = preferred;
+			if (!chosen) chosen = { x: barnInteriorBounds.minX, y: barnInteriorBounds.minY };
+			nextTiles[normalizedId] = chosen;
+			nextAnchors[normalizedId] = chosen;
+		});
+
+		setAnimals(nextAnimals);
+		setAnimalTiles(nextTiles);
+		setAnimalAnchors(nextAnchors);
+	}, [animals, animalTiles, animalAnchors, animalsMap, barnInteriorBounds, activeMapLayouts]);
+
 	const getEggDropNearChicken = (
 		chickenPos: { x: number; y: number },
 		occupiedAnimals: Record<number, { x: number; y: number }>,
@@ -3161,11 +3388,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const spawnAnimalInBarn = (type: AnimalType) => {
-		const spawn = nextOpenBarnTile(animalTiles);
+		const currentAnimals = animalsRef.current;
+		const currentTiles = animalTilesRef.current;
+		const currentAnchors = animalAnchorsRef.current;
+		const spawn = nextOpenBarnTile(currentTiles);
 		if (!spawn) return false;
-		const nextId = Math.max(0, ...animals.map((a) => a.id)) + 1;
-		setAnimals((prev) => [
-			...prev,
+		const nextId = Math.max(0, ...currentAnimals.map((a) => a.id)) + 1;
+		const nextAnimals = [
+			...currentAnimals,
 			{
 				id: nextId,
 				type,
@@ -3173,9 +3403,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				canProduceToday: false,
 				hasProductReady: false,
 			},
-		]);
-		setAnimalTiles((prev) => ({ ...prev, [nextId]: spawn }));
-		setAnimalAnchors((prev) => ({ ...prev, [nextId]: spawn }));
+		];
+		const nextTiles = { ...currentTiles, [nextId]: spawn };
+		const nextAnchors = { ...currentAnchors, [nextId]: spawn };
+		animalsRef.current = nextAnimals;
+		animalTilesRef.current = nextTiles;
+		animalAnchorsRef.current = nextAnchors;
+		setAnimals(nextAnimals);
+		setAnimalTiles(nextTiles);
+		setAnimalAnchors(nextAnchors);
 		return true;
 	};
 
@@ -3212,6 +3448,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			applyForestRoom,
 			applyCaveRoom,
 			setFarmWeedObstacles,
+			setFarmForestBlockers,
+			setFarmCaveBlockers,
+			setPetGraveObstacles,
 			farmForestBlockers,
 			farmCaveBlockers,
 			plots,
@@ -3244,6 +3483,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			setOwnedPet,
 			setPendingPet,
 			prices,
+			initialPrices,
 			initialPriceTrends,
 			priceItems,
 			setPrices,
@@ -3326,6 +3566,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const grantBonusChestRewardSet = (
 		types: Array<"food" | "money" | "seeds" | "iron">,
+		foodMode: "all" | "coffeeOnly" = "all",
 	): string => {
 		return grantBonusChestRewardSetEngine(
 			{
@@ -3336,6 +3577,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				staminaMax,
 			},
 			types,
+			foodMode,
 		);
 	};
 
@@ -3358,11 +3600,34 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 	};
 
+	const openCaveBonusChestReward = () => {
+		openCaveBonusChestRewardEngine({
+			updateInventory,
+			openRewardPopup,
+		});
+	};
+
 	const interact = (dir: Dir) => {
+		const delta = dirDelta[dir];
+		const tx = player.x + delta.dx;
+		const ty = player.y + delta.dy;
+		if (
+			player.map === "farm" &&
+			headlampLetterVisible &&
+			tx === HEADLAMP_LETTER_POS.x &&
+			ty === HEADLAMP_LETTER_POS.y
+		) {
+			setHeadlampLetterRead(true);
+			openMenu(
+				"Letter",
+				[
+					"Hey I heard youve been heading deep into some dark places recently. So I decided to start stocking headlamps in the tool shop! Come on by and check it out!",
+				],
+				[{ label: "Close", info: ["Put the letter away."], onSelect: closeMenu }],
+			);
+			return;
+		}
 		if (player.map === "bureaucracy_office") {
-			const delta = dirDelta[dir];
-			const tx = player.x + delta.dx;
-			const ty = player.y + delta.dy;
 			const targetCell = activeMapLayouts.bureaucracy_office?.[ty]?.[tx] ?? "";
 			if (
 				(tx === BUREAUCRACY_SAVARIO_POS.x && ty === BUREAUCRACY_SAVARIO_POS.y) ||
@@ -3458,6 +3723,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				tryUseToolAction,
 				setWaterLevel,
 				playWater,
+				playSnakeSound,
 				setWaterRefillTile,
 				waterRefillTileTimeoutRef,
 				startFishing,
@@ -3478,6 +3744,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				getSmashAxeIronChance,
 				caveObstacleAt,
 				setCaveObstacles,
+				caveBonusChest,
+				setCaveBonusChest,
+				caveIsBonusLevel,
+				openCaveBonusChestReward,
 				caveLevel,
 				setCaveLadderPos,
 				caveObstacles,
@@ -3597,6 +3867,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const inputContext: GameKeyDownContext = {
 		applyMoneyDelta,
 		updateInventory,
+		spawnAnimalInBarn,
 		addLog,
 		isDrivingTractor,
 		tractorImplementOn,
@@ -3643,6 +3914,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			day,
 			starterChestOpened,
 			STARTER_CHEST_POS,
+			headlampLetterVisible,
+			HEADLAMP_LETTER_POS,
 			plots,
 			cropDefs,
 			farmForestBlockers,
@@ -3682,6 +3955,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			forestBonusChests,
 			forestEnemies,
 			caveObstacles,
+			caveBonusChest,
 			caveLadderPos,
 			caveEnemies,
 			isShopMap,
@@ -3698,12 +3972,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		day,
 		fishing,
 		starterChestOpened,
+		headlampLetterVisible,
 		forestChest,
 		forestBonusChests,
 		forestEnemies,
 		forestObstacles,
 		caveEnemies,
 		caveObstacles,
+		caveBonusChest,
 		caveLadderPos,
 		player,
 		plots,
@@ -3733,6 +4009,17 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		activeMapLayouts,
 		animalsMap,
 	]);
+
+	const unfedAnimalTileKeys = useMemo(() => {
+		const keys: Record<string, boolean> = {};
+		animals.forEach((animal) => {
+			if (animal.fedToday) return;
+			const pos = animalTiles[animal.id];
+			if (!pos) return;
+			keys[keyForPos(pos.x, pos.y)] = true;
+		});
+		return keys;
+	}, [animalsMap, animals, animalTiles]);
 
 	const viewCtx: GameRuntimeViewModel = buildGameRuntimeViewModel({
 		onKeyDown,
@@ -3782,6 +4069,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
+		unfedAnimalMap: animalsMap,
+		unfedAnimalTileKeys,
 		getToolTierName,
 		pendingTractorDelivery,
 		hasTractor,

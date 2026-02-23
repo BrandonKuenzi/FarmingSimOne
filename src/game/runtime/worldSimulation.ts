@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { ForestEnemy, Point } from "../shared/types";
 import type {
 	AnimalTileMap,
@@ -81,62 +81,109 @@ export const useWorldSimulation = (deps: WorldSimulationDeps): void => {
 	} = deps;
 
 	const equalPoint = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
+	const maybeMoveNPCRef = useRef(maybeMoveNPC);
+	const maybeMoveBoatRef = useRef(maybeMoveBoat);
+	const maybeMoveAnimalRef = useRef(maybeMoveAnimal);
+	const maybeMovePetRef = useRef(maybeMovePet);
+	const boatNpcKeysRef = useRef(boatNpcKeys);
+	const dispatchBatchRef = useRef(dispatchBatch);
+	const animalsRef = useRef(animals);
+	const pauseGameRef = useRef(pauseGame);
+	const townNpcTilesRef = useRef(townNpcTiles);
+	const boatTilesRef = useRef(boatTiles);
+	const animalTilesRef = useRef(animalTiles);
+	const petTileRef = useRef(petTile);
+	const petFacingRef = useRef(petFacing);
+	const townNpcNamesRef = useRef(townNpcNames);
+	const maybeMoveForestEnemyRef = useRef(maybeMoveForestEnemy);
+	const maybeMoveCaveEnemyRef = useRef(maybeMoveCaveEnemy);
+	const setForestEnemiesRef = useRef(setForestEnemies);
+	const setCaveEnemiesRef = useRef(setCaveEnemies);
+
+	maybeMoveNPCRef.current = maybeMoveNPC;
+	maybeMoveBoatRef.current = maybeMoveBoat;
+	maybeMoveAnimalRef.current = maybeMoveAnimal;
+	maybeMovePetRef.current = maybeMovePet;
+	maybeMoveForestEnemyRef.current = maybeMoveForestEnemy;
+	maybeMoveCaveEnemyRef.current = maybeMoveCaveEnemy;
+	boatNpcKeysRef.current = boatNpcKeys;
+	dispatchBatchRef.current = dispatchBatch;
+	setForestEnemiesRef.current = setForestEnemies;
+	setCaveEnemiesRef.current = setCaveEnemies;
+	animalsRef.current = animals;
+	pauseGameRef.current = pauseGame;
+	townNpcTilesRef.current = townNpcTiles;
+	boatTilesRef.current = boatTiles;
+	animalTilesRef.current = animalTiles;
+	petTileRef.current = petTile;
+	petFacingRef.current = petFacing;
+	townNpcNamesRef.current = townNpcNames;
 
 	useEffect(() => {
 		const interval = window.setInterval(() => {
-			const nextTownNpcTiles = { ...townNpcTiles };
-			Object.keys(townNpcNames).forEach((npcKey) => {
-				maybeMoveNPC(npcKey, nextTownNpcTiles);
+			if (pauseGameRef.current) return;
+
+			const currentTownNpcTiles = townNpcTilesRef.current;
+			const currentBoatTiles = boatTilesRef.current;
+			const currentAnimalTiles = animalTilesRef.current;
+			const currentAnimals = animalsRef.current;
+			const currentPetTile = petTileRef.current;
+			const currentPetFacing = petFacingRef.current;
+			const currentTownNpcNames = townNpcNamesRef.current;
+
+			const nextTownNpcTiles = { ...currentTownNpcTiles };
+			Object.keys(currentTownNpcNames).forEach((npcKey) => {
+				maybeMoveNPCRef.current(npcKey, nextTownNpcTiles);
 			});
-			const townChanged = Object.keys(townNpcTiles).some((k) => {
-				const prev = townNpcTiles[k];
+			const townChanged = Object.keys(currentTownNpcTiles).some((k) => {
+				const prev = currentTownNpcTiles[k];
 				const next = nextTownNpcTiles[k];
 				return !!prev && !!next && !equalPoint(prev, next);
 			});
 
-			const nextBoatTiles = { ...boatTiles };
-			boatNpcKeys.forEach((boatKey) => {
-				maybeMoveBoat(boatKey, nextBoatTiles);
+			const nextBoatTiles = { ...currentBoatTiles };
+			boatNpcKeysRef.current.forEach((boatKey) => {
+				maybeMoveBoatRef.current(boatKey, nextBoatTiles);
 			});
-			const boatChanged = boatNpcKeys.some((k) => {
-				const prev = boatTiles[k];
+			const boatChanged = boatNpcKeysRef.current.some((k) => {
+				const prev = currentBoatTiles[k];
 				const next = nextBoatTiles[k];
 				return !!prev && !!next && !equalPoint(prev, next);
 			});
 
-			const nextAnimalTiles = { ...animalTiles };
-			animals.forEach((a) => {
-				maybeMoveAnimal(a.id, nextAnimalTiles);
+			const nextAnimalTiles = { ...currentAnimalTiles };
+			currentAnimals.forEach((a) => {
+				maybeMoveAnimalRef.current(a.id, nextAnimalTiles);
 			});
 			const animalChanged = Object.keys(nextAnimalTiles).some((k) => {
-				const prev = animalTiles[Number(k)];
+				const prev = currentAnimalTiles[Number(k)];
 				const next = nextAnimalTiles[Number(k)];
 				return !!prev && !!next && !equalPoint(prev, next);
 			});
 
-			let nextPetTile = petTile;
-			let nextPetFacing = petFacing;
+			let nextPetTile = currentPetTile;
+			let nextPetFacing = currentPetFacing;
 			let petChanged = false;
 			let petFacingChanged = false;
-			if (petTile && playerRef.current.map === "farm") {
-				const candidate = maybeMovePet(petTile);
-				if (!equalPoint(candidate, petTile)) {
+			if (currentPetTile && playerRef.current.map === "farm") {
+				const candidate = maybeMovePetRef.current(currentPetTile);
+				if (!equalPoint(candidate, currentPetTile)) {
 					nextPetTile = candidate;
 					petChanged = true;
-					if (candidate.x < petTile.x && petFacing !== 1) {
+					if (candidate.x < currentPetTile.x && currentPetFacing !== 1) {
 						nextPetFacing = 1;
 						petFacingChanged = true;
-					} else if (candidate.x > petTile.x && petFacing !== -1) {
+					} else if (candidate.x > currentPetTile.x && currentPetFacing !== -1) {
 						nextPetFacing = -1;
 						petFacingChanged = true;
 					}
 				}
 			}
 
-			if (dispatchBatch) {
+			if (dispatchBatchRef.current) {
 				if (!townChanged && !boatChanged && !animalChanged && !petChanged && !petFacingChanged)
 					return;
-				dispatchBatch({
+				dispatchBatchRef.current({
 					townNpcTiles: townChanged ? nextTownNpcTiles : undefined,
 					boatTiles: boatChanged ? nextBoatTiles : undefined,
 					animalTiles: animalChanged ? nextAnimalTiles : undefined,
@@ -154,46 +201,17 @@ export const useWorldSimulation = (deps: WorldSimulationDeps): void => {
 		}, 1000);
 
 		return () => window.clearInterval(interval);
-	}, [
-		animals,
-		farmEggDrops,
-		farmForestBlockers,
-		farmCaveBlockers,
-		petGraveObstacles,
-		farmWeedObstacles,
-		plots,
-		starterChestOpened,
-		petVendorActive,
-		ownedPet,
-		pauseGame,
-		townNpcTiles,
-		boatTiles,
-		animalTiles,
-		petTile,
-		petFacing,
-		setTownNpcTiles,
-		setBoatTiles,
-		setAnimalTiles,
-		setPetTile,
-		setPetFacing,
-		playerRef,
-		maybeMoveNPC,
-		maybeMoveBoat,
-		maybeMoveAnimal,
-		maybeMovePet,
-		townNpcNames,
-		boatNpcKeys,
-		dispatchBatch,
-	]);
+	}, []);
 
 	useEffect(() => {
 		const interval = window.setInterval(() => {
+			if (pauseGameRef.current) return;
 			forestEnemyTickRef.current += 1;
 			const isHalfTick = forestEnemyTickRef.current % 2 === 1;
-			setForestEnemies((prev) => {
+			setForestEnemiesRef.current((prev) => {
 				let changed = false;
 				const next = prev.map((enemy) => {
-					const moved = maybeMoveForestEnemy(enemy, isHalfTick);
+					const moved = maybeMoveForestEnemyRef.current(enemy, isHalfTick);
 					if (moved !== enemy) changed = true;
 					return moved;
 				});
@@ -201,25 +219,17 @@ export const useWorldSimulation = (deps: WorldSimulationDeps): void => {
 			});
 		}, 500);
 		return () => window.clearInterval(interval);
-	}, [
-		pauseGame,
-		activeMapLayouts,
-		forestObstacles,
-		forestChest,
-		forestBonusChests,
-		setForestEnemies,
-		maybeMoveForestEnemy,
-		forestEnemyTickRef,
-	]);
+	}, []);
 
 	useEffect(() => {
 		const interval = window.setInterval(() => {
+			if (pauseGameRef.current) return;
 			caveEnemyTickRef.current += 1;
 			const isHalfTick = caveEnemyTickRef.current % 2 === 1;
-			setCaveEnemies((prev) => {
+			setCaveEnemiesRef.current((prev) => {
 				let changed = false;
 				const next = prev.map((enemy) => {
-					const moved = maybeMoveCaveEnemy(enemy, isHalfTick);
+					const moved = maybeMoveCaveEnemyRef.current(enemy, isHalfTick);
 					if (moved !== enemy) changed = true;
 					return moved;
 				});
@@ -227,13 +237,5 @@ export const useWorldSimulation = (deps: WorldSimulationDeps): void => {
 			});
 		}, 500);
 		return () => window.clearInterval(interval);
-	}, [
-		pauseGame,
-		activeMapLayouts,
-		caveObstacles,
-		caveLadderPos,
-		setCaveEnemies,
-		maybeMoveCaveEnemy,
-		caveEnemyTickRef,
-	]);
+	}, []);
 };

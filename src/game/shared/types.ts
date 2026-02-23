@@ -61,7 +61,7 @@ export type VendorKey =
 	| "cafe_vendor";
 
 export type ForestEnemyType = "bear" | "snake" | "poop" | "bat";
-export type ForestObstacleType = "wood" | "rock" | "weed";
+export type ForestObstacleType = "wood" | "rock" | "weed" | "torch";
 
 export type Tile = {
 	icon: string;
@@ -178,6 +178,9 @@ export type ToolId =
 	| "smashAxe";
 export type ToolLevels = Record<ToolId, number>;
 
+export type UnlockFlagId = "headlampVendorStock";
+export type UnlockFlags = Record<UnlockFlagId, boolean>;
+
 export type CafeOrderItem = { name: string; price: number; stamina: number };
 
 export type CloudSprite = {
@@ -256,9 +259,12 @@ export type CaveGenerationResult = {
 	layout: string[];
 	enemies: ForestEnemy[];
 	obstacles: ForestObstacle[];
+	bonusChest: ForestChest | null;
+	isBonusLevel: boolean;
 	entranceSide: ForestSide;
 	entranceDoor: { x: number; y: number };
 	entranceInside: { x: number; y: number };
+	ladderPos: { x: number; y: number } | null;
 	levelOneExitInside: { x: number; y: number };
 	startingRockCount: number;
 	level: number;

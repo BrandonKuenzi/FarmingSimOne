@@ -11,7 +11,18 @@ import {
 	getToolUpgradePrice,
 	toolNames,
 } from "./tools";
-import type { Animal, AnimalDef, AnimalType, CropDef, CropId, ItemId, ToolId, ToolLevels, VendorKey } from "../shared/types";
+import type {
+	Animal,
+	AnimalDef,
+	AnimalType,
+	CropDef,
+	CropId,
+	ItemId,
+	ToolId,
+	ToolLevels,
+	UnlockFlags,
+	VendorKey,
+} from "../shared/types";
 
 type Point = { x: number; y: number };
 
@@ -29,6 +40,7 @@ type VendorContext = {
 	hasTractor: boolean;
 	pendingTractorDelivery: boolean;
 	hasHeadlamp: boolean;
+	unlockFlags: UnlockFlags;
 	randomInt: (min: number, max: number) => number;
 	canAfford: (value: number) => boolean;
 	applyMoneyDelta: (delta: number) => void;
@@ -84,6 +96,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 		hasTractor,
 		pendingTractorDelivery,
 		hasHeadlamp,
+		unlockFlags,
 		randomInt,
 		canAfford,
 		applyMoneyDelta,
@@ -314,8 +327,10 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 		];
 		const upgradableTools = toolOrder.filter((toolId) => tools[toolId] < TOOL_MAX_LEVEL);
 		const tractorAvailable = !hasTractor && !pendingTractorDelivery;
-		const headlampAvailable = !hasHeadlamp;
-		if (upgradableTools.length === 0 && !tractorAvailable && !headlampAvailable) {
+		const headlampUnlocked = unlockFlags.headlampVendorStock;
+		const headlampAvailable = !hasHeadlamp && headlampUnlocked;
+		const headlampLocked = !hasHeadlamp && !headlampUnlocked;
+		if (upgradableTools.length === 0 && !tractorAvailable && !headlampAvailable && !headlampLocked) {
 			const line = gotAllToolsDialog[randomInt(0, gotAllToolsDialog.length - 1)]!;
 			speakNpcLine(line);
 			addLog(line);
@@ -436,6 +451,19 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 							},
 						]
 					: []),
+				...(headlampLocked
+					? [
+							{
+								label: "Headlamp \uD83D\uDCA1 (Locked)",
+								info: ["Unlocks after reaching Forest Lv5 or Cave Lv5."],
+								onSelect: () => {
+									playBad();
+									addLog("Headlamp unlocks at Forest Lv5 or Cave Lv5.");
+									closeMenu();
+								},
+							},
+						]
+					: []),
 				withBack(closeMenu),
 			],
 		);
@@ -498,7 +526,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 				const unitPrice = getMarketSellPrice(id, prices[id]);
 				const baseUnitPrice = getMarketBasePrice(id, initialPrices[id]);
 				return {
-					label: `Sell ${itemNames[id]} x1 ($${unitPrice})`,
+					label: `Sell ${itemNames[id]} ($${unitPrice})`,
 					info: [
 						`You have: ${inventory[id]}`,
 						`Sell Price: $${unitPrice} each`,

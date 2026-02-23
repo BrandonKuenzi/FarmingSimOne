@@ -75,7 +75,9 @@ const tileVisuals: Record<string, VisualCell> = {
 	z: { glyph: "🚣‍♀️" },
 	"[": { glyph: "⛲", className: "tile-grass" },
 	"]": { glyph: "🌴", className: "tile-grass" },
-	"`": { glyph: "🦇" },
+	"`": { glyph: "\u{1F987}" },
+	"\\": { glyph: "\u2709\uFE0F" },
+	"|": { glyph: "🔥" },
 	"1": { glyph: "🐄" },
 	"2": { glyph: "🐑" },
 	"3": { glyph: "🐔" },
@@ -134,6 +136,9 @@ export const spriteTilesNeedingGround = new Set([
 	"Y",
 	"i",
 	"'",
+	"\u{1F331}",
+	"\u2618\uFE0F",
+	"\u{1F33E}",
 	"1",
 	"2",
 	"3",
@@ -184,4 +189,11 @@ export const spriteTilesNeedingGround = new Set([
 	"y",
 	"!",
 	"`",
+	"\\",
+	"|",
 ]);
+
+
+
+
+

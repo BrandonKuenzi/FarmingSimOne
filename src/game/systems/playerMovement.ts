@@ -25,6 +25,7 @@ type PlayerMovementContext = {
 	tractorImplement: TractorImplement | null;
 	tractorImplementOn: boolean;
 	isPassableAt: (map: MapId, x: number, y: number) => boolean;
+	handleBlockedStep?: (map: MapId, x: number, y: number) => boolean;
 	ownedPet: PetEmoji | null;
 	petTile: Point | null;
 	isOccupied: (map: MapId, x: number, y: number) => boolean;
@@ -76,6 +77,7 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		tractorImplement,
 		tractorImplementOn,
 		isPassableAt,
+		handleBlockedStep,
 		ownedPet,
 		petTile,
 		isOccupied,
@@ -133,7 +135,10 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		tractorImplement === "harvest" &&
 		tractorImplementOn &&
 		targetFarmWeed;
-	if (!isPassableAt(player.map, nx, ny) && !canTractorHarvestWeedStep) return;
+	if (!isPassableAt(player.map, nx, ny) && !canTractorHarvestWeedStep) {
+		if (handleBlockedStep?.(player.map, nx, ny)) return;
+		return;
+	}
 	const tractorCrushesPet =
 		isDrivingTractor &&
 		player.map === "farm" &&

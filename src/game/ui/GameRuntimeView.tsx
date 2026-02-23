@@ -46,6 +46,8 @@ type MapViewportCtx = Pick<
 	| "getCaveFogOpacity"
 	| "clouds"
 	| "setClouds"
+	| "unfedAnimalMap"
+	| "unfedAnimalTileKeys"
 	| "dayTransitionStarsState"
 >;
 
@@ -83,6 +85,8 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
+		unfedAnimalMap,
+		unfedAnimalTileKeys,
 		dayTransitionStarsState,
 	} = ctx;
 	return (
@@ -280,6 +284,13 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 											"emoji-glyph",
 											player.map === "forest" ? "forest-emoji-glyph" : "",
 											player.map === "cave" ? "cave-emoji-glyph" : "",
+											withGround.className === "tile-cave-next-ladder"
+												? "cave-ladder-hole-glyph"
+												: "",
+											player.map === unfedAnimalMap &&
+											unfedAnimalTileKeys[keyForPos(x, y)]
+												? "animal-unfed-emoji-glyph"
+												: "",
 											player.map === "forest" && (cell === "T" || cell === "G")
 												? "forest-tree-emoji-glyph"
 												: "",
@@ -376,6 +387,8 @@ const MemoMapViewport = React.memo(
 		prev.ctx.tractorFacing === next.ctx.tractorFacing &&
 		prev.ctx.showForestHit === next.ctx.showForestHit &&
 		prev.ctx.clouds === next.ctx.clouds &&
+		prev.ctx.unfedAnimalMap === next.ctx.unfedAnimalMap &&
+		prev.ctx.unfedAnimalTileKeys === next.ctx.unfedAnimalTileKeys &&
 		prev.ctx.dayTransitionStarsState === next.ctx.dayTransitionStarsState,
 );
 export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
@@ -422,6 +435,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
+		unfedAnimalMap,
+		unfedAnimalTileKeys,
 		marketRows,
 		toolRows,
 		getToolTierName,
@@ -593,6 +608,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					getCaveFogOpacity,
 					clouds,
 					setClouds,
+					unfedAnimalMap,
+					unfedAnimalTileKeys,
 					dayTransitionStarsState,
 				}}
 			/>
@@ -716,7 +733,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 									<div className='quantity-pane'>
 										<div className='quantity-focus'>
 											<div>Amount:</div>
-											<div>{`? ${quantityPrompt.value} ?`}</div>
+											<div>{`\u25C0 ${quantityPrompt.value} \u25B6`}</div>
 										</div>
 										<div className='small quantity-footer'>
 											Space to confirm. Esc to cancel

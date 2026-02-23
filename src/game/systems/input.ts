@@ -1,5 +1,6 @@
 import type { Dispatch, KeyboardEvent, MutableRefObject, SetStateAction } from "react";
 import type {
+	AnimalType,
 	DayTransitionState,
 	Dir,
 	FishingState,
@@ -74,6 +75,7 @@ export const selectModalOption = (ctx: {
 export type GameKeyDownContext = {
 	applyMoneyDelta: (delta: number) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
+	spawnAnimalInBarn: (type: AnimalType) => boolean;
 	addLog: (line: string) => void;
 	isDrivingTractor: boolean;
 	tractorImplementOn: boolean;
@@ -121,10 +123,28 @@ export const handleGameKeyDown = (
 	if (key === "p") {
 		e.preventDefault();
 		ctx.applyMoneyDelta(10000);
+		ctx.updateInventory("iron", 100);
 		ctx.updateInventory("ruby", 10);
 		ctx.updateInventory("diamond", 10);
 		ctx.updateInventory("emerald", 10);
-		ctx.addLog("Debug boost: +$10,000, +10 Ruby, +10 Diamond, +10 Emerald.");
+		ctx.addLog("Debug boost: +$10,000, +100 Iron, +10 Ruby, +10 Diamond, +10 Emerald.");
+		return;
+	}
+
+	if (key === "o") {
+		e.preventDefault();
+		const animalsToSpawn: AnimalType[] = ["cow", "chicken", "sheep"];
+		let spawned = 0;
+		animalsToSpawn.forEach((type) => {
+			if (ctx.spawnAnimalInBarn(type)) spawned += 1;
+		});
+		if (spawned > 0) {
+			ctx.addLog(
+				`Debug barn boost: +${spawned} animal${spawned === 1 ? "" : "s"} (cow, chicken, sheep as space allows).`,
+			);
+		} else {
+			ctx.addLog("Debug barn boost failed: no room in the barn.");
+		}
 		return;
 	}
 

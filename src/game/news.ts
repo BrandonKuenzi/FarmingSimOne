@@ -219,17 +219,6 @@ export const newspaperFinishers = [
 	"If this paper gets wet, just call it avant-garde.",
 ] as const;
 
-export const generatePriceChange = (oldPrice: number, randomInt: (min: number, max: number) => number) => {
-	for (let i = 0; i < 20; i += 1) {
-		const raw = randomInt(-4, 4);
-		if (raw === 0) continue;
-		const next = Math.max(2, oldPrice + raw);
-		const delta = next - oldPrice;
-		if (delta !== 0) return delta;
-	}
-	return oldPrice <= 2 ? 1 : -1;
-};
-
 export const generateDailyNewspaper = (
 	oldPrices: PriceMap,
 	newPrices: PriceMap,

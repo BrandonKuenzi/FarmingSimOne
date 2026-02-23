@@ -71,6 +71,8 @@ export type GameRuntimeViewModel = {
 	getCaveFogOpacity: (x: number, y: number) => number;
 	clouds: CloudSprite[];
 	setClouds: Dispatch<SetStateAction<CloudSprite[]>>;
+	unfedAnimalMap: MapId | null;
+	unfedAnimalTileKeys: Record<string, boolean>;
 	marketRows: Array<{ id: string; name: string; price: number; trend: number }>;
 	toolRows: Array<{ id: string; name: string; level: number }>;
 	getToolTierName: (level: number) => string;

@@ -138,6 +138,7 @@ export type PlayerInteractContext = {
 	tryUseToolAction: (toolLevel: number) => boolean;
 	setWaterLevel: Dispatch<SetStateAction<number>>;
 	playWater: () => void;
+	playSnakeSound: () => void;
 	setWaterRefillTile: Dispatch<SetStateAction<{ map: MapId; x: number; y: number } | null>>;
 	waterRefillTileTimeoutRef: MutableRefObject<number | null>;
 	startFishing: (map: MapId, x: number, y: number) => void;
@@ -147,7 +148,10 @@ export type PlayerInteractContext = {
 	forestBonusChests: ForestChest[];
 	setForestBonusChests: Dispatch<SetStateAction<ForestChest[]>>;
 	forestIsBonusLevel: boolean;
-	grantBonusChestRewardSet: (types: Array<"food" | "money" | "seeds" | "iron">) => string;
+	grantBonusChestRewardSet: (
+		types: Array<"food" | "money" | "seeds" | "iron">,
+		foodMode?: "all" | "coffeeOnly",
+	) => string;
 	forestObstacleAt: (x: number, y: number) => ForestObstacle | null;
 	setForestObstacles: Dispatch<SetStateAction<ForestObstacle[]>>;
 	getSmashAxeActionCost: (level: number) => number;
@@ -161,6 +165,10 @@ export type PlayerInteractContext = {
 	getSmashAxeIronChance: (level: number) => number;
 	caveObstacleAt: (x: number, y: number) => ForestObstacle | null;
 	setCaveObstacles: Dispatch<SetStateAction<ForestObstacle[]>>;
+	caveBonusChest: ForestChest | null;
+	setCaveBonusChest: Dispatch<SetStateAction<ForestChest | null>>;
+	caveIsBonusLevel: boolean;
+	openCaveBonusChestReward: () => void;
 	caveLevel: number;
 	setCaveLadderPos: Dispatch<SetStateAction<Point | null>>;
 	caveObstacles: ForestObstacle[];
@@ -250,7 +258,7 @@ export type PlayerInteractContext = {
 
 export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 const {
-modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,handleLateInteractionBlocks,money,playMunch,speakNpcLine,fishing,isOrdering,isDoctorCompounding,isDrivingTractor,dirDelta,player,activeMapLayouts,forestEntranceDoorPos,openForestExitMenu,forestForwardExitPos,continueForestDungeon,caveEntranceDoorPos,openCaveExitMenu,caveLadderPos,continueCaveDungeon,mapDoors,forestLockedToday,canEnterForest,caveLockedToday,canEnterCave,playBad,addLog,playNotification,setPlayer,ownedPet,petTile,playPetSound,setPetHeartTile,petHeartTimeoutRef,hasTractor,tractorParked,TRACTOR_PARK_POS,openMenu,closeMenu,enterTractor,allPlantableCropIds,cropDefs,inventory,itemNames,setBeachBottlePos,playGotReward,rollBeachBottleReward,randomInt,stamina,staminaMax,animals,barnAnimalCap,nextOpenBarnTile,animalTiles,setStamina,setOwnedWardrobeLooks,spawnAnimalInBarn,makeGaryBottleMessage,playSeagulls,beachShellDrops,keyForPos,setBeachShellDrops,playPluck,day,starterChestOpened,STARTER_CHEST_POS,setStarterChestOpened,applyMoneyDelta,updateInventory,openRewardPopup,farmWeedObstacles,trySpendStamina,setFarmWeedObstacles,getWaterCapacity,tools,tryUseToolAction,setWaterLevel,playWater,setWaterRefillTile,waterRefillTileTimeoutRef,startFishing,forestChest,setForestChest,openHighValueForestChestReward,forestBonusChests,setForestBonusChests,forestIsBonusLevel,grantBonusChestRewardSet,forestObstacleAt,setForestObstacles,getSmashAxeActionCost,getSmashAxeWoodSeedChance,getRandomCropId,standardCropIds,getSmashAxeRockDamage,getSmashAxeIronChance,caveObstacleAt,setCaveObstacles,caveLevel,setCaveLadderPos,caveObstacles,animalsMap,farmForestBlockers,setFarmForestBlockers,farmCaveBlockers,setFarmCaveBlockers,petGraveObstacles,setPetGraveObstacles,plots,getHoeTargets,setPlots,currentWeather,playPloop,waterLevel,isShopMap,shopDecorByMap,isFarmHouseDoorTile,getDoorGroundClass,isBathing,playBath,setIsBathing,clothingShopItems,ownedWardrobeLooks,starterWardrobeLooks,purchasableFunnyLooks,setPlayerEmoji,farmEggDrops,setFarmEggDrops,isCowLikeAnimal,rollLivestockYield,setAnimals,generateOverfedAnimalLine,interactBuilderVendor,interactVendor,vendorByShopMap,petVendorActive,pendingPet,canAfford,playChaChing,setPendingPet,petOptions,petVendorSoldLine,doctorVendorActive,doctorUsedToday,doctorFinishedTodayLine,doctorIntroLines,startDoctorMedicine,traderActive,TRADER_BOX_POS,traderBoxLines,TRADER_HELI_POS,traderHeliLines,TRADER_POS,traderTrades,traderSoldOutLines,traderIntroLines,openQuantityPrompt,setTraderTrades,traderAfterSaleLines,sketchyMerchantActive,sketchyMerchantStock,SKETCHY_CRATE_POS,dontTouchSketchy,SKETCHY_MERCHANT_POS,sketchyMerchantIntro,setSketchyMerchantStock,sketchyVendorSales,boatTiles,boatDialogArray,townNpcTiles,townNpcNames,npcDailyAssignments,generateDailyAssignmentsForNpcs,npcTalkedToday,townTips,generateNpcGreetingLine,generateNpcDialogLine,setNpcTalkedToday,DOCTOR_POS,PET_VENDOR_POS
+modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,handleLateInteractionBlocks,money,playMunch,speakNpcLine,fishing,isOrdering,isDoctorCompounding,isDrivingTractor,dirDelta,player,activeMapLayouts,forestEntranceDoorPos,openForestExitMenu,forestForwardExitPos,continueForestDungeon,caveEntranceDoorPos,openCaveExitMenu,caveLadderPos,continueCaveDungeon,mapDoors,forestLockedToday,canEnterForest,caveLockedToday,canEnterCave,playBad,addLog,playNotification,setPlayer,ownedPet,petTile,playPetSound,setPetHeartTile,petHeartTimeoutRef,hasTractor,tractorParked,TRACTOR_PARK_POS,openMenu,closeMenu,enterTractor,allPlantableCropIds,cropDefs,inventory,itemNames,setBeachBottlePos,playGotReward,rollBeachBottleReward,randomInt,stamina,staminaMax,animals,barnAnimalCap,nextOpenBarnTile,animalTiles,setStamina,setOwnedWardrobeLooks,spawnAnimalInBarn,makeGaryBottleMessage,playSeagulls,beachShellDrops,keyForPos,setBeachShellDrops,playPluck,day,starterChestOpened,STARTER_CHEST_POS,setStarterChestOpened,applyMoneyDelta,updateInventory,openRewardPopup,farmWeedObstacles,trySpendStamina,setFarmWeedObstacles,getWaterCapacity,tools,tryUseToolAction,setWaterLevel,playWater,playSnakeSound,setWaterRefillTile,waterRefillTileTimeoutRef,startFishing,forestChest,setForestChest,openHighValueForestChestReward,forestBonusChests,setForestBonusChests,forestIsBonusLevel,grantBonusChestRewardSet,forestObstacleAt,setForestObstacles,getSmashAxeActionCost,getSmashAxeWoodSeedChance,getRandomCropId,standardCropIds,getSmashAxeRockDamage,getSmashAxeIronChance,caveObstacleAt,setCaveObstacles,caveLevel,setCaveLadderPos,caveObstacles,animalsMap,farmForestBlockers,setFarmForestBlockers,farmCaveBlockers,setFarmCaveBlockers,petGraveObstacles,setPetGraveObstacles,plots,getHoeTargets,setPlots,currentWeather,playPloop,waterLevel,isShopMap,shopDecorByMap,isFarmHouseDoorTile,getDoorGroundClass,isBathing,playBath,setIsBathing,clothingShopItems,ownedWardrobeLooks,starterWardrobeLooks,purchasableFunnyLooks,setPlayerEmoji,farmEggDrops,setFarmEggDrops,isCowLikeAnimal,rollLivestockYield,setAnimals,generateOverfedAnimalLine,interactBuilderVendor,interactVendor,vendorByShopMap,petVendorActive,pendingPet,canAfford,playChaChing,setPendingPet,petOptions,petVendorSoldLine,doctorVendorActive,doctorUsedToday,doctorFinishedTodayLine,doctorIntroLines,startDoctorMedicine,traderActive,TRADER_BOX_POS,traderBoxLines,TRADER_HELI_POS,traderHeliLines,TRADER_POS,traderTrades,traderSoldOutLines,traderIntroLines,openQuantityPrompt,setTraderTrades,traderAfterSaleLines,sketchyMerchantActive,sketchyMerchantStock,SKETCHY_CRATE_POS,dontTouchSketchy,SKETCHY_MERCHANT_POS,sketchyMerchantIntro,setSketchyMerchantStock,sketchyVendorSales,boatTiles,boatDialogArray,townNpcTiles,townNpcNames,npcDailyAssignments,generateDailyAssignmentsForNpcs,npcTalkedToday,townTips,generateNpcGreetingLine,generateNpcDialogLine,setNpcTalkedToday,DOCTOR_POS,PET_VENDOR_POS
 } = ctx;
 		if (modal || fishing || isOrdering || isDoctorCompounding || isDrivingTractor)
 			return;
@@ -551,20 +559,21 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 					];
 					line = grantBonusChestRewardSet([
 						options[randomInt(0, options.length - 1)]!,
-					]);
+					], "coffeeOnly");
 				} else if (roll < 0.4) {
-					line = grantBonusChestRewardSet(["money"]);
+					line = grantBonusChestRewardSet(["money"], "coffeeOnly");
 				} else if (roll < 0.6) {
-					line = grantBonusChestRewardSet(["seeds"]);
+					line = grantBonusChestRewardSet(["seeds"], "coffeeOnly");
 				} else if (roll < 0.8) {
 					const options = ["food", "money", "seeds", "iron"] as const;
 					const shuffled = [...options].sort(() => randomRoll() - 0.5);
-					line = grantBonusChestRewardSet([shuffled[0]!, shuffled[1]!]);
+					line = grantBonusChestRewardSet([shuffled[0]!, shuffled[1]!], "coffeeOnly");
 				} else {
 					const options = ["food", "money", "seeds", "iron"] as const;
 					const withIron = randomRoll() < 0.5;
 					line = grantBonusChestRewardSet(
 						withIron ? [...options] : ["food", "money", "seeds"],
+						"coffeeOnly",
 					);
 				}
 				openRewardPopup(line);
@@ -646,7 +655,39 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 			}
 		}
 		if (player.map === "cave") {
+			if (
+				ctx.caveIsBonusLevel &&
+				ctx.caveBonusChest &&
+				!ctx.caveBonusChest.opened &&
+				ctx.caveBonusChest.x === tx &&
+				ctx.caveBonusChest.y === ty
+			) {
+				ctx.setCaveBonusChest((prev) => (prev ? { ...prev, opened: true } : prev));
+				ctx.openCaveBonusChestReward();
+				return;
+			}
 			const obstacle = caveObstacleAt(tx, ty);
+			if (obstacle?.type === "torch") {
+				if (waterLevel <= 0) {
+					playBad();
+					addLog("You have no water.");
+					return;
+				}
+				setWaterLevel((prev) => Math.max(0, prev - 1));
+				playWater();
+				window.setTimeout(() => {
+					setCaveObstacles((prev: ForestObstacle[]) =>
+						prev.filter((o: ForestObstacle) => o.id !== obstacle.id),
+					);
+					playSnakeSound();
+				}, 250);
+				if (randomRoll() < 0.5) {
+					updateInventory("turnip", 1);
+					addLog("You found a turnip. (+1)");
+				}
+				addLog("You extinguished it.");
+				return;
+			}
 			if (obstacle?.type === "rock") {
 				const smashAxeLevel = tools.smashAxe;
 				if (smashAxeLevel <= 1) {
@@ -694,7 +735,9 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 						addLog("You broke the cave rock.");
 					}
 					if (!caveLadderPos) {
-						const remainingRocks = caveObstacles.filter((o: ForestObstacle) => o.id !== obstacle.id).length;
+						const remainingRocks = caveObstacles.filter(
+							(o: ForestObstacle) => o.type === "rock" && o.id !== obstacle.id,
+						).length;
 						const revealChance = 1 / 12;
 						if (remainingRocks <= 0 || randomRoll() < revealChance) {
 							setCaveLadderPos({ x: obstacle.x, y: obstacle.y });
@@ -753,16 +796,14 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				playHoe();
 				if (nextHitsRemaining > 0) {
 					const swingsLeft = Math.ceil(nextHitsRemaining / damage);
-					addLog(
-						`You chip the cave blockage. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`,
-					);
+					addLog(`You chip the rock. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`);
 				} else {
 					if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 						updateInventory("iron", 1);
 						playYaya();
-						addLog("You smashed the cave blockage and found Iron +1.");
+						addLog("You smashed the rock and found Iron +1.");
 					} else {
-						addLog("You smashed the cave blockage.");
+						addLog("You smashed the rock.");
 					}
 				}
 				return;
@@ -809,10 +850,70 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				const targets = getHoeTargets(player.x, player.y, dir, tools.hoe);
 				const nextPlots: Record<string, Plot> = { ...plots };
 				let hoedCount = 0;
+				const hasObstacleBetweenPlayerAndTarget = (targetX: number, targetY: number) => {
+					if (dir === "right") {
+						for (let x = player.x + 1; x < targetX; x += 1) {
+							const key = keyForPos(x, targetY);
+							if (
+								farmForestBlockers[key] ||
+								farmCaveBlockers[key] ||
+								farmWeedObstacles[key] ||
+								petGraveObstacles[key]
+							) {
+								return true;
+							}
+						}
+						return false;
+					}
+					if (dir === "left") {
+						for (let x = player.x - 1; x > targetX; x -= 1) {
+							const key = keyForPos(x, targetY);
+							if (
+								farmForestBlockers[key] ||
+								farmCaveBlockers[key] ||
+								farmWeedObstacles[key] ||
+								petGraveObstacles[key]
+							) {
+								return true;
+							}
+						}
+						return false;
+					}
+					if (dir === "down") {
+						for (let y = player.y + 1; y < targetY; y += 1) {
+							const key = keyForPos(targetX, y);
+							if (
+								farmForestBlockers[key] ||
+								farmCaveBlockers[key] ||
+								farmWeedObstacles[key] ||
+								petGraveObstacles[key]
+							) {
+								return true;
+							}
+						}
+						return false;
+					}
+					for (let y = player.y - 1; y > targetY; y -= 1) {
+						const key = keyForPos(targetX, y);
+						if (
+							farmForestBlockers[key] ||
+							farmCaveBlockers[key] ||
+							farmWeedObstacles[key] ||
+							petGraveObstacles[key]
+						) {
+							return true;
+						}
+					}
+					return false;
+				};
 				targets.forEach(({ x, y }: { x: number; y: number }) => {
 					const row = activeMapLayouts.farm[y];
 					if (!row || row[x] !== ",") return;
+					if (hasObstacleBetweenPlayerAndTarget(x, y)) return;
 					const key = keyForPos(x, y);
+					if (farmForestBlockers[key] || farmCaveBlockers[key] || farmWeedObstacles[key])
+						return;
+					if (petGraveObstacles[key]) return;
 					if (nextPlots[key]) return;
 					nextPlots[key] = { crop: null, growthDays: 0, watered: false };
 					hoedCount += 1;

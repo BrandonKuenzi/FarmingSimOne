@@ -26,6 +26,7 @@ import type {
 	ToolLevels,
 	TractorImplement,
 	TraderTradeEntry,
+	UnlockFlags,
 	WeatherId,
 } from "../shared/types";
 import type { BoatTileMap, TownNpcTileMap } from "../runtime/contracts";
@@ -51,6 +52,8 @@ export type GameState = {
 	caveRubble: Record<string, string>;
 	caveEnemies: ForestEnemy[];
 	caveObstacles: ForestObstacle[];
+	caveBonusChest: ForestChest | null;
+	caveIsBonusLevel: boolean;
 	caveLevel: number;
 	caveEntranceDoorPos: Point;
 	caveLevelOneExitPos: Point;
@@ -93,6 +96,8 @@ export type GameState = {
 	pendingBarnUpgrade: boolean;
 	hasTractor: boolean;
 	hasHeadlamp: boolean;
+	headlampLetterRead: boolean;
+	unlockFlags: UnlockFlags;
 	pendingTractorDelivery: boolean;
 	tractorParked: boolean;
 	isDrivingTractor: boolean;

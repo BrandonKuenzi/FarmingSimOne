@@ -7,6 +7,7 @@ import type {
 } from "../../shared/types";
 import {
 	grantBonusChestRewardSet as grantBonusChestRewardSetRule,
+	openCaveBonusChestReward as openCaveBonusChestRewardRule,
 	openHighValueForestChestReward as openHighValueForestChestRewardRule,
 } from "../../systems/rewards";
 
@@ -32,8 +33,9 @@ export const grantBonusChestRewardSet = (
 		staminaMax: number;
 	},
 	types: Array<"food" | "money" | "seeds" | "iron">,
+	foodMode: "all" | "coffeeOnly" = "all",
 ): string => {
-	return grantBonusChestRewardSetRule(args, types);
+	return grantBonusChestRewardSetRule(args, types, foodMode);
 };
 
 export const openHighValueForestChestReward = (args: {
@@ -53,4 +55,11 @@ export const openHighValueForestChestReward = (args: {
 	openRewardPopup: (line: string) => void;
 }): void => {
 	openHighValueForestChestRewardRule(args);
+};
+
+export const openCaveBonusChestReward = (args: {
+	updateInventory: (item: ItemId, amount: number) => void;
+	openRewardPopup: (line: string) => void;
+}): void => {
+	openCaveBonusChestRewardRule(args);
 };
