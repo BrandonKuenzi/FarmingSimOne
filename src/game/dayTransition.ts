@@ -1,7 +1,17 @@
+import { GLYPH } from "./config/glyphs";
 import { randomRoll } from "./shared/random";
 
-export const moonPhases = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"] as const;
-const dayTransitionStarGlyphs = ["⭐", "✨", "🌟"] as const;
+export const moonPhases = [
+	GLYPH.moonNew,
+	GLYPH.moonWaxCrescent,
+	GLYPH.moonFirstQuarter,
+	GLYPH.moonWaxGibbous,
+	GLYPH.moonFull,
+	GLYPH.moonWanGibbous,
+	GLYPH.moonLastQuarter,
+	GLYPH.moonWanCrescent,
+] as const;
+const dayTransitionStarGlyphs = [GLYPH.star, GLYPH.sparkles, GLYPH.glowingStar] as const;
 
 export const nextDayPrompts = [
 	"Onward!",

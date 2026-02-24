@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "check:glyphs": "node scripts/check-no-raw-glyphs.mjs",
+    "build": "npm run check:glyphs && tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

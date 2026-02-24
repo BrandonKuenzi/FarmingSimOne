@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { PetEmoji } from "../../shared/types";
+import { GLYPH } from "../../config/glyphs";
 import {
 	fadeOutAndStopSound,
 	playOneShot,
@@ -278,7 +279,7 @@ export const createAudioActions = ({
 	};
 
 	const playPetSound = (pet: PetEmoji) => {
-		const isCat = pet === "🐈" || pet === "🐈‍⬛";
+		const isCat = pet === GLYPH.cat || pet === GLYPH.blackCat;
 		const sound = isCat ? refs.meowSoundRef.current : refs.woofSoundRef.current;
 		playOneShot(sound);
 	};

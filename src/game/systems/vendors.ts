@@ -1,6 +1,7 @@
 import { gotAllClothesDialog, gotAllToolsDialog, tractorDeliveryLine, vendorGreetings } from "../content/dialog";
 import { animalDefs, cropDefs, itemIcons, itemNames, purchasableAnimalTypes, standardCropIds } from "../content/catalog";
 import { cafeMenuItems, clothingShopItems, HEADLAMP_PRICE, TRACTOR_IRON_COST, TRACTOR_PRICE } from "../config/gameplay";
+import { GLYPH } from "../config/glyphs";
 import { getMarketBasePrice, getMarketSellPrice } from "./commerce";
 import {
 	TOOL_MAX_LEVEL,
@@ -348,7 +349,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 					const price = getToolUpgradePrice(toolId, nextLevel);
 					const ironCost = getToolUpgradeIronCost(toolId, nextLevel);
 					const gemCost = getToolUpgradeGemCost(toolId, nextLevel);
-					const inlineIronLabel = ironCost > 0 ? ` + 🪨x${ironCost}` : "";
+					const inlineIronLabel = ironCost > 0 ? ` + ${GLYPH.rock}x${ironCost}` : "";
 					const inlineGemLabel = gemCost ? ` + ${itemIcons[gemCost.item]}x${gemCost.qty}` : "";
 					return {
 						label: atMax
@@ -401,7 +402,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 				...(tractorAvailable
 					? [
 							{
-								label: `Buy Tractor 🚜 ($${TRACTOR_PRICE} + 🪨x${TRACTOR_IRON_COST})`,
+								label: `Buy Tractor ${GLYPH.tractor} ($${TRACTOR_PRICE} + ${GLYPH.rock}x${TRACTOR_IRON_COST})`,
 								info: [
 									"A farm tractor with no upgrades.",
 									"Delivered tomorrow to your driveway.",
@@ -433,7 +434,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 				...(headlampAvailable
 					? [
 							{
-								label: `Buy Headlamp 💡 ($${HEADLAMP_PRICE})`,
+								label: `Buy Headlamp ${GLYPH.bulb} ($${HEADLAMP_PRICE})`,
 								info: ["A cave and forest visibility booster."],
 								onSelect: () => {
 									if (!canAfford(HEADLAMP_PRICE)) {

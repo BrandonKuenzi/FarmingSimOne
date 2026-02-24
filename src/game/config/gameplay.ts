@@ -23,6 +23,7 @@ import {
 	getFarmBarnOuterRect,
 	mapLayouts,
 } from "../world/layout";
+import { GLYPH } from "./glyphs";
 
 export const STARTER_CHEST_POS = { x: 7, y: 8 };
 export const TRACTOR_PARK_POS = { x: 14, y: 8 };
@@ -40,41 +41,45 @@ export const FARM_CAVE_BLOCKER_POSITIONS = [
 	{ x: 1, y: CAVE_GATE_Y + 1 },
 ];
 
-export const starterWardrobeLooks = ["🧑‍🌾", "👨‍🌾", "👩‍🌾"] as const;
+export const starterWardrobeLooks = [
+	GLYPH.personFarmer,
+	GLYPH.manFarmer,
+	GLYPH.womanFarmer,
+] as const;
 
 export const purchasableClassicLooks = [
-	"🙂",
-	"😎",
-	"🥸",
-	"👱",
-	"🧔",
-	"🧑‍🦰",
-	"🧑‍🦱",
-	"🧑‍🦳",
-	"🧑‍🦲",
-	"🧓",
-	"🙍‍♀️",
-	"🙎‍♀️",
-	"👩",
-	"🧔‍♀️",
-	"👩‍🦰",
-	"👩‍🦱",
-	"👩‍🦳",
-	"👩‍🦲",
+	GLYPH.smile,
+	GLYPH.sunglasses,
+	GLYPH.disguise,
+	GLYPH.personBlond,
+	GLYPH.beard,
+	GLYPH.personRedHair,
+	GLYPH.personCurlyHair,
+	GLYPH.personWhiteHair,
+	GLYPH.personBald,
+	GLYPH.olderPerson,
+	GLYPH.womanFrown,
+	GLYPH.womanPout,
+	GLYPH.woman,
+	GLYPH.womanBeard,
+	GLYPH.womanRedHair,
+	GLYPH.womanCurlyHair,
+	GLYPH.womanWhiteHair,
+	GLYPH.womanBald,
 ] as const;
 
 export const purchasableFunnyLooks = [
-	"🐸",
-	"🐄",
-	"🐟",
-	"🛸",
-	"🐙",
-	"🐧",
-	"🦊",
-	"🐵",
-	"🐼",
-	"🦖",
-	"💡",
+	GLYPH.frog,
+	GLYPH.cow,
+	GLYPH.fish,
+	GLYPH.ufo,
+	GLYPH.octopus,
+	GLYPH.penguin,
+	GLYPH.fox,
+	GLYPH.monkey,
+	GLYPH.panda,
+	GLYPH.tRex,
+	GLYPH.bulb,
 ] as const;
 
 export const clothingShopItems = [
@@ -107,13 +112,13 @@ export const shopDecorForSaleItems: Record<
 	>,
 	string[]
 > = {
-	seed_shop: ["🌱"],
-	feed_shop: ["🧺"],
-	animal_shop: ["🐄", "🐑", "🐔"],
-	market_shop: ["💵", "💲", "💹", "💰"],
-	tool_shop: ["🧰"],
-	clothing_shop: ["👕", "👒", "👢", "🧥"],
-	cafe_shop: ["☕", "🍔", "🥗", "🍕"],
+	seed_shop: [GLYPH.seedling],
+	feed_shop: [GLYPH.basket],
+	animal_shop: [GLYPH.cow, GLYPH.sheep, GLYPH.chicken],
+	market_shop: [GLYPH.moneyNote, GLYPH.dollarSign, GLYPH.chartRisingYen, GLYPH.moneyBag],
+	tool_shop: [GLYPH.toolbox],
+	clothing_shop: [GLYPH.tshirt, GLYPH.cap, GLYPH.boot, GLYPH.coat],
+	cafe_shop: [GLYPH.coffee, GLYPH.burger, GLYPH.salad, GLYPH.pizza],
 };
 
 export const shopDecorSlots: Array<{ x: number; y: number }> = [
@@ -130,10 +135,10 @@ export const shopDecorSlots: Array<{ x: number; y: number }> = [
 ];
 
 export const cafeCounterPrepDecor: Array<{ x: number; emoji: string }> = [
-	{ x: 3, emoji: "🥗" },
-	{ x: 5, emoji: "🍕" },
-	{ x: 9, emoji: "☕" },
-	{ x: 11, emoji: "🍔" },
+	{ x: 3, emoji: GLYPH.salad },
+	{ x: 5, emoji: GLYPH.pizza },
+	{ x: 9, emoji: GLYPH.coffee },
+	{ x: 11, emoji: GLYPH.burger },
 ];
 
 export const priceItems: ItemId[] = [

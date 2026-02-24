@@ -11,6 +11,7 @@ import type {
 	Point,
 	Plot,
 	PriceState,
+	UpgradeSceneEvent,
 } from "../../shared/types";
 import { generateDailyAssignmentsForNpcs } from "../../../npcDialogue";
 import { createDayTransitionStars, nextDayPrompts } from "../../content/dayTransition";
@@ -114,6 +115,7 @@ type RunNextDayArgs = {
 	setPetVendorActive: Dispatch<SetStateAction<boolean>>;
 	itemNames: Record<ItemId, string>;
 	setNewspaper: Dispatch<SetStateAction<string>>;
+	queueUpgradeScene: (event: UpgradeSceneEvent) => void;
 };
 
 export const runNextDay = (args: RunNextDayArgs): void => {
@@ -200,6 +202,7 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 		setPetVendorActive,
 		itemNames,
 		setNewspaper,
+		queueUpgradeScene,
 	} = args;
 
 	endFishing();
@@ -291,6 +294,12 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 	setAnimals((prev) => resetAnimalsForNewDay(prev));
 
 	if (pendingBarnUpgrade) {
+		queueUpgradeScene({
+			id: `${upcomingDay}-barn_upgraded-${randomInt(1000, 9999)}`,
+			kind: "barn_upgraded",
+			day: upcomingDay,
+			bgTrack: "space_store",
+		});
 		const nextBarnTier = Math.min(BARN_MAX_TIER, (barnTier + 1) as BarnTier) as BarnTier;
 		const prevBarnRect = getFarmBarnOuterRect(barnTier);
 		const nextBarnRect = getFarmBarnOuterRect(nextBarnTier);
@@ -342,6 +351,12 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 	}
 
 	if (pendingTractorDelivery) {
+		queueUpgradeScene({
+			id: `${upcomingDay}-tractor_delivered-${randomInt(1000, 9999)}`,
+			kind: "tractor_delivered",
+			day: upcomingDay,
+			bgTrack: "space_store",
+		});
 		setHasTractor(true);
 		setTractorParked(true);
 		setPendingTractorDelivery(false);
@@ -350,6 +365,12 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 
 	const deliveredPet = pendingPet;
 	if (deliveredPet) {
+		queueUpgradeScene({
+			id: `${upcomingDay}-pet_arrived-${randomInt(1000, 9999)}`,
+			kind: "pet_arrived",
+			day: upcomingDay,
+			bgTrack: "space_store",
+		});
 		setOwnedPet(deliveredPet);
 		setPendingPet(null);
 		addLog(`Your new pet arrived at the farm: ${deliveredPet}`);

@@ -275,6 +275,9 @@ import type {
 	ToolLevels,
 	TractorImplement,
 	TraderTradeEntry,
+	UpgradeSceneEvent,
+	UpgradeSceneBgTrack,
+	UpgradeSceneEventKind,
 	VendorKey,
 	Warp,
 	WeatherId,
@@ -311,6 +314,7 @@ import {
 	vendorMenuTitles,
 } from "../config/gameplay";
 import { groundClassForTile, spriteTilesNeedingGround, toVisual } from "../config/visuals";
+import { GLYPH } from "../config/glyphs";
 import { applyMoneyDeltaState, updateInventoryState } from "../state/actions";
 import { gameStateReducer, type GameState, type GameStateAction } from "../state/gameState";
 import {
@@ -325,6 +329,11 @@ const BUREAUCRACY_SPAWN = {
 	x: BUREAUCRACY_ENTRY_POS.x,
 	y: BUREAUCRACY_ENTRY_POS.y,
 };
+const DEFAULT_MAP_ZOOM = 1.75;
+const DIRECTOR_DEFAULT_FOCUS_ZOOM = 2.5;
+const DIRECTOR_NAV_DURATION_MS = 2250;
+const DIRECTOR_RETURN_DURATION_MS = 1650;
+const DIRECTOR_RETURN_SETTLE_MS = 180;
 const HEADLAMP_LETTER_POS = { x: 7, y: 8 } as const;
 const savarioLines = [
 	"Oh. Good. You're back.",
@@ -640,11 +649,23 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					STARTER_CHEST_POS,
 				),
 				farmEggDrops: {},
+				pendingUpgradeScenes: [],
 			};
 		},
 	);
 	const [isSaveLoadMenuOpen, setIsSaveLoadMenuOpen] = useState(false);
 	const [saveLoadStatus, setSaveLoadStatus] = useState<string | null>(null);
+	const [mapZoom, setMapZoom] = useState(DEFAULT_MAP_ZOOM);
+	const [cameraTarget, setCameraTarget] = useState<{
+		map: MapId;
+		x: number;
+		y: number;
+		smooth: boolean;
+		durationMs?: number;
+	} | null>(null);
+	const [directorPopup, setDirectorPopup] = useState<{ message: string } | null>(null);
+	const [directorInputLocked, setDirectorInputLocked] = useState(false);
+	const [cloudOverlayVisible, setCloudOverlayVisible] = useState(true);
 	const {
 		player,
 		day,
@@ -756,6 +777,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		pendingPetGravePos,
 		farmWeedObstacles,
 		farmEggDrops,
+		pendingUpgradeScenes,
 	} = gameState;
 	const quantityParentMenuRef = useRef<{
 		modal: ModalState;
@@ -767,6 +789,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const petHeartTimeoutRef = useRef<number | null>(null);
 	const savarioLineIndexRef = useRef(0);
 	const bootSaveHandledRef = useRef(false);
+	const directorRunningRef = useRef(false);
+	const directorConfirmRef = useRef<(() => void) | null>(null);
+	const directorTimersRef = useRef<number[]>([]);
 	const playerRef = useRef(player);
 	const animalsRef = useRef(animals);
 	const animalTilesRef = useRef(animalTiles);
@@ -896,6 +921,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setPendingPetGravePos = setForKey("pendingPetGravePos");
 	const setFarmWeedObstacles = setForKey("farmWeedObstacles");
 	const setFarmEggDrops = setForKey("farmEggDrops");
+	const setPendingUpgradeScenes = setForKey("pendingUpgradeScenes");
 	const activeMapLayouts = useMemo(
 		() => ({
 			...mapLayouts,
@@ -1239,6 +1265,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				window.clearTimeout(id),
 			);
 			grassWindBandStartTimeoutsRef.current = [];
+			directorTimersRef.current.forEach((id) => window.clearTimeout(id));
+			directorTimersRef.current = [];
 			if (cafeOrderMusicRef.current) {
 				cafeOrderMusicRef.current.pause();
 				cafeOrderMusicRef.current.currentTime = 0;
@@ -1600,7 +1628,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				y: 4 + randomRoll() * 60,
 				size: rainy ? 1 + randomRoll() * 0.45 : 0.95 + randomRoll() * 0.35,
 				durationSec,
-				glyph: rainy ? "🌧️" : "☁️", // rainy cloud / cloud
+				glyph: rainy ? GLYPH.rainCloud : GLYPH.cloud, // rainy cloud / cloud
 			};
 		};
 
@@ -2410,6 +2438,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 	const clearLoadTransientState = () => {
 		clearFishingTimers();
+		directorTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+		directorTimersRef.current = [];
+		directorConfirmRef.current = null;
+		directorRunningRef.current = false;
+		setDirectorPopup(null);
+		setDirectorInputLocked(false);
+		setCloudOverlayVisible(true);
+		setCameraTarget(null);
+		setMapZoom(DEFAULT_MAP_ZOOM);
 		if (orderMidTimeoutRef.current !== null) {
 			window.clearTimeout(orderMidTimeoutRef.current);
 			orderMidTimeoutRef.current = null;
@@ -2732,7 +2769,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		day,
 		map: player.map,
 	};
-	const simulationPaused = pauseGame || isSaveLoadMenuOpen || !!modal;
+	const simulationPaused = pauseGame || isSaveLoadMenuOpen || !!modal || directorInputLocked;
 	const gameActions: GameStateActions = {
 		setTownNpcTiles,
 		setBoatTiles,
@@ -3025,7 +3062,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const enterTractor = (implement: TractorImplement, seedItem: ItemId | null = null) => {
 		setTractorDriverEmoji(playerEmoji);
-		setPlayerEmoji("🚜"); // tractor driving avatar
+		setPlayerEmoji(GLYPH.tractor); // tractor driving avatar
 		setIsDrivingTractor(true);
 		setTractorImplement(implement);
 		setTractorImplementOn(false);
@@ -3415,6 +3452,74 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		return true;
 	};
 
+	const resolveUpgradeSceneMessage = (kind: UpgradeSceneEventKind): string => {
+		if (kind === "pet_arrived") return "You got a new pet!";
+		if (kind === "barn_upgraded") return "Your barn was upgraded!";
+		return "Your tractor was delivered!";
+	};
+
+	const resolveUpgradeSceneFocus = (kind: UpgradeSceneEventKind): { x: number; y: number } => {
+		if (kind === "barn_upgraded") {
+			const barnRect = getFarmBarnOuterRect(barnTier);
+			return {
+				x: Math.floor(barnRect.x + barnRect.w / 2),
+				y: Math.floor(barnRect.y + barnRect.h / 2),
+			};
+		}
+		if (kind === "tractor_delivered") return { ...TRACTOR_PARK_POS };
+		if (petTile) return petTile;
+		const spawn = randomFarmPetSpawn();
+		if (spawn) {
+			setPetTile(spawn);
+			return spawn;
+		}
+		return { x: 6, y: 10 };
+	};
+
+	const resolveDirectorTrack = (bgTrack: UpgradeSceneBgTrack | undefined): HTMLAudioElement | null => {
+		const track = bgTrack ?? "space_store";
+		if (track === "space_store") return cafeOrderMusicRef.current;
+		if (track === "space_bg") return bureaucracyMusicRef.current;
+		return getAreaMusicForMap(playerRef.current.map);
+	};
+
+	const clampDirectorZoom = (zoom: number | undefined): number => {
+		const chosen = zoom ?? DIRECTOR_DEFAULT_FOCUS_ZOOM;
+		return Math.max(1, Math.min(2.5, Math.round(chosen * 100) / 100));
+	};
+
+	const buildUpgradeSceneChain = (events: UpgradeSceneEvent[]) =>
+		events.map((event) => ({
+			id: event.id,
+			message: resolveUpgradeSceneMessage(event.kind),
+			focus: resolveUpgradeSceneFocus(event.kind),
+			zoom: clampDirectorZoom(event.cameraZoom),
+			track: resolveDirectorTrack(event.bgTrack),
+		}));
+
+	const waitDirector = (durationMs: number) =>
+		new Promise<void>((resolve) => {
+			const timer = window.setTimeout(() => {
+				directorTimersRef.current = directorTimersRef.current.filter((t) => t !== timer);
+				resolve();
+			}, durationMs);
+			directorTimersRef.current.push(timer);
+		});
+
+	const awaitDirectorPopupConfirm = (message: string) =>
+		new Promise<void>((resolve) => {
+			directorConfirmRef.current = () => {
+				directorConfirmRef.current = null;
+				setDirectorPopup(null);
+				resolve();
+			};
+			setDirectorPopup({ message });
+		});
+
+	const confirmDirectorPopup = () => {
+		directorConfirmRef.current?.();
+	};
+
 	const nextDay = () => {
 		runNextDayEngine({
 			endFishing,
@@ -3499,6 +3604,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			setPetVendorActive,
 			itemNames,
 			setNewspaper,
+			queueUpgradeScene: (event) => {
+				setPendingUpgradeScenes((prev) => [...prev, event]);
+			},
 		});
 	};
 
@@ -3539,6 +3647,83 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			playBad,
 		});
 	}, [dayTransition, dayTransitionStage]);
+
+	useEffect(() => {
+		if (player.map !== "farm") return;
+		if (pendingUpgradeScenes.length === 0) return;
+		if (dayTransition || modal || isSaveLoadMenuOpen) return;
+		if (directorRunningRef.current) return;
+
+		directorRunningRef.current = true;
+		let cancelled = false;
+		void (async () => {
+			setPauseGame(true);
+			setDirectorInputLocked(true);
+			setCloudOverlayVisible(false);
+			const sceneChain = buildUpgradeSceneChain(pendingUpgradeScenes);
+			let lastDirectorTrack: HTMLAudioElement | null = null;
+			for (const scene of sceneChain) {
+				if (cancelled) return;
+				if (scene.track !== lastDirectorTrack) {
+					switchAreaMusic(scene.track, true);
+					lastDirectorTrack = scene.track;
+				}
+				setMapZoom(scene.zoom);
+				setCameraTarget({
+					map: "farm",
+					x: scene.focus.x,
+					y: scene.focus.y,
+					smooth: true,
+					durationMs: DIRECTOR_NAV_DURATION_MS,
+				});
+				await waitDirector(DIRECTOR_NAV_DURATION_MS);
+				if (cancelled) return;
+				await awaitDirectorPopupConfirm(scene.message);
+				if (cancelled) return;
+			}
+			const playerNow = playerRef.current;
+			setMapZoom(DEFAULT_MAP_ZOOM);
+			setCameraTarget({
+				map: playerNow.map,
+				x: playerNow.x,
+				y: playerNow.y,
+				smooth: true,
+				durationMs: DIRECTOR_RETURN_DURATION_MS,
+			});
+			await waitDirector(DIRECTOR_RETURN_DURATION_MS);
+			if (cancelled) return;
+			await waitDirector(DIRECTOR_RETURN_SETTLE_MS);
+			if (cancelled) return;
+			setCameraTarget(null);
+			switchAreaMusic(getAreaMusicForMap(playerRef.current.map), true);
+			setPendingUpgradeScenes([]);
+			setDirectorPopup(null);
+			setDirectorInputLocked(false);
+			setCloudOverlayVisible(true);
+			setPauseGame(false);
+			directorRunningRef.current = false;
+		})().catch(() => {
+			setDirectorPopup(null);
+			setDirectorInputLocked(false);
+			setCloudOverlayVisible(true);
+			setCameraTarget(null);
+			setMapZoom(DEFAULT_MAP_ZOOM);
+			setPauseGame(false);
+			directorRunningRef.current = false;
+		});
+
+		return () => {
+			cancelled = true;
+			setCloudOverlayVisible(true);
+		};
+	}, [
+		player.map,
+		pendingUpgradeScenes,
+		dayTransition,
+		modal,
+		isSaveLoadMenuOpen,
+		barnTier,
+	]);
 
 	const stopBathing = (line?: string) => {
 		if (!isBathing) return;
@@ -3847,6 +4032,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		moveModalCursor(modal, dir, setModalIndex);
 	};
 
+	const zoomIn = () => {
+		setMapZoom((prev) => Math.min(2.5, Math.round((prev + 0.15) * 100) / 100));
+	};
+
+	const zoomOut = () => {
+		setMapZoom((prev) => Math.max(1, Math.round((prev - 0.15) * 100) / 100));
+	};
+
 	const moveQuantity = (delta: number) => {
 		moveQuantitySelection(setQuantityPrompt, delta);
 	};
@@ -3900,10 +4093,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		moveModal,
 		movePlayer,
 		interact,
+		zoomIn,
+		zoomOut,
 		cancelQuantityPrompt,
 		vendorMenuTitles,
 		closeMenu,
 		selectModal,
+		inputLocked: directorInputLocked,
+		directorDialogOpen: !!directorPopup,
+		confirmDirectorDialog: confirmDirectorPopup,
 	};
 	const onKeyDown = useInputRouter(inputContext);
 
@@ -4042,6 +4240,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		activeMapLayouts,
 		isWindSlashOn,
 		renderedMap,
+		mapZoom,
+		cameraTarget,
 		plots,
 		keyForPos,
 		groundClassForTile,
@@ -4069,6 +4269,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
+		cloudOverlayVisible,
 		unfedAnimalMap: animalsMap,
 		unfedAnimalTileKeys,
 		getToolTierName,
@@ -4105,6 +4306,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		closeSaveLoadMenu,
 		saveGameToFile,
 		loadGameFromFilePicker,
+		directorPopup,
+		confirmDirectorPopup,
 	});
 
 	return renderGameRuntimeView(viewCtx);

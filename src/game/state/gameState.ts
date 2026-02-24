@@ -26,6 +26,7 @@ import type {
 	ToolLevels,
 	TractorImplement,
 	TraderTradeEntry,
+	UpgradeSceneEvent,
 	UnlockFlags,
 	WeatherId,
 } from "../shared/types";
@@ -148,6 +149,7 @@ export type GameState = {
 	pendingPetGravePos: Point | null;
 	farmWeedObstacles: Record<string, boolean>;
 	farmEggDrops: Record<string, boolean>;
+	pendingUpgradeScenes: UpgradeSceneEvent[];
 };
 
 export type GameStateAction = {

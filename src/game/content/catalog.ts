@@ -1,5 +1,13 @@
 import { randomRoll } from "../shared/random";
-import type { AnimalDef, AnimalType, CropDef, CropId, ItemId, SnakePatrolState } from "../shared/types";
+import type {
+	AnimalDef,
+	AnimalType,
+	CropDef,
+	CropId,
+	ItemId,
+	SnakePatrolState,
+} from "../shared/types";
+import { GLYPH } from "../config/glyphs";
 
 export const makeSnakeDirections = (enemies: Array<{ id: number; type: string }>) =>
 	Object.fromEntries(
@@ -100,23 +108,23 @@ export const itemNames: Record<ItemId, string> = {
 };
 
 export const itemIcons: Record<ItemId, string> = {
-	turnip_seed: "🌱", // seedling
-	carrot_seed: "🥕", // carrot
-	pumpkin_seed: "🎃", // pumpkin
-	corn_seed: "🌽", // corn
-	turnip: "🥬", // leafy veggie
-	carrot: "🥕", // carrot
-	pumpkin: "🎃", // pumpkin
-	corn: "🌽", // corn
-	feed: "🧺", // basket (feed)
-	milk: "🥛", // milk glass
-	wool: "🧶", // yarn
-	egg: "🥚", // egg
-	fish: "🐟", // fish
-	iron: "🪨", // rock (iron)
-	shell: "🐚", // shell
-	diamond: "💎", // diamond
-	emerald: "🟢", // green gem proxy
-	ruby: "🔴", // red gem proxy
-	coral_fruit: "🪸", // coral
+	turnip_seed: GLYPH.seedling,
+	carrot_seed: GLYPH.carrot,
+	pumpkin_seed: GLYPH.pumpkin,
+	corn_seed: GLYPH.corn,
+	turnip: GLYPH.turnip,
+	carrot: GLYPH.carrot,
+	pumpkin: GLYPH.pumpkin,
+	corn: GLYPH.corn,
+	feed: GLYPH.basket,
+	milk: GLYPH.milk,
+	wool: GLYPH.yarn,
+	egg: GLYPH.egg,
+	fish: GLYPH.fish,
+	iron: GLYPH.rock,
+	shell: GLYPH.shell,
+	diamond: GLYPH.diamond,
+	emerald: GLYPH.greenCircle,
+	ruby: GLYPH.redCircle,
+	coral_fruit: GLYPH.coral,
 };

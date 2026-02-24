@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { GameRuntimeViewModel } from "./viewModel";
 import { BUREAUCRACY_EXIT_POS } from "../world/layout";
+import { GLYPH } from "../config/glyphs";
 
-const bureaucracyFloppyGlyphs = ["💾", "🖴"] as const;
+const bureaucracyFloppyGlyphs = [GLYPH.floppyDisk, GLYPH.hardDisk] as const;
+const CLOUD_VERTICAL_SCROLL_RANGE_PCT = 16;
 const getBureaucracyStarGlyph = (star: { id: number; left: number; top: number; glyph: string }) => {
 	const roll = (star.id * 17 + Math.floor(star.left) + Math.floor(star.top)) % 10;
 	if (roll < 2) {
@@ -18,6 +20,8 @@ type MapViewportCtx = Pick<
 	| "player"
 	| "isWindSlashOn"
 	| "renderedMap"
+	| "mapZoom"
+	| "cameraTarget"
 	| "plots"
 	| "keyForPos"
 	| "currentWeather"
@@ -46,6 +50,7 @@ type MapViewportCtx = Pick<
 	| "getCaveFogOpacity"
 	| "clouds"
 	| "setClouds"
+	| "cloudOverlayVisible"
 	| "unfedAnimalMap"
 	| "unfedAnimalTileKeys"
 	| "dayTransitionStarsState"
@@ -57,6 +62,8 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		player,
 		isWindSlashOn,
 		renderedMap,
+		mapZoom,
+		cameraTarget,
 		plots,
 		keyForPos,
 		currentWeather,
@@ -85,14 +92,102 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
+		cloudOverlayVisible,
 		unfedAnimalMap,
 		unfedAnimalTileKeys,
 		dayTransitionStarsState,
 	} = ctx;
+	const mapRef = useRef<HTMLDivElement | null>(null);
+	const scrollAnimRef = useRef<number | null>(null);
+	const [cloudVerticalOffsetPct, setCloudVerticalOffsetPct] = useState(0);
+
+	const syncCloudVerticalOffset = (mapEl: HTMLDivElement) => {
+		const scrollRange = mapEl.scrollHeight - mapEl.clientHeight;
+		if (scrollRange <= 0) {
+			setCloudVerticalOffsetPct((prev) => (prev === 0 ? prev : 0));
+			return;
+		}
+		const ratio = Math.min(1, Math.max(0, mapEl.scrollTop / scrollRange));
+		const nextOffset = -ratio * CLOUD_VERTICAL_SCROLL_RANGE_PCT;
+		setCloudVerticalOffsetPct((prev) =>
+			Math.abs(prev - nextOffset) < 0.05 ? prev : nextOffset,
+		);
+	};
+
+	useLayoutEffect(() => {
+		const mapEl = mapRef.current;
+		if (!mapEl) return;
+		if (scrollAnimRef.current !== null) {
+			window.cancelAnimationFrame(scrollAnimRef.current);
+			scrollAnimRef.current = null;
+		}
+		const centerMap = () => {
+			const tileEl = mapEl.querySelector(".tile") as HTMLElement | null;
+			if (!tileEl) return;
+			const tileRect = tileEl.getBoundingClientRect();
+			if (tileRect.width <= 0 || tileRect.height <= 0) return;
+			const focus =
+				cameraTarget && cameraTarget.map === player.map
+					? cameraTarget
+					: { x: player.x, y: player.y, smooth: false, durationMs: undefined };
+			const targetLeft = Math.max(
+				0,
+				(focus.x + 0.5) * tileRect.width - mapEl.clientWidth / 2,
+			);
+			const targetTop = Math.max(
+				0,
+				(focus.y + 0.5) * tileRect.height - mapEl.clientHeight / 2,
+			);
+			if (!focus.smooth) {
+				mapEl.scrollLeft = targetLeft;
+				mapEl.scrollTop = targetTop;
+				syncCloudVerticalOffset(mapEl);
+				return;
+			}
+			const durationMs = Math.max(50, focus.durationMs ?? 650);
+			const startLeft = mapEl.scrollLeft;
+			const startTop = mapEl.scrollTop;
+			const deltaLeft = targetLeft - startLeft;
+			const deltaTop = targetTop - startTop;
+			const startAt = performance.now();
+			const step = (now: number) => {
+				const t = Math.min(1, (now - startAt) / durationMs);
+				mapEl.scrollLeft = startLeft + deltaLeft * t;
+				mapEl.scrollTop = startTop + deltaTop * t;
+				syncCloudVerticalOffset(mapEl);
+				if (t < 1) {
+					scrollAnimRef.current = window.requestAnimationFrame(step);
+				} else {
+					scrollAnimRef.current = null;
+				}
+			};
+			scrollAnimRef.current = window.requestAnimationFrame(step);
+		};
+		const rafId = window.requestAnimationFrame(centerMap);
+		return () => {
+			window.cancelAnimationFrame(rafId);
+			if (scrollAnimRef.current !== null) {
+				window.cancelAnimationFrame(scrollAnimRef.current);
+				scrollAnimRef.current = null;
+			}
+		};
+	}, [player.map, player.x, player.y, mapZoom, renderedMap, cameraTarget]);
+
+	useEffect(() => {
+		const mapEl = mapRef.current;
+		if (!mapEl) return;
+		const handleScroll = () => syncCloudVerticalOffset(mapEl);
+		handleScroll();
+		mapEl.addEventListener("scroll", handleScroll, { passive: true });
+		return () => mapEl.removeEventListener("scroll", handleScroll);
+	}, [player.map, mapZoom, renderedMap]);
+
 	return (
 			<div className='map-wrap'>
 				<div
+					ref={mapRef}
 					className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""} ${player.map === "bureaucracy_office" ? "map-bureaucracy" : ""}`}
+					style={{ fontSize: `calc(${mapZoom} * clamp(13px, 1.48vw, 24px))` }}
 				>
 					{player.map === "bureaucracy_office" && (
 						<div className='day-stars-layer bureaucracy-stars-layer'>
@@ -184,27 +279,27 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 									: player.map === "bureaucracy_office" &&
 										  x === BUREAUCRACY_EXIT_POS.x &&
 										  y === BUREAUCRACY_EXIT_POS.y + 2
-										? { glyph: "🌍", className: "tile-earth-dim" }
+										? { glyph: GLYPH.earth, className: "tile-earth-dim" }
 									: player.map === "bureaucracy_office" && cell === "j"
-										? { glyph: "🧑‍💼", className: "tile-floor" }
+										? { glyph: GLYPH.officeWorker, className: "tile-floor" }
 									: player.map === "bureaucracy_office" && cell === "x"
-										? { glyph: "🟫", className: "tile-floor" }
+										? { glyph: GLYPH.brownSquare, className: "tile-floor" }
 									: cell === "P"
 										? {
 												glyph:
 													isDrivingTractor
-														? "🚜" // driving tractor
+														? GLYPH.tractor // driving tractor
 														: fishing && fishing.phase !== "success"
-														? "🎣" // fishing pole mode
+														? GLYPH.fishingPole // fishing pole mode
 														: showTiredFace
-															? "🥱" // tired face
+															? GLYPH.yawn // tired face
 															: playerEmoji,
 											}
 										: waterRefillTile &&
 											  waterRefillTile.map === player.map &&
 											  waterRefillTile.x === x &&
 											  waterRefillTile.y === y
-											? { glyph: "🫗", className: "tile-water" } // refill splash icon
+											? { glyph: GLYPH.pouringLiquid, className: "tile-water" } // refill splash icon
 											: cell === "b" &&
 												  fishing?.phase === "waiting" &&
 												  fishing.map === player.map &&
@@ -216,13 +311,13 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 													}
 												: cell === "F" && fishing?.phase === "bite"
 													? {
-															glyph: "🐟", // fish bite icon
+															glyph: GLYPH.fish, // fish bite icon
 															className: "tile-water tile-fishing-catch",
 															overlayGlyph: fishing.requiredKey.toUpperCase(),
 														}
 													: cell === "~" && isRippleWaterTile(player.map, x, y)
 														? {
-																glyph: waterRipplePhase ? "-" : "—",
+																glyph: waterRipplePhase ? "-" : "--",
 																className: "tile-water tile-ripple",
 															}
 															: cell === "," &&
@@ -236,7 +331,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 																  caveLadderPos &&
 																  caveLadderPos.x === x &&
 																  caveLadderPos.y === y
-																? { glyph: "🪜", className: "tile-cave-next-ladder" } // next-level ladder
+																? { glyph: GLYPH.ladder, className: "tile-cave-next-ladder" } // next-level ladder
 																: player.map === "cave" && cell === ")"
 																	? caveRubble[keyForPos(x, y)]
 																		? {
@@ -334,31 +429,49 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 					)}
 				</div>
 				{(player.map === "farm" || player.map === "town") && (
-					<div className='cloud-overlay'>
-						{clouds.map((cloud) => (
-							<motion.div
-								key={cloud.id}
-								className='cloud-item'
-								initial={{ left: `${cloud.startX}%` }}
-								animate={{ left: "-14%" }}
-								transition={{
-									duration: cloud.durationSec,
-									ease: "linear",
-								}}
-								onAnimationComplete={() => {
-									setClouds((prev) =>
-										prev.filter((candidate) => candidate.id !== cloud.id),
-									);
-								}}
-								style={{
-									top: `${cloud.y}%`,
-									fontSize: `${cloud.size}em`,
-								}}
-							>
-								<span className='cloud-glyph'>{cloud.glyph}</span>
-								<span className='cloud-shadow' />
-							</motion.div>
-						))}
+					<div
+						className='cloud-overlay'
+						style={{
+							transform: `scale(${mapZoom})`,
+							transformOrigin: "top left",
+							width: `${100 / mapZoom}%`,
+							height: `${100 / mapZoom}%`,
+							opacity: cloudOverlayVisible ? 1 : 0,
+							transition: "opacity 550ms ease",
+						}}
+					>
+						<div
+							style={{
+								position: "absolute",
+								inset: 0,
+								transform: `translateY(${cloudVerticalOffsetPct}%)`,
+							}}
+						>
+							{clouds.map((cloud) => (
+								<motion.div
+									key={cloud.id}
+									className='cloud-item'
+									initial={{ left: `${cloud.startX}%` }}
+									animate={{ left: "-14%" }}
+									transition={{
+										duration: cloud.durationSec,
+										ease: "linear",
+									}}
+									onAnimationComplete={() => {
+										setClouds((prev) =>
+											prev.filter((candidate) => candidate.id !== cloud.id),
+										);
+									}}
+									style={{
+										top: `${cloud.y}%`,
+										fontSize: `${cloud.size}em`,
+									}}
+								>
+									<span className='cloud-glyph'>{cloud.glyph}</span>
+									<span className='cloud-shadow' />
+								</motion.div>
+							))}
+						</div>
 					</div>
 				)}
 			</div>
@@ -372,6 +485,8 @@ const MemoMapViewport = React.memo(
 		prev.ctx.player === next.ctx.player &&
 		prev.ctx.activeMapLayouts === next.ctx.activeMapLayouts &&
 		prev.ctx.renderedMap === next.ctx.renderedMap &&
+		prev.ctx.mapZoom === next.ctx.mapZoom &&
+		prev.ctx.cameraTarget === next.ctx.cameraTarget &&
 		prev.ctx.plots === next.ctx.plots &&
 		prev.ctx.currentWeather === next.ctx.currentWeather &&
 		prev.ctx.shopDecorByMap === next.ctx.shopDecorByMap &&
@@ -387,6 +502,7 @@ const MemoMapViewport = React.memo(
 		prev.ctx.tractorFacing === next.ctx.tractorFacing &&
 		prev.ctx.showForestHit === next.ctx.showForestHit &&
 		prev.ctx.clouds === next.ctx.clouds &&
+		prev.ctx.cloudOverlayVisible === next.ctx.cloudOverlayVisible &&
 		prev.ctx.unfedAnimalMap === next.ctx.unfedAnimalMap &&
 		prev.ctx.unfedAnimalTileKeys === next.ctx.unfedAnimalTileKeys &&
 		prev.ctx.dayTransitionStarsState === next.ctx.dayTransitionStarsState,
@@ -408,6 +524,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		activeMapLayouts,
 		isWindSlashOn,
 		renderedMap,
+		mapZoom,
+		cameraTarget,
 		plots,
 		keyForPos,
 		groundClassForTile,
@@ -435,6 +553,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		getCaveFogOpacity,
 		clouds,
 		setClouds,
+		cloudOverlayVisible,
 		unfedAnimalMap,
 		unfedAnimalTileKeys,
 		marketRows,
@@ -473,6 +592,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		closeSaveLoadMenu,
 		saveGameToFile,
 		loadGameFromFilePicker,
+		directorPopup,
+		confirmDirectorPopup,
 	} = ctx;
 	return (
 		<div
@@ -525,7 +646,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					onClick={toggleSaveLoadMenu}
 					aria-label='Open save and load menu'
 				>
-					🍔
+					{GLYPH.burger}
 				</button>
 				<div>Day: {day}</div>
 				<div>Location: {player.map}</div>
@@ -551,7 +672,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 						key='water-row'
 						className='inventory-item'
 					>
-						<span className='inventory-item-icon'>🫗</span> {/* water can */}
+						<span className='inventory-item-icon'>{GLYPH.pouringLiquid}</span> {/* water can */}
 						<span>Water:</span>
 						<span>{waterLevel}</span>
 					</li>
@@ -580,6 +701,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					player,
 					isWindSlashOn,
 					renderedMap,
+					mapZoom,
+					cameraTarget,
 					plots,
 					keyForPos,
 					currentWeather,
@@ -608,6 +731,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					getCaveFogOpacity,
 					clouds,
 					setClouds,
+					cloudOverlayVisible,
 					unfedAnimalMap,
 					unfedAnimalTileKeys,
 					dayTransitionStarsState,
@@ -620,6 +744,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 							<div className='panel-title'>Controls</div>
 							<div>`WASD` move</div>
 							<div>`Arrow Keys` interact one tile</div>
+							<div>`Q/E` zoom out/in</div>
 							<div>`W/S` navigate menus</div>
 							<div>`Space` confirm menu option</div>
 						</div>
@@ -631,7 +756,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										<span>{row.name}:</span>{" "}
 										<span>
 											${row.price}{" "}
-											{row.trend > 0 ? "📈" : row.trend < 0 ? "📉" : ""} {/* market trend */}
+											{row.trend > 0 ? GLYPH.chartUp : row.trend < 0 ? GLYPH.chartDown : ""} {/* market trend */}
 										</span>
 									</li>
 								))}
@@ -915,7 +1040,23 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					</motion.div>
 				</motion.div>
 			)}
+			{directorPopup && (
+				<div className='director-popup-backdrop'>
+					<div className='director-popup'>
+						<div>{directorPopup.message}</div>
+						<button
+							type='button'
+							className='option active director-popup-button'
+							onClick={confirmDirectorPopup}
+						>
+							OK.
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 };
+
+
 

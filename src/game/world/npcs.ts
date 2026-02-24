@@ -1,5 +1,6 @@
 import { TOWN_OCEAN_START_Y, TOWN_WIDTH } from "./layout";
 import type { PetEmoji } from "../shared/types";
+import { GLYPH } from "../config/glyphs";
 
 export const townNpcNames: Record<string, string> = {
 	neighbor_1: "Nora",
@@ -25,14 +26,14 @@ export const TRADER_BOX_POS = { x: TRADER_POS.x + 1, y: TRADER_POS.y };
 export const TRADER_HELI_POS = { x: TRADER_BOX_POS.x, y: TRADER_BOX_POS.y - 1 };
 export const PET_VENDOR_POS = { x: 25, y: 7 };
 export const DOCTOR_POS = { x: 30, y: 7 };
-export const petOptions: PetEmoji[] = ["🐈", "🐈‍⬛", "🐕", "🐩"]; // cat, black cat, dog, poodle
+export const petOptions: PetEmoji[] = [GLYPH.cat, GLYPH.blackCat, GLYPH.dog, GLYPH.poodle];
 
 export const boatNpcEmojis = {
-	boat_1: "⛵", // sailboat
-	boat_2: "🛶", // canoe
-	boat_3: "🚤", // speedboat
-	boat_4: "🛥️", // motorboat
-	boat_5: "🚣‍♀️", // rowboat
+	boat_1: GLYPH.sailboat,
+	boat_2: GLYPH.canoe,
+	boat_3: GLYPH.speedboat,
+	boat_4: GLYPH.motorboat,
+	boat_5: GLYPH.rowboatWoman,
 } as const;
 
 export const initialBoatTiles: Record<keyof typeof boatNpcEmojis, { x: number; y: number }> = {

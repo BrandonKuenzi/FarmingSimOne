@@ -181,6 +181,16 @@ export type ToolLevels = Record<ToolId, number>;
 export type UnlockFlagId = "headlampVendorStock";
 export type UnlockFlags = Record<UnlockFlagId, boolean>;
 
+export type UpgradeSceneEventKind = "pet_arrived" | "barn_upgraded" | "tractor_delivered";
+export type UpgradeSceneBgTrack = "space_store" | "space_bg" | "area_default";
+export type UpgradeSceneEvent = {
+	id: string;
+	kind: UpgradeSceneEventKind;
+	day: number;
+	bgTrack?: UpgradeSceneBgTrack;
+	cameraZoom?: number;
+};
+
 export type CafeOrderItem = { name: string; price: number; stamina: number };
 
 export type CloudSprite = {
@@ -271,7 +281,11 @@ export type CaveGenerationResult = {
 };
 
 export type Point = { x: number; y: number };
-export type PetEmoji = "🐈" | "🐈‍⬛" | "🐕" | "🐩";
+export type PetEmoji =
+	| "\u{1F408}"
+	| "\u{1F408}\u{200D}\u{2B1B}"
+	| "\u{1F415}"
+	| "\u{1F429}";
 export type TractorImplement = "plow" | "sow" | "water" | "harvest";
 
 export type ForestGenConfig = {
