@@ -124,6 +124,19 @@ export const handleGameKeyDown = (
 	e: KeyboardEvent<HTMLDivElement>,
 ): void => {
 	const key = e.key.toLowerCase();
+	const isDirectionalKey =
+		key === "w" ||
+		key === "a" ||
+		key === "s" ||
+		key === "d" ||
+		key === "arrowup" ||
+		key === "arrowdown" ||
+		key === "arrowleft" ||
+		key === "arrowright";
+	if (e.repeat && isDirectionalKey) {
+		e.preventDefault();
+		return;
+	}
 
 	if (key === "p") {
 		e.preventDefault();
