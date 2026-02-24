@@ -1,3 +1,4 @@
+import { GLYPH } from "../config/glyphs";
 import type {
 	Animal,
 	ForestChest,
@@ -148,12 +149,12 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 				const def = cropDefs[p.crop];
 				const age = p.growthDays;
 				if (age >= def.growDays) {
-					base[y][x] = "🌾";
+					base[y][x] = GLYPH.sheafOfRice;
 				} else {
 					const stage2Start = Math.max(1, Math.ceil(def.growDays / 3));
 					const stage3Start = Math.max(1, Math.ceil((def.growDays * 2) / 3));
-					if (age >= stage3Start) base[y][x] = "☘️";
-					else if (age >= stage2Start) base[y][x] = "🌱";
+					if (age >= stage3Start) base[y][x] = GLYPH.shamrock;
+					else if (age >= stage2Start) base[y][x] = GLYPH.seedling;
 					else base[y][x] = "'";
 				}
 			}
@@ -339,3 +340,5 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 
 	return base;
 };
+
+

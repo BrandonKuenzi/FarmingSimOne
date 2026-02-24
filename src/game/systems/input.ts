@@ -112,6 +112,11 @@ export type GameKeyDownContext = {
 	vendorMenuTitles: Set<string>;
 	closeMenu: () => void;
 	selectModal: () => void;
+	zoomIn: () => void;
+	zoomOut: () => void;
+	inputLocked: boolean;
+	directorDialogOpen: boolean;
+	confirmDirectorDialog: () => void;
 };
 
 export const handleGameKeyDown = (
@@ -145,6 +150,29 @@ export const handleGameKeyDown = (
 		} else {
 			ctx.addLog("Debug barn boost failed: no room in the barn.");
 		}
+		return;
+	}
+
+	if (key === "q") {
+		e.preventDefault();
+		ctx.zoomOut();
+		return;
+	}
+
+	if (key === "e") {
+		e.preventDefault();
+		ctx.zoomIn();
+		return;
+	}
+
+	if (ctx.directorDialogOpen && (key === " " || key === "enter")) {
+		e.preventDefault();
+		ctx.confirmDirectorDialog();
+		return;
+	}
+
+	if (ctx.inputLocked) {
+		e.preventDefault();
 		return;
 	}
 

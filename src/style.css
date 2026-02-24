@@ -179,6 +179,8 @@ body {
 	font-size: clamp(13px, 1.48vw, 24px);
 	white-space: normal;
 	overflow: auto;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
 	min-height: 44vh;
 	max-height: 54vh;
 	width: 100%;
@@ -187,6 +189,12 @@ body {
 	position: relative;
 	user-select: none;
 	-webkit-user-select: none;
+}
+
+.map::-webkit-scrollbar {
+	width: 0;
+	height: 0;
+	display: none;
 }
 
 .map.map-forest {
@@ -448,6 +456,10 @@ body {
 
 .tile-cave-wall-light {
 	background: #333;
+}
+
+.tile-brick-emoji {
+	background: #f4703f;
 }
 
 .tile-player-hit {
@@ -759,6 +771,32 @@ li {
 
 .day-ok-wrap {
 	margin-top: 28px;
+}
+
+.director-popup-backdrop {
+	position: fixed;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	pointer-events: none;
+	z-index: 110;
+}
+
+.director-popup {
+	pointer-events: auto;
+	width: min(420px, 88vw);
+	border: 2px solid #433317;
+	background: #f9f2e1;
+	padding: 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	text-align: center;
+}
+
+.director-popup-button {
+	align-self: center;
+	padding: 8px 20px;
 }
 
 @keyframes day-pop {

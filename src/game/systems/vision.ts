@@ -1,4 +1,5 @@
 import type { Point } from "../shared/types";
+import { GLYPH } from "../config/glyphs";
 
 export const getFogTargetOpacity = (
 	playerPos: Point,
@@ -8,7 +9,7 @@ export const getFogTargetOpacity = (
 	hasHeadlamp: boolean,
 ): number => {
 	let visionBoost = 1;
-	if (playerEmoji === "💡") visionBoost *= 2;
+	if (playerEmoji === GLYPH.bulb) visionBoost *= 2;
 	if (hasHeadlamp) visionBoost *= 2;
 	const dist = Math.max(Math.abs(x - playerPos.x), Math.abs(y - playerPos.y)) / visionBoost;
 	if (dist <= 3) return 0;

@@ -36,6 +36,14 @@ export type GameRuntimeViewModel = {
 	activeMapLayouts: Record<string, string[]>;
 	isWindSlashOn: (x: number, y: number) => boolean;
 	renderedMap: string[][];
+	mapZoom: number;
+	cameraTarget: {
+		map: MapId;
+		x: number;
+		y: number;
+		smooth: boolean;
+		durationMs?: number;
+	} | null;
 	plots: Record<string, Plot>;
 	keyForPos: (x: number, y: number) => string;
 	groundClassForTile: (tile: string, map: MapId) => string | undefined;
@@ -71,6 +79,7 @@ export type GameRuntimeViewModel = {
 	getCaveFogOpacity: (x: number, y: number) => number;
 	clouds: CloudSprite[];
 	setClouds: Dispatch<SetStateAction<CloudSprite[]>>;
+	cloudOverlayVisible: boolean;
 	unfedAnimalMap: MapId | null;
 	unfedAnimalTileKeys: Record<string, boolean>;
 	marketRows: Array<{ id: string; name: string; price: number; trend: number }>;
@@ -113,4 +122,6 @@ export type GameRuntimeViewModel = {
 	closeSaveLoadMenu: () => void;
 	saveGameToFile: () => void;
 	loadGameFromFilePicker: () => void;
+	directorPopup: { message: string } | null;
+	confirmDirectorPopup: () => void;
 };

@@ -1,6 +1,7 @@
 import { BARN_MAX_TIER, getBarnAnimalCap, getBarnInteriorSizeByTier, getBarnUpgradeCost, getFarmBarnOuterRect, isBarnExternal } from "../world/layout";
 import { getToolTierName } from "./tools";
 import type { BarnTier, Inventory, ItemId } from "../shared/types";
+import { GLYPH } from "../config/glyphs";
 
 export const interactBuilderVendorMenu = (ctx: {
 	barnTier: BarnTier;
@@ -46,10 +47,10 @@ export const interactBuilderVendorMenu = (ctx: {
 	const nextTier = (barnTier + 1) as BarnTier;
 	const upgradeCost = getBarnUpgradeCost(nextTier);
 	const costParts = [`$${upgradeCost.money}`];
-	if (upgradeCost.iron > 0) costParts.push(`🪨x${upgradeCost.iron}`);
-	if ((upgradeCost.gems.ruby ?? 0) > 0) costParts.push(`🔴x${upgradeCost.gems.ruby}`);
-	if ((upgradeCost.gems.emerald ?? 0) > 0) costParts.push(`🟢x${upgradeCost.gems.emerald}`);
-	if ((upgradeCost.gems.diamond ?? 0) > 0) costParts.push(`💎x${upgradeCost.gems.diamond}`);
+	if (upgradeCost.iron > 0) costParts.push(`${GLYPH.rock}x${upgradeCost.iron}`);
+	if ((upgradeCost.gems.ruby ?? 0) > 0) costParts.push(`${GLYPH.redCircle}x${upgradeCost.gems.ruby}`);
+	if ((upgradeCost.gems.emerald ?? 0) > 0) costParts.push(`${GLYPH.greenCircle}x${upgradeCost.gems.emerald}`);
+	if ((upgradeCost.gems.diamond ?? 0) > 0) costParts.push(`${GLYPH.diamond}x${upgradeCost.gems.diamond}`);
 	const nextSize = getBarnInteriorSizeByTier(nextTier);
 	const nextCapacity = getBarnAnimalCap(nextTier);
 	const currentRect = getFarmBarnOuterRect(barnTier);
