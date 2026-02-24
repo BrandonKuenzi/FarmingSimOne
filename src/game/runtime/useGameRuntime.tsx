@@ -375,8 +375,8 @@ const MANUAL_ZOOM_LEVELS = [
 	MANUAL_ZOOM_MAX,
 ] as const;
 const DIRECTOR_DEFAULT_FOCUS_ZOOM = MANUAL_ZOOM_MAX + 0.25;
-const DIRECTOR_NAV_DURATION_MS = 2250;
-const DIRECTOR_RETURN_DURATION_MS = 1650;
+const DIRECTOR_NAV_DURATION_MS = 1000;
+const DIRECTOR_RETURN_DURATION_MS = 1000;
 const DIRECTOR_RETURN_SETTLE_MS = 180;
 const HEADLAMP_LETTER_POS = { x: 7, y: 8 } as const;
 const savarioLines = [
@@ -1471,6 +1471,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		if (dayTransition) return;
 		if (bootSaveJson && !bootSaveHandledRef.current) return;
+		if (directorRunningRef.current) return;
 		switchAreaMusic(getAreaMusicForMap(player.map), false);
 	}, [
 		player.map,
@@ -1481,6 +1482,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	]);
 
 	useEffect(() => {
+		if (directorRunningRef.current) return;
 		stopStaleBackgroundTracks();
 	}, [
 		player.map,
@@ -1494,6 +1496,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	useEffect(() => {
 		const interval = window.setInterval(() => {
+			if (directorRunningRef.current) return;
 			stopStaleBackgroundTracks();
 		}, 900);
 		return () => window.clearInterval(interval);
@@ -3553,11 +3556,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		occupied: Record<number, { x: number; y: number }>,
 	) => {
 		const rows = activeMapLayouts[animalsMap];
+		const scanFromBottom = isBarnExternal(barnTier);
 		return nextOpenBarnTileInBounds({
 			occupied,
 			rows,
 			bounds: barnInteriorBounds,
 			isPassableChar,
+			scanFromBottom,
 		});
 	};
 
@@ -3628,11 +3633,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				}
 			}
 			if (!chosen) {
+				const scanFromBottom = isBarnExternal(barnTier);
 				chosen = nextOpenBarnTileInBounds({
 					occupied: nextTiles,
 					rows,
 					bounds: barnInteriorBounds,
 					isPassableChar,
+					scanFromBottom,
 				});
 			}
 			if (!chosen && preferred) chosen = preferred;
@@ -3924,9 +3931,28 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			setCloudOverlayVisible(false);
 			const sceneChain = buildUpgradeSceneChain(pendingUpgradeScenes);
 			let lastDirectorTrack: HTMLAudioElement | null = null;
+			const stopAllAreaTracksExcept = (keep: HTMLAudioElement | null) => {
+				const tracks = [
+					farmMusicRef.current,
+					townMusicRef.current,
+					houseMusicRef.current,
+					forestMusicRef.current,
+					caveMusicRef.current,
+					bureaucracyMusicRef.current,
+					cafeOrderMusicRef.current,
+					endOfDayRef.current,
+					beachAmbienceRef.current,
+				];
+				tracks.forEach((track) => {
+					if (!track || track === keep) return;
+					track.pause();
+					track.currentTime = 0;
+				});
+			};
 			for (const scene of sceneChain) {
 				if (cancelled) return;
 				if (scene.track !== lastDirectorTrack) {
+					stopAllAreaTracksExcept(scene.track);
 					switchAreaMusic(scene.track, true);
 					lastDirectorTrack = scene.track;
 				}
@@ -4311,9 +4337,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				if (prev < MANUAL_ZOOM_MID) return MANUAL_ZOOM_MID;
 				return MANUAL_ZOOM_MAX;
 			}
-			const next = MANUAL_ZOOM_LEVELS[
-				Math.min(MANUAL_ZOOM_LEVELS.length - 1, currentIndex + 1)
-			]!;
+			const next =
+				MANUAL_ZOOM_LEVELS[
+					Math.min(MANUAL_ZOOM_LEVELS.length - 1, currentIndex + 1)
+				]!;
 			return next;
 		});
 	};
@@ -4468,7 +4495,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const renderedMap = useMemo(() => {
 		return buildRenderedMapGrid({
 			activeMapLayouts,
-			player,
+			playerMap: player.map,
 			day,
 			starterChestOpened,
 			STARTER_CHEST_POS,
@@ -4495,12 +4522,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			TRADER_BOX_POS,
 			TRADER_HELI_POS,
 			beachShellDrops,
-			townNpcTiles,
-			boatNpcEmojis,
 			boatTiles,
 			animalsMap,
-			animals,
-			animalTiles,
 			farmEggDrops,
 			petOptions,
 			petTile,
@@ -4511,11 +4534,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			forestObstacles,
 			forestChest,
 			forestBonusChests,
-			forestEnemies,
 			caveObstacles,
 			caveBonusChest,
 			caveLadderPos,
-			caveEnemies,
 			isShopMap,
 			shopDecorByMap,
 			keyForPos,
@@ -4525,21 +4546,17 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			fishing,
 		});
 	}, [
-		animals,
-		animalTiles,
 		day,
 		fishing,
 		starterChestOpened,
 		headlampLetterVisible,
 		forestChest,
 		forestBonusChests,
-		forestEnemies,
 		forestObstacles,
-		caveEnemies,
 		caveObstacles,
 		caveBonusChest,
 		caveLadderPos,
-		player,
+		player.map,
 		plots,
 		farmForestBlockers,
 		farmCaveBlockers,
@@ -4559,7 +4576,6 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		petHeartTile,
 		hasTractor,
 		tractorParked,
-		townNpcTiles,
 		shopDecorByMap,
 		cafeShopkeeperX,
 		isOrdering,

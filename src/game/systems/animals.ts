@@ -32,13 +32,18 @@ export const nextOpenBarnTileInBounds = ({
 	rows,
 	bounds,
 	isPassableChar,
+	scanFromBottom = false,
 }: {
 	occupied: Occupied;
 	rows: string[];
 	bounds: Bounds;
 	isPassableChar: (c: string) => boolean;
+	scanFromBottom?: boolean;
 }): Point | null => {
-	for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
+	const yStart = scanFromBottom ? bounds.maxY : bounds.minY;
+	const yEnd = scanFromBottom ? bounds.minY : bounds.maxY;
+	const yStep = scanFromBottom ? -1 : 1;
+	for (let y = yStart; scanFromBottom ? y >= yEnd : y <= yEnd; y += yStep) {
 		for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
 			if (!isPassableChar(rows[y]?.[x] ?? "#")) continue;
 			const used = Object.values(occupied).some((p) => p.x === x && p.y === y);
@@ -83,26 +88,45 @@ export const placeAnimalsInBounds = ({
 	animals,
 	cap,
 	bounds,
+	rows,
+	allowedTiles,
+	scanFromBottom = false,
 }: {
 	animals: Animal[];
 	cap: number;
 	bounds: Bounds;
+	rows?: string[];
+	allowedTiles?: string[];
+	scanFromBottom?: boolean;
 }): {
 	keptAnimals: Animal[];
 	occupied: Occupied;
 } => {
 	const keptAnimals = animals.slice(0, cap);
 	const occupied: Occupied = {};
+	const yStart = scanFromBottom ? bounds.maxY : bounds.minY;
+	const yEnd = scanFromBottom ? bounds.minY : bounds.maxY;
+	const yStep = scanFromBottom ? -1 : 1;
+	const allowedTileSet = allowedTiles ? new Set(allowedTiles) : null;
 	keptAnimals.forEach((animal) => {
 		let placed = false;
-		for (let y = bounds.minY; y <= bounds.maxY && !placed; y += 1) {
+		for (
+			let y = yStart;
+			scanFromBottom ? y >= yEnd : y <= yEnd;
+			y += yStep
+		) {
 			for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
+				if (allowedTileSet) {
+					const tile = rows?.[y]?.[x] ?? "#";
+					if (!allowedTileSet.has(tile)) continue;
+				}
 				const used = Object.values(occupied).some((p) => p.x === x && p.y === y);
 				if (used) continue;
 				occupied[animal.id] = { x, y };
 				placed = true;
 				break;
 			}
+			if (placed) break;
 		}
 	});
 	return { keptAnimals, occupied };

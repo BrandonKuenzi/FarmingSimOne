@@ -87,6 +87,9 @@ type RunNextDayArgs = {
 		animals: Animal[];
 		cap: number;
 		bounds: { minX: number; maxX: number; minY: number; maxY: number };
+		rows?: string[];
+		allowedTiles?: string[];
+		scanFromBottom?: boolean;
 	}) => { keptAnimals: Animal[]; occupied: Record<number, Point> };
 	setAnimalTiles: Dispatch<SetStateAction<Record<number, Point>>>;
 	setAnimalAnchors: Dispatch<SetStateAction<Record<number, Point>>>;
@@ -342,6 +345,9 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 				animals,
 				cap: getBarnAnimalCap(nextBarnTier),
 				bounds,
+				rows: nextLayout,
+				allowedTiles: ["."],
+				scanFromBottom: true,
 			});
 			setAnimals(relocation.keptAnimals);
 			setAnimalTiles(relocation.occupied);

@@ -1,19 +1,16 @@
 import { GLYPH } from "../config/glyphs";
 import type {
-	Animal,
 	ForestChest,
-	ForestEnemy,
 	ForestObstacle,
 	FishingState,
 	MapId,
 	PetEmoji,
 	Plot,
-	Position,
 } from "../shared/types";
 
 type RenderedMapContext = {
 	activeMapLayouts: Record<string, string[]>;
-	player: Position;
+	playerMap: MapId;
 	day: number;
 	starterChestOpened: boolean;
 	STARTER_CHEST_POS: { x: number; y: number };
@@ -40,12 +37,8 @@ type RenderedMapContext = {
 	TRADER_BOX_POS: { x: number; y: number };
 	TRADER_HELI_POS: { x: number; y: number };
 	beachShellDrops: Record<string, boolean>;
-	townNpcTiles: Record<string, { x: number; y: number }>;
-	boatNpcEmojis: Record<string, string>;
 	boatTiles: Record<string, { x: number; y: number }>;
 	animalsMap: MapId;
-	animals: Animal[];
-	animalTiles: Record<number, { x: number; y: number }>;
 	farmEggDrops: Record<string, boolean>;
 	petOptions: PetEmoji[];
 	petTile: { x: number; y: number } | null;
@@ -56,11 +49,9 @@ type RenderedMapContext = {
 	forestObstacles: ForestObstacle[];
 	forestChest: ForestChest;
 	forestBonusChests: ForestChest[];
-	forestEnemies: ForestEnemy[];
 	caveObstacles: ForestObstacle[];
 	caveBonusChest: ForestChest | null;
 	caveLadderPos: { x: number; y: number } | null;
-	caveEnemies: ForestEnemy[];
 	isShopMap: (map: MapId) => boolean;
 	shopDecorByMap: Record<string, Record<string, string>>;
 	keyForPos: (x: number, y: number) => string;
@@ -73,7 +64,7 @@ type RenderedMapContext = {
 export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 	const {
 		activeMapLayouts,
-		player,
+		playerMap,
 		day,
 		starterChestOpened,
 		STARTER_CHEST_POS,
@@ -100,12 +91,8 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		TRADER_BOX_POS,
 		TRADER_HELI_POS,
 		beachShellDrops,
-		townNpcTiles,
-		boatNpcEmojis,
 		boatTiles,
 		animalsMap,
-		animals,
-		animalTiles,
 		farmEggDrops,
 		petOptions,
 		petTile,
@@ -116,11 +103,9 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		forestObstacles,
 		forestChest,
 		forestBonusChests,
-		forestEnemies,
 		caveObstacles,
 		caveBonusChest,
 		caveLadderPos,
-		caveEnemies,
 		isShopMap,
 		shopDecorByMap,
 		keyForPos,
@@ -130,9 +115,9 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		fishing,
 	} = ctx;
 
-	const base = activeMapLayouts[player.map].map((r: string) => r.split(""));
+	const base = activeMapLayouts[playerMap].map((r: string) => r.split(""));
 
-	if (player.map === "farm") {
+	if (playerMap === "farm") {
 		if (day === 1 && !starterChestOpened) {
 			base[STARTER_CHEST_POS.y]![STARTER_CHEST_POS.x] = "X";
 		}
@@ -193,7 +178,7 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		});
 	}
 
-	if (player.map === "town") {
+	if (playerMap === "town") {
 		if (beachBottlePos) base[beachBottlePos.y]![beachBottlePos.x] = "M";
 		if (doctorVendorActive) base[DOCTOR_POS.y]![DOCTOR_POS.x] = "Z";
 		if (petVendorActive && !ownedPet) base[PET_VENDOR_POS.y]![PET_VENDOR_POS.x] = "8";
@@ -216,16 +201,6 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 			if (!Number.isFinite(x) || !Number.isFinite(y)) return;
 			base[y]![x] = "S";
 		});
-		const labels: Record<string, string> = {
-			neighbor_1: "n",
-			neighbor_2: "m",
-			neighbor_3: "o",
-			neighbor_4: "p",
-		};
-		Object.entries(townNpcTiles).forEach(([k, pos]) => {
-			const label = labels[k];
-			if (label) base[pos.y][pos.x] = label;
-		});
 		const boatLabels: Record<string, string> = {
 			boat_1: "q",
 			boat_2: "r",
@@ -238,22 +213,7 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		});
 	}
 
-	if (player.map === animalsMap) {
-		const markerByAnimal: Record<string, string> = {
-			cow: "1",
-			sheep: "2",
-			chicken: "3",
-			hippo: "A",
-			unicorn: "D",
-			mammoth: "F",
-			slug: "I",
-			gorilla: "N",
-		};
-		animals.forEach((a) => {
-			const pos = animalTiles[a.id];
-			if (!pos) return;
-			base[pos.y][pos.x] = markerByAnimal[a.type];
-		});
+	if (playerMap === animalsMap) {
 		Object.entries(farmEggDrops).forEach(([key, present]) => {
 			if (!present) return;
 			const [xs, ys] = key.split(",");
@@ -264,7 +224,7 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		});
 	}
 
-	if (player.map === "farm") {
+	if (playerMap === "farm") {
 		if (ownedPet && petTile) {
 			const petMarker: Record<string, string> = {
 				[petOptions[0]]: "@",
@@ -278,7 +238,7 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		if (hasTractor && tractorParked) base[TRACTOR_PARK_POS.y]![TRACTOR_PARK_POS.x] = "{";
 	}
 
-	if (player.map === "forest") {
+	if (playerMap === "forest") {
 		forestObstacles.forEach((o) => {
 			base[o.y]![o.x] = o.type === "rock" ? "O" : o.type === "weed" ? "J" : "L";
 		});
@@ -286,11 +246,8 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		forestBonusChests.forEach((chest) => {
 			if (!chest.opened) base[chest.y]![chest.x] = "X";
 		});
-		forestEnemies.forEach((enemy) => {
-			base[enemy.y]![enemy.x] = enemy.type === "bear" ? "e" : enemy.type === "snake" ? "y" : "!";
-		});
 	}
-	if (player.map === "cave") {
+	if (playerMap === "cave") {
 		caveObstacles.forEach((o) => {
 			base[o.y]![o.x] = o.type === "torch" ? "|" : "O";
 		});
@@ -298,27 +255,24 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 			base[caveBonusChest.y]![caveBonusChest.x] = "X";
 		}
 		if (caveLadderPos) base[caveLadderPos.y]![caveLadderPos.x] = "/";
-		caveEnemies.forEach((enemy) => {
-			base[enemy.y]![enemy.x] = enemy.type === "bear" ? "e" : enemy.type === "poop" ? "!" : "`";
-		});
 	}
 
-	if (isShopMap(player.map)) {
-		const decor = shopDecorByMap[player.map];
+	if (isShopMap(playerMap)) {
+		const decor = shopDecorByMap[playerMap];
 		if (decor) {
 			Object.entries(decor).forEach(([pos, emoji]) => {
 				const [xStr, yStr] = pos.split(",");
 				const x = Number(xStr);
 				const y = Number(yStr);
 				if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-				const tile = activeMapLayouts[player.map]?.[y]?.[x];
+				const tile = activeMapLayouts[playerMap]?.[y]?.[x];
 				if (!tile || tile === "+" || tile === "j") return;
 				base[y][x] = emoji;
 			});
 		}
 	}
 
-	if (player.map === "cafe_shop" && isOrdering) {
+	if (playerMap === "cafe_shop" && isOrdering) {
 		for (let y = 0; y < base.length; y += 1) {
 			for (let x = 0; x < base[y]!.length; x += 1) {
 				if (base[y]![x] === "j") base[y]![x] = ".";
@@ -327,13 +281,11 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		base[2]![cafeShopkeeperX] = "j";
 	}
 
-	if (player.map === "house" && isBathing) {
+	if (playerMap === "house" && isBathing) {
 		base[1]![1] = "V";
-	} else {
-		base[player.y][player.x] = "P";
 	}
 
-	if (fishing && fishing.map === player.map) {
+	if (fishing && fishing.map === playerMap) {
 		if (fishing.phase === "waiting") base[fishing.y][fishing.x] = "b";
 		else if (fishing.phase === "bite") base[fishing.y][fishing.x] = "F";
 	}

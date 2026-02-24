@@ -1,6 +1,24 @@
-import { gotAllClothesDialog, gotAllToolsDialog, tractorDeliveryLine, vendorGreetings } from "../content/dialog";
-import { animalDefs, cropDefs, itemIcons, itemNames, purchasableAnimalTypes, standardCropIds } from "../content/catalog";
-import { cafeMenuItems, clothingShopItems, HEADLAMP_PRICE, TRACTOR_IRON_COST, TRACTOR_PRICE } from "../config/gameplay";
+import {
+	gotAllClothesDialog,
+	gotAllToolsDialog,
+	tractorDeliveryLine,
+	vendorGreetings,
+} from "../content/dialog";
+import {
+	animalDefs,
+	cropDefs,
+	itemIcons,
+	itemNames,
+	purchasableAnimalTypes,
+	standardCropIds,
+} from "../content/catalog";
+import {
+	cafeMenuItems,
+	clothingShopItems,
+	HEADLAMP_PRICE,
+	TRACTOR_IRON_COST,
+	TRACTOR_PRICE,
+} from "../config/gameplay";
 import { GLYPH } from "../config/glyphs";
 import { getMarketBasePrice, getMarketSellPrice } from "./commerce";
 import {
@@ -51,7 +69,21 @@ type VendorContext = {
 	playBad: () => void;
 	playChaChing: () => void;
 	closeMenu: () => void;
-	openMenu: (title: string, body: string[], options: Array<{ label: string; onSelect: () => void; info?: string[]; dealMeta?: { itemId: ItemId; mode: "buy" | "sell"; unitPrice?: number; baseUnitPrice?: number } }>) => void;
+	openMenu: (
+		title: string,
+		body: string[],
+		options: Array<{
+			label: string;
+			onSelect: () => void;
+			info?: string[];
+			dealMeta?: {
+				itemId: ItemId;
+				mode: "buy" | "sell";
+				unitPrice?: number;
+				baseUnitPrice?: number;
+			};
+		}>,
+	) => void;
 	openQuantityPrompt: (cfg: {
 		mode: "buy" | "sell";
 		itemLabel: string;
@@ -59,7 +91,11 @@ type VendorContext = {
 		unitPrice: number;
 		onConfirm: (quantity: number) => void;
 	}) => void;
-	startCafeOrder: (item: { name: string; price: number; stamina: number }) => void;
+	startCafeOrder: (item: {
+		name: string;
+		price: number;
+		stamina: number;
+	}) => void;
 	countOpenBarnTiles: (occupied: Record<number, Point>) => number;
 	nextOpenBarnTile: (occupied: Record<number, Point>) => Point | null;
 	setOwnedWardrobeLooks: (updater: (prev: string[]) => string[]) => void;
@@ -67,8 +103,12 @@ type VendorContext = {
 	setPendingTractorDelivery: (value: boolean) => void;
 	setHasHeadlamp: (value: boolean) => void;
 	setAnimals: (updater: (prev: Animal[]) => Animal[]) => void;
-	setAnimalTiles: (updater: (prev: Record<number, Point>) => Record<number, Point>) => void;
-	setAnimalAnchors: (updater: (prev: Record<number, Point>) => Record<number, Point>) => void;
+	setAnimalTiles: (
+		updater: (prev: Record<number, Point>) => Record<number, Point>,
+	) => void;
+	setAnimalAnchors: (
+		updater: (prev: Record<number, Point>) => Record<number, Point>,
+	) => void;
 };
 
 const withBack = (closeMenu: () => void) => ({
@@ -77,7 +117,10 @@ const withBack = (closeMenu: () => void) => ({
 	onSelect: closeMenu,
 });
 
-const speakVendorGreeting = (randomInt: (min: number, max: number) => number, speakNpcLine: (line: string) => void) => {
+const speakVendorGreeting = (
+	randomInt: (min: number, max: number) => number,
+	speakNpcLine: (line: string) => void,
+) => {
 	const line = vendorGreetings[randomInt(0, vendorGreetings.length - 1)]!;
 	speakNpcLine(line);
 };
@@ -122,10 +165,10 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 	} = ctx;
 
 	if (key === "seed_vendor") {
-		const cropList = standardCropIds.map((cropId) => [cropId, cropDefs[cropId]]) as [
-			CropId,
-			CropDef,
-		][];
+		const cropList = standardCropIds.map((cropId) => [
+			cropId,
+			cropDefs[cropId],
+		]) as [CropId, CropDef][];
 		speakVendorGreeting(randomInt, speakNpcLine);
 		openMenu(
 			"Seed Vendor",
@@ -231,8 +274,14 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 						`Current Sell Value: $${prices[def.productItem]}`,
 					],
 					onSelect: () => {
-						const capacityRemaining = Math.max(0, barnAnimalCap - animals.length);
-						const openSlots = Math.min(capacityRemaining, countOpenBarnTiles(animalTiles));
+						const capacityRemaining = Math.max(
+							0,
+							barnAnimalCap - animals.length,
+						);
+						const openSlots = Math.min(
+							capacityRemaining,
+							countOpenBarnTiles(animalTiles),
+						);
 						openQuantityPrompt({
 							mode: "buy",
 							itemLabel: def.name,
@@ -284,7 +333,8 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 			(item) => !ownedWardrobeLooks.includes(item.look),
 		);
 		if (availableLooks.length === 0) {
-			const line = gotAllClothesDialog[randomInt(0, gotAllClothesDialog.length - 1)]!;
+			const line =
+				gotAllClothesDialog[randomInt(0, gotAllClothesDialog.length - 1)]!;
 			speakNpcLine(line);
 			addLog(line);
 			return true;
@@ -326,13 +376,21 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 			"fishingRod",
 			"smashAxe",
 		];
-		const upgradableTools = toolOrder.filter((toolId) => tools[toolId] < TOOL_MAX_LEVEL);
+		const upgradableTools = toolOrder.filter(
+			(toolId) => tools[toolId] < TOOL_MAX_LEVEL,
+		);
 		const tractorAvailable = !hasTractor && !pendingTractorDelivery;
 		const headlampUnlocked = unlockFlags.headlampVendorStock;
 		const headlampAvailable = !hasHeadlamp && headlampUnlocked;
 		const headlampLocked = !hasHeadlamp && !headlampUnlocked;
-		if (upgradableTools.length === 0 && !tractorAvailable && !headlampAvailable && !headlampLocked) {
-			const line = gotAllToolsDialog[randomInt(0, gotAllToolsDialog.length - 1)]!;
+		if (
+			upgradableTools.length === 0 &&
+			!tractorAvailable &&
+			!headlampAvailable &&
+			!headlampLocked
+		) {
+			const line =
+				gotAllToolsDialog[randomInt(0, gotAllToolsDialog.length - 1)]!;
 			speakNpcLine(line);
 			addLog(line);
 			return true;
@@ -349,8 +407,11 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 					const price = getToolUpgradePrice(toolId, nextLevel);
 					const ironCost = getToolUpgradeIronCost(toolId, nextLevel);
 					const gemCost = getToolUpgradeGemCost(toolId, nextLevel);
-					const inlineIronLabel = ironCost > 0 ? ` + ${GLYPH.rock}x${ironCost}` : "";
-					const inlineGemLabel = gemCost ? ` + ${itemIcons[gemCost.item]}x${gemCost.qty}` : "";
+					const inlineIronLabel =
+						ironCost > 0 ? ` + ${GLYPH.rock}x${ironCost}` : "";
+					const inlineGemLabel = gemCost
+						? ` + ${itemIcons[gemCost.item]}x${gemCost.qty}`
+						: "";
 					return {
 						label: atMax
 							? `${getToolTierName(level)} ${toolNames[toolId]} (MAX)`
@@ -381,7 +442,9 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 							}
 							if (gemCost && inventory[gemCost.item] < gemCost.qty) {
 								playBad();
-								addLog(`Not enough ${itemNames[gemCost.item]} for that upgrade.`);
+								addLog(
+									`Not enough ${itemNames[gemCost.item]} for that upgrade.`,
+								);
 								closeMenu();
 								return;
 							}
@@ -455,7 +518,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 				...(headlampLocked
 					? [
 							{
-								label: "Headlamp \uD83D\uDCA1 (Locked)",
+								label: "???", // This is not a corrupted emoji. I actually want question marks here
 								info: ["Unlocks after reaching Forest Lv5 or Cave Lv5."],
 								onSelect: () => {
 									playBad();
