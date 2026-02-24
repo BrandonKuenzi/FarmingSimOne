@@ -10,7 +10,10 @@ import type { GameRuntimeViewModel } from "./viewModel";
 import { BUREAUCRACY_EXIT_POS } from "../world/layout";
 import { GLYPH } from "../config/glyphs";
 import {
+	CAMERA_FOLLOW_ANIMATION_EASE,
 	CAMERA_FOLLOW_MS,
+	CLOUD_DRIFT_ANIMATION_EASE,
+	CLOUD_WOOSH_ANIMATION_EASE,
 	POSITION_ANIMATION_EASE,
 	POSITION_ANIMATION_MS,
 } from "../config/visualMotion";
@@ -157,6 +160,8 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 	const prevZoomRef = useRef(mapZoom);
 	const prevCloudZoomRef = useRef(mapZoom);
 	const prevEntityMapRef = useRef(player.map);
+	const cloudDriftRef = useRef<HTMLDivElement | null>(null);
+	const cloudVerticalOffsetRef = useRef(0);
 	const prevPlayerTileRef = useRef({
 		map: player.map,
 		x: player.x,
@@ -168,7 +173,6 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		y: player.y,
 	});
 	const [isZoomAnchoring, setIsZoomAnchoring] = useState(false);
-	const [cloudVerticalOffsetPct, setCloudVerticalOffsetPct] = useState(0);
 	const [cloudWhooshById, setCloudWhooshById] = useState<
 		Record<number, { x: number; y: number }>
 	>({});
@@ -223,14 +227,20 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		if (isZoomAnchoring) return;
 		const scrollRange = mapEl.scrollHeight - mapEl.clientHeight;
 		if (scrollRange <= 0) {
-			setCloudVerticalOffsetPct((prev) => (prev === 0 ? prev : 0));
+			if (cloudVerticalOffsetRef.current === 0) return;
+			cloudVerticalOffsetRef.current = 0;
+			if (cloudDriftRef.current) {
+				cloudDriftRef.current.style.transform = "translateY(0%)";
+			}
 			return;
 		}
 		const ratio = Math.min(1, Math.max(0, mapEl.scrollTop / scrollRange));
 		const nextOffset = -ratio * CLOUD_VERTICAL_SCROLL_RANGE_PCT;
-		setCloudVerticalOffsetPct((prev) =>
-			Math.abs(prev - nextOffset) < 0.05 ? prev : nextOffset,
-		);
+		if (Math.abs(cloudVerticalOffsetRef.current - nextOffset) < 0.05) return;
+		cloudVerticalOffsetRef.current = nextOffset;
+		if (cloudDriftRef.current) {
+			cloudDriftRef.current.style.transform = `translateY(${nextOffset}%)`;
+		}
 	};
 
 	const movingEntities = useMemo<VisualMover[]>(() => {
@@ -354,13 +364,197 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		toVisual,
 	]);
 
-	const movingEntityTileKeys = useMemo(() => {
-		const set = new Set<string>();
-		movingEntities.forEach((entity) => {
-			set.add(keyForPos(entity.x, entity.y));
-		});
-		return set;
-	}, [movingEntities, keyForPos]);
+	const mapTileRows = useMemo(
+		() =>
+			renderedMap.map((row, y) => (
+				<div
+					key={`row-${y}`}
+					className='map-row'
+				>
+					{row.map((cell, x) => {
+						const tileKey = keyForPos(x, y);
+						const plot = player.map === "farm" ? plots[tileKey] : null;
+						const rainyFarmSoil =
+							player.map === "farm" && currentWeather === "rainy";
+						const groundTile = plot
+							? ";"
+							: (activeMapLayouts[player.map]?.[y]?.[x] ?? ".");
+						const effectiveCell = cell;
+						const groundClassBase =
+							plot && player.map === "farm"
+								? plot.watered || rainyFarmSoil
+									? "tile-soil-wet"
+									: "tile-soil-dry"
+								: groundClassForTile(groundTile, player.map);
+						const isShopDecorTile =
+							isShopMap(player.map) && !!shopDecorByMap[player.map]?.[tileKey];
+						const doorGroundClass =
+							effectiveCell === "+"
+								? isFarmHouseDoorTile(player.map, x, y)
+									? "tile-floor"
+									: (getDoorGroundClass(player.map, x, y) ??
+										(player.map === "forest" ? "tile-grass" : undefined) ??
+										(player.map === "house" ? "tile-floor" : undefined))
+								: undefined;
+						const groundClass =
+							doorGroundClass ??
+							(!groundClassBase &&
+							player.map === "house" &&
+							(effectiveCell === "d" || effectiveCell === "w")
+								? "tile-floor"
+								: groundClassBase);
+						const visual = isShopDecorTile
+							? {
+									glyph: effectiveCell,
+									className: groundClassBase ?? "tile-floor",
+								}
+							: player.map === "bureaucracy_office" &&
+								  x === BUREAUCRACY_EXIT_POS.x &&
+								  y === BUREAUCRACY_EXIT_POS.y + 2
+								? { glyph: GLYPH.earth, className: "tile-earth-dim" }
+								: player.map === "bureaucracy_office" && effectiveCell === "j"
+									? { glyph: GLYPH.officeWorker, className: "tile-floor" }
+									: player.map === "bureaucracy_office" && effectiveCell === "x"
+										? { glyph: GLYPH.brownSquare, className: "tile-floor" }
+										: waterRefillTile &&
+											  waterRefillTile.map === player.map &&
+											  waterRefillTile.x === x &&
+											  waterRefillTile.y === y
+											? {
+													glyph: GLYPH.pouringLiquid,
+													className: "tile-water",
+												}
+											: effectiveCell === "b" &&
+												  fishing?.phase === "waiting" &&
+												  fishing.map === player.map &&
+												  fishing.x === x &&
+												  fishing.y === y
+												? {
+														glyph: ".",
+														className: "tile-water tile-fishing-bobber",
+													}
+												: effectiveCell === "F" && fishing?.phase === "bite"
+													? {
+															glyph: GLYPH.fish,
+															className: "tile-water tile-fishing-catch",
+															overlayGlyph: fishing.requiredKey.toUpperCase(),
+														}
+													: effectiveCell === "~" &&
+														  isRippleWaterTile(player.map, x, y)
+														? {
+																glyph: waterRipplePhase ? "-" : "--",
+																className: "tile-water tile-ripple",
+															}
+														: effectiveCell === "," &&
+															  isAnimatedGrassTile(player.map, x, y)
+															? {
+																	glyph: "|",
+																	className: `tile-grass tile-foliage tile-foliage-${grassFoliageVariant(player.map, x, y)}`,
+																}
+															: effectiveCell === "/" &&
+																  player.map === "cave" &&
+																  caveLadderPos &&
+																  caveLadderPos.x === x &&
+																  caveLadderPos.y === y
+																? {
+																		glyph: GLYPH.ladder,
+																		className: "tile-cave-next-ladder",
+																	}
+																: player.map === "cave" && effectiveCell === ")"
+																	? caveRubble[tileKey]
+																		? {
+																				glyph: caveRubble[tileKey]!,
+																				className:
+																					"tile-cave-path tile-cave-rubble",
+																			}
+																		: toVisual(effectiveCell)
+																	: toVisual(effectiveCell);
+						const withGround =
+							groundClass &&
+							!visual.className &&
+							spriteTilesNeedingGround.has(effectiveCell)
+								? { ...visual, className: groundClass }
+								: plot && effectiveCell === ";"
+									? {
+											...visual,
+											className: groundClass ?? visual.className,
+										}
+									: visual;
+						const isPetGlyphCell =
+							effectiveCell === "@" ||
+							effectiveCell === "%" ||
+							effectiveCell === "&" ||
+							effectiveCell === "?";
+						const shouldFlipGlyph = isPetGlyphCell && petFacing < 0;
+						return (
+							<span
+								key={`${x}-${y}`}
+								className={["tile", withGround.className ?? ""]
+									.filter(Boolean)
+									.join(" ")}
+								title={`${x},${y}`}
+								data-overlay={withGround.overlayGlyph ?? ""}
+							>
+								<span
+									className={[
+										"emoji-glyph",
+										player.map === "forest" ? "forest-emoji-glyph" : "",
+										player.map === "cave" ? "cave-emoji-glyph" : "",
+										withGround.className === "tile-cave-next-ladder"
+											? "cave-ladder-hole-glyph"
+											: "",
+										player.map === unfedAnimalMap &&
+										unfedAnimalTileKeys[tileKey]
+											? "animal-unfed-emoji-glyph"
+											: "",
+										player.map === "forest" &&
+										(effectiveCell === "T" || effectiveCell === "G")
+											? "forest-tree-emoji-glyph"
+											: "",
+									]
+										.filter(Boolean)
+										.join(" ")}
+									style={{
+										transform: shouldFlipGlyph ? "scaleX(-1)" : undefined,
+										transformOrigin: shouldFlipGlyph
+											? "center center"
+											: undefined,
+									}}
+								>
+									{withGround.glyph}
+								</span>
+							</span>
+						);
+					})}
+				</div>
+			)),
+		[
+			renderedMap,
+			player.map,
+			plots,
+			currentWeather,
+			activeMapLayouts,
+			keyForPos,
+			groundClassForTile,
+			isShopMap,
+			shopDecorByMap,
+			isFarmHouseDoorTile,
+			getDoorGroundClass,
+			waterRefillTile,
+			fishing,
+			isRippleWaterTile,
+			waterRipplePhase,
+			isAnimatedGrassTile,
+			grassFoliageVariant,
+			caveLadderPos,
+			caveRubble,
+			toVisual,
+			spriteTilesNeedingGround,
+			petFacing,
+			unfedAnimalMap,
+			unfedAnimalTileKeys,
+		],
+	);
 
 	useLayoutEffect(() => {
 		const mapEl = mapRef.current;
@@ -599,7 +793,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 				className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""} ${player.map === "bureaucracy_office" ? "map-bureaucracy" : ""}`}
 				style={{
 					fontSize: `calc(${mapZoom} * clamp(13px, 1.48vw, 24px))`,
-					transition: `font-size ${POSITION_ANIMATION_MS}ms ${POSITION_ANIMATION_EASE}`,
+					transition: `font-size ${POSITION_ANIMATION_MS}ms ${CAMERA_FOLLOW_ANIMATION_EASE}`,
 				}}
 			>
 				{player.map === "bureaucracy_office" && (
@@ -647,197 +841,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 						</div>
 					))}
 				</div>
-				{renderedMap.map((row, y) => (
-					<div
-						key={`row-${y}`}
-						className='map-row'
-					>
-						{row.map((cell, x) => {
-							const tileKey = keyForPos(x, y);
-							const plot =
-								player.map === "farm" ? plots[keyForPos(x, y)] : null;
-							const rainyFarmSoil =
-								player.map === "farm" && currentWeather === "rainy";
-							const groundTile = plot
-								? ";"
-								: (activeMapLayouts[player.map]?.[y]?.[x] ?? ".");
-							const effectiveCell = movingEntityTileKeys.has(tileKey)
-								? groundTile
-								: cell;
-							const groundClassBase =
-								plot && player.map === "farm"
-									? plot.watered || rainyFarmSoil
-										? "tile-soil-wet"
-										: "tile-soil-dry"
-									: groundClassForTile(groundTile, player.map);
-							const isShopDecorTile =
-								isShopMap(player.map) &&
-								!!shopDecorByMap[player.map]?.[tileKey];
-							const doorGroundClass =
-								effectiveCell === "+"
-									? isFarmHouseDoorTile(player.map, x, y)
-										? "tile-floor"
-										: (getDoorGroundClass(player.map, x, y) ??
-											(player.map === "forest" ? "tile-grass" : undefined) ??
-											(player.map === "house" ? "tile-floor" : undefined))
-									: undefined;
-							const groundClass =
-								doorGroundClass ??
-								(!groundClassBase &&
-								player.map === "house" &&
-								(effectiveCell === "d" || effectiveCell === "w")
-									? "tile-floor"
-									: groundClassBase);
-							const visual = isShopDecorTile
-								? {
-										glyph: effectiveCell,
-										className: groundClassBase ?? "tile-floor",
-									}
-								: player.map === "bureaucracy_office" &&
-									  x === BUREAUCRACY_EXIT_POS.x &&
-									  y === BUREAUCRACY_EXIT_POS.y + 2
-									? { glyph: GLYPH.earth, className: "tile-earth-dim" }
-									: player.map === "bureaucracy_office" && effectiveCell === "j"
-										? { glyph: GLYPH.officeWorker, className: "tile-floor" }
-										: player.map === "bureaucracy_office" &&
-											  effectiveCell === "x"
-											? { glyph: GLYPH.brownSquare, className: "tile-floor" }
-											: effectiveCell === "P"
-												? {
-														glyph: isDrivingTractor
-															? GLYPH.tractor // driving tractor
-															: fishing && fishing.phase !== "success"
-																? GLYPH.fishingPole // fishing pole mode
-																: showTiredFace
-																	? GLYPH.yawn // tired face
-																	: playerEmoji,
-													}
-												: waterRefillTile &&
-													  waterRefillTile.map === player.map &&
-													  waterRefillTile.x === x &&
-													  waterRefillTile.y === y
-													? {
-															glyph: GLYPH.pouringLiquid,
-															className: "tile-water",
-														} // refill splash icon
-													: effectiveCell === "b" &&
-														  fishing?.phase === "waiting" &&
-														  fishing.map === player.map &&
-														  fishing.x === x &&
-														  fishing.y === y
-														? {
-																glyph: ".",
-																className: "tile-water tile-fishing-bobber",
-															}
-														: effectiveCell === "F" && fishing?.phase === "bite"
-															? {
-																	glyph: GLYPH.fish, // fish bite icon
-																	className: "tile-water tile-fishing-catch",
-																	overlayGlyph:
-																		fishing.requiredKey.toUpperCase(),
-																}
-															: effectiveCell === "~" &&
-																  isRippleWaterTile(player.map, x, y)
-																? {
-																		glyph: waterRipplePhase ? "-" : "--",
-																		className: "tile-water tile-ripple",
-																	}
-																: effectiveCell === "," &&
-																	  isAnimatedGrassTile(player.map, x, y)
-																	? {
-																			glyph: "|",
-																			className: `tile-grass tile-foliage tile-foliage-${grassFoliageVariant(player.map, x, y)}`,
-																		}
-																	: effectiveCell === "/" &&
-																		  player.map === "cave" &&
-																		  caveLadderPos &&
-																		  caveLadderPos.x === x &&
-																		  caveLadderPos.y === y
-																		? {
-																				glyph: GLYPH.ladder,
-																				className: "tile-cave-next-ladder",
-																			} // next-level ladder
-																		: player.map === "cave" &&
-																			  effectiveCell === ")"
-																			? caveRubble[tileKey]
-																				? {
-																						glyph: caveRubble[tileKey]!,
-																						className:
-																							"tile-cave-path tile-cave-rubble",
-																					}
-																				: toVisual(effectiveCell)
-																			: toVisual(effectiveCell);
-							const withGround =
-								groundClass &&
-								!visual.className &&
-								spriteTilesNeedingGround.has(effectiveCell)
-									? { ...visual, className: groundClass }
-									: plot && effectiveCell === ";"
-										? {
-												...visual,
-												className: groundClass ?? visual.className,
-											}
-										: visual;
-							const isPetGlyphCell =
-								effectiveCell === "@" ||
-								effectiveCell === "%" ||
-								effectiveCell === "&" ||
-								effectiveCell === "?";
-							const isDrivenTractorCell =
-								effectiveCell === "P" && isDrivingTractor;
-							const shouldFlipGlyph =
-								(isPetGlyphCell && petFacing < 0) ||
-								(isDrivenTractorCell && tractorFacing < 0);
-							return (
-								<span
-									key={`${x}-${y}`}
-									className={[
-										"tile",
-										withGround.className ?? "",
-										effectiveCell === "P" &&
-										(player.map === "forest" || player.map === "cave") &&
-										showForestHit
-											? "tile-player-hit"
-											: "",
-									]
-										.filter(Boolean)
-										.join(" ")}
-									title={`${x},${y}`}
-									data-overlay={withGround.overlayGlyph ?? ""}
-								>
-									<span
-										className={[
-											"emoji-glyph",
-											player.map === "forest" ? "forest-emoji-glyph" : "",
-											player.map === "cave" ? "cave-emoji-glyph" : "",
-											withGround.className === "tile-cave-next-ladder"
-												? "cave-ladder-hole-glyph"
-												: "",
-											player.map === unfedAnimalMap &&
-											unfedAnimalTileKeys[tileKey]
-												? "animal-unfed-emoji-glyph"
-												: "",
-											player.map === "forest" &&
-											(effectiveCell === "T" || effectiveCell === "G")
-												? "forest-tree-emoji-glyph"
-												: "",
-										]
-											.filter(Boolean)
-											.join(" ")}
-										style={{
-											transform: shouldFlipGlyph ? "scaleX(-1)" : undefined,
-											transformOrigin: shouldFlipGlyph
-												? "center center"
-												: undefined,
-										}}
-									>
-										{withGround.glyph}
-									</span>
-								</span>
-							);
-						})}
-					</div>
-				))}
+				{mapTileRows}
 				{mapRowCount > 0 && mapColCount > 0 && (
 					<div
 						className='entity-overlay'
@@ -933,13 +937,14 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 					}}
 				>
 					<div
+						ref={cloudDriftRef}
 						style={{
 							position: "absolute",
 							inset: 0,
-							transform: `translateY(${cloudVerticalOffsetPct}%)`,
+							transform: "translateY(0%)",
 							transition: isZoomAnchoring
 								? "none"
-								: `transform ${POSITION_ANIMATION_MS}ms ${POSITION_ANIMATION_EASE}`,
+								: `transform ${POSITION_ANIMATION_MS}ms ${CLOUD_DRIFT_ANIMATION_EASE}`,
 						}}
 					>
 						{clouds.map((cloud) => (
@@ -972,7 +977,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 									className='cloud-whoosh'
 									style={{
 										transform: `translate(${cloudWhooshById[cloud.id]?.x ?? 0}px, ${cloudWhooshById[cloud.id]?.y ?? 0}px)`,
-										transition: `transform ${POSITION_ANIMATION_MS}ms ${POSITION_ANIMATION_EASE}`,
+										transition: `transform ${POSITION_ANIMATION_MS}ms ${CLOUD_WOOSH_ANIMATION_EASE}`,
 									}}
 								>
 									<span className='cloud-glyph'>{cloud.glyph}</span>

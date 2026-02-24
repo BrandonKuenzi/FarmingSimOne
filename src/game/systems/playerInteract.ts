@@ -751,7 +751,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 
 		if (player.map === animalsMap) {
 			const blockerKey = keyForPos(tx, ty);
-			if (farmForestBlockers[blockerKey]) {
+			if (player.map === "farm" && farmForestBlockers[blockerKey]) {
 				const smashAxeLevel = tools.smashAxe;
 				if (smashAxeLevel <= 0) {
 					playBad();
@@ -772,7 +772,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				}
 				return;
 			}
-			if (farmCaveBlockers[blockerKey]) {
+			if (player.map === "farm" && farmCaveBlockers[blockerKey]) {
 				const smashAxeLevel = tools.smashAxe;
 				if (smashAxeLevel <= 1) {
 					playBad();
@@ -808,7 +808,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				}
 				return;
 			}
-			if (petGraveObstacles[blockerKey]) {
+			if (player.map === "farm" && petGraveObstacles[blockerKey]) {
 				const smashAxeLevel = tools.smashAxe;
 				if (smashAxeLevel <= 1) {
 					playBad();
@@ -846,7 +846,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 			}
 			const baseTile = activeMapLayouts.farm[ty]?.[tx];
 			const plotKey = keyForPos(tx, ty);
-			if (baseTile === "," && !plots[plotKey]) {
+			if (player.map === "farm" && baseTile === "," && !plots[plotKey]) {
 				const targets = getHoeTargets(player.x, player.y, dir, tools.hoe);
 				const nextPlots: Record<string, Plot> = { ...plots };
 				let hoedCount = 0;
@@ -928,7 +928,7 @@ modal,beachBottlePos,playHoe,playYaya,prices,CORAL_FRUIT_SELL_PRICE,nextDay,hand
 				}
 				return;
 			}
-			if (plots[plotKey]) {
+			if (player.map === "farm" && plots[plotKey]) {
 				const plot = plots[plotKey];
 				if (!plot.crop) {
 					const seedOptions = allPlantableCropIds

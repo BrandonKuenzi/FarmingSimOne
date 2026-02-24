@@ -356,7 +356,10 @@ export const buildBarnLayout = (barnTier: BarnTier): string[] => {
 				for (let x = cx - rx - 1; x <= cx + rx + 1; x += 1) {
 					if (x < 0 || y < 0 || y >= height || x >= width) continue;
 					const inBarnOuter =
-						x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
+						x >= rect.x &&
+						x < rect.x + rect.w &&
+						y >= rect.y &&
+						y < rect.y + rect.h;
 					if (inBarnOuter) continue;
 					const nx = (x - cx) / Math.max(1, rx);
 					const ny = (y - cy) / Math.max(1, ry);
@@ -369,14 +372,20 @@ export const buildBarnLayout = (barnTier: BarnTier): string[] => {
 		}
 
 		const leftBlobCx = Math.max(3, rect.x - 8 + randomInt(-1, 1));
-		const rightBlobCx = Math.min(width - 4, rect.x + rect.w + 8 + randomInt(-1, 1));
+		const rightBlobCx = Math.min(
+			width - 4,
+			rect.x + rect.w + 8 + randomInt(-1, 1),
+		);
 		const blobCy = rect.y + Math.floor(rect.h / 2) + randomInt(-1, 1);
 		const carveGrassBlob = (cx: number, cy: number, rx: number, ry: number) => {
 			for (let y = cy - ry - 2; y <= cy + ry + 2; y += 1) {
 				for (let x = cx - rx - 2; x <= cx + rx + 2; x += 1) {
 					if (x < 1 || y < 1 || y >= height - 1 || x >= width - 1) continue;
 					const inBarnOuter =
-						x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
+						x >= rect.x &&
+						x < rect.x + rect.w &&
+						y >= rect.y &&
+						y < rect.y + rect.h;
 					if (inBarnOuter) continue;
 					const nx = (x - cx) / Math.max(1, rx);
 					const ny = (y - cy) / Math.max(1, ry);
@@ -459,12 +468,12 @@ export const buildBarnLayout = (barnTier: BarnTier): string[] => {
 					grid[height - 1]![x] = "T";
 				}
 			}
-			grid[height - 2]![centerX - 1] = ",";
-			grid[height - 2]![centerX] = ",";
-			grid[height - 2]![centerX + 1] = ",";
-			grid[height - 1]![centerX - 1] = ",";
-			grid[height - 1]![centerX] = ",";
-			grid[height - 1]![centerX + 1] = ",";
+			grid[height - 2]![centerX + 7] = ",";
+			grid[height - 2]![centerX + 8] = ",";
+			grid[height - 2]![centerX + 9] = ",";
+			grid[height - 1]![centerX + 7] = ",";
+			grid[height - 1]![centerX + 8] = ",";
+			grid[height - 1]![centerX + 9] = ",";
 
 			const pondSize = 16;
 			for (let py = 0; py < pondSize; py += 1) {
@@ -473,7 +482,7 @@ export const buildBarnLayout = (barnTier: BarnTier): string[] => {
 					const y = py;
 					if (x < pastureLeft || x >= width - 2) continue;
 					if (y < 2 || y >= height - 2) continue;
-					const distFromCorner = (pondSize - 1 - px) + py;
+					const distFromCorner = pondSize - 1 - px + py;
 					if (distFromCorner <= pondSize - 1) {
 						grid[y]![x] = "~";
 					}
@@ -511,10 +520,14 @@ export const buildBarnLayout = (barnTier: BarnTier): string[] => {
 
 	paintRect(grid, rect.x, rect.y, rect.w, rect.h, "#");
 	paintRect(grid, rect.x + 1, rect.y + 1, interior.width, interior.height, ".");
-	if (isBarnExternal(barnTier)) {
+	if (barnTier === 4) {
 		grid[doorY]![centerX - 1] = ",";
 		grid[doorY]![centerX] = ",";
 		grid[doorY]![centerX + 1] = ",";
+	} else if (barnTier == 5) {
+		grid[doorY]![centerX + 7] = ",";
+		grid[doorY]![centerX + 8] = ",";
+		grid[doorY]![centerX + 9] = ",";
 	} else {
 		grid[doorY]![centerX - 1] = "+";
 		grid[doorY]![centerX] = "+";
@@ -522,8 +535,14 @@ export const buildBarnLayout = (barnTier: BarnTier): string[] => {
 	}
 	if (isBarnExternal(barnTier)) {
 		const sideDoorHeight = barnTier === 5 ? 21 : 10;
-		const sideTop = Math.max(rect.y + 1, rect.y + Math.floor((rect.h - sideDoorHeight) / 2));
-		const sideBottom = Math.min(rect.y + rect.h - 2, sideTop + sideDoorHeight - 1);
+		const sideTop = Math.max(
+			rect.y + 1,
+			rect.y + Math.floor((rect.h - sideDoorHeight) / 2),
+		);
+		const sideBottom = Math.min(
+			rect.y + rect.h - 2,
+			sideTop + sideDoorHeight - 1,
+		);
 		for (let y = sideTop; y <= sideBottom; y += 1) {
 			if (barnTier !== 5) {
 				grid[y]![rect.x] = ".";
@@ -614,7 +633,8 @@ export const buildBureaucracyOfficeLayout = (): string[] => {
 	const roomBottom = 11;
 	for (let y = roomTop; y <= roomBottom; y += 1) {
 		for (let x = roomLeft; x <= roomRight; x += 1) {
-			const onWall = x === roomLeft || x === roomRight || y === roomTop || y === roomBottom;
+			const onWall =
+				x === roomLeft || x === roomRight || y === roomTop || y === roomBottom;
 			grid[y]![x] = onWall ? "#" : ".";
 		}
 	}
@@ -675,13 +695,15 @@ export const mapTiles: Record<MapId, Tile[][]> = Object.fromEntries(
 				if (c === ";") return soil;
 				if (c === "~") return water;
 				if (c === "_") return { icon: "_", passable: true, label: "Gravel" };
-				if (c === "^") return { icon: "^", passable: true, label: "Forest Gap" };
+				if (c === "^")
+					return { icon: "^", passable: true, label: "Forest Gap" };
 				if (c === "<" || c === ">" || c === "*") {
 					return { icon: c, passable: false, label: "Cave Wall" };
 				}
 				if (c === "/") return { icon: c, passable: true, label: "Ladder" };
 				if (c === "U") return { icon: "U", passable: false, label: "Bath" };
-				if (c === "T") return { icon: "T", passable: false, label: "Pine Tree" };
+				if (c === "T")
+					return { icon: "T", passable: false, label: "Pine Tree" };
 				if (c === "G") return { icon: "G", passable: false, label: "Tree" };
 				if (c === "O") return { icon: "O", passable: false, label: "Rock" };
 				if (c === "+") return { icon: "+", passable: true, label: "Door" };
@@ -693,10 +715,13 @@ export const mapTiles: Record<MapId, Tile[][]> = Object.fromEntries(
 				if (c === "l") return { icon: c, passable: false, label: "Window" };
 				if (c === "x") return { icon: "x", passable: false, label: "Counter" };
 				if (c === "h") return { icon: "h", passable: false, label: "Chair" };
-				if (c === "j") return { icon: "j", passable: false, label: "Shopkeeper" };
+				if (c === "j")
+					return { icon: "j", passable: false, label: "Shopkeeper" };
 				if (c === "b") return { icon: "b", passable: false, label: "Builder" };
-				if ("sfa$tck".includes(c)) return { icon: c, passable: false, label: "Shop Sign" };
-				if (/[A-Z]/.test(c)) return { icon: c, passable: false, label: "Structure" };
+				if ("sfa$tck".includes(c))
+					return { icon: c, passable: false, label: "Shop Sign" };
+				if (/[A-Z]/.test(c))
+					return { icon: c, passable: false, label: "Structure" };
 				return floor;
 			}),
 		);
