@@ -42,6 +42,7 @@ type AudioSources = {
 	woofSoundSrc: string;
 	tractorSoundSrc: string;
 	sighSoundSrc: string;
+	whooshSoundSrc: string;
 };
 
 type AudioRefs = {
@@ -73,6 +74,7 @@ type AudioRefs = {
 	woofSoundRef: AudioRef;
 	tractorSoundRef: AudioRef;
 	sighSoundRef: AudioRef;
+	whooshSoundRef: AudioRef;
 	cafeOrderMusicRef: AudioRef;
 	currentAreaMusicRef: AudioRef;
 	ttsReadyRef: MutableRefObject<boolean>;
@@ -156,6 +158,8 @@ export const initializeAudioEngine = ({
 	refs.tractorSoundRef.current.loop = true;
 	refs.sighSoundRef.current = new Audio(sources.sighSoundSrc);
 	refs.sighSoundRef.current.preload = "auto";
+	refs.whooshSoundRef.current = new Audio(sources.whooshSoundSrc);
+	refs.whooshSoundRef.current.preload = "auto";
 	refs.cafeOrderMusicRef.current = new Audio(sources.cafeOrderMusicSrc);
 	refs.cafeOrderMusicRef.current.preload = "auto";
 	refs.cafeOrderMusicRef.current.loop = true;
@@ -296,6 +300,10 @@ export const createAudioActions = ({
 		playOneShot(refs.sighSoundRef.current);
 	};
 
+	const playWhoosh = () => {
+		playOneShot(refs.whooshSoundRef.current);
+	};
+
 	const speakNpcLine = (line: string) => {
 		speakLine(line, refs.ttsReadyRef.current);
 	};
@@ -322,6 +330,7 @@ export const createAudioActions = ({
 		startTractorLoop,
 		stopTractorLoop,
 		playSigh,
+		playWhoosh,
 		speakNpcLine,
 	};
 };

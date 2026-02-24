@@ -256,7 +256,7 @@ body {
 .cloud-overlay {
 	position: absolute;
 	inset: 0;
-	z-index: 6;
+	z-index: 30;
 	pointer-events: none;
 	overflow: hidden;
 }
@@ -275,6 +275,19 @@ body {
   z-index: 20;
   pointer-events: none;
   line-height: 1;
+}
+
+.entity-overlay {
+	position: absolute;
+	z-index: 10;
+	pointer-events: none;
+}
+
+.entity-overlay .tile-entity {
+	position: absolute;
+	left: 0;
+	top: 0;
+	will-change: transform;
 }
 
 .fog-tile {
@@ -298,6 +311,12 @@ body {
 	display: block;
 	line-height: 1;
 	filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));
+}
+
+.cloud-whoosh {
+	position: relative;
+	display: block;
+	will-change: transform;
 }
 
 .cloud-shadow {

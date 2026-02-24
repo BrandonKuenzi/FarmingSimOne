@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useReducer, useRef, useState, type SetStateAction } from "react";
+import {
+	useEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useState,
+	type KeyboardEvent,
+	type SetStateAction,
+} from "react";
 import bgMusicSrc from "../../assets/bgMusic.mp3";
 import bgFarmSrc from "../../assets/bgFarm.ogg";
 import townBGSrc from "../../assets/GameBananaFeildloop.mp3";
@@ -28,6 +36,7 @@ import meowSoundSrc from "../../assets/meow.m4a";
 import woofSoundSrc from "../../assets/woof.m4a";
 import tractorSoundSrc from "../../assets/tractor.wav";
 import sighSoundSrc from "../../assets/sigh.m4a";
+import whooshSoundSrc from "../../assets/whoosh.m4a";
 import {
 	generateDailyAssignmentsForNpcs,
 	generateNpcDialogLine,
@@ -104,7 +113,12 @@ import {
 	mapLayouts,
 	mapTiles,
 } from "../world/layout";
-import { doors, isShopMap, vendorByShopMap, vendorShopMapByKey } from "../world/navigation";
+import {
+	doors,
+	isShopMap,
+	vendorByShopMap,
+	vendorShopMapByKey,
+} from "../world/navigation";
 import {
 	buildCaveRubble,
 	generateCaveState,
@@ -124,6 +138,7 @@ import {
 	petOptions,
 	SKETCHY_CRATE_POS,
 	SKETCHY_MERCHANT_POS,
+	TOWN_NPC_GRASS_ROW_Y,
 	townNpcAnchors,
 	townNpcNames,
 	TRADER_BOX_POS,
@@ -131,16 +146,18 @@ import {
 	TRADER_POS,
 } from "../world/npcs";
 import { isPassableChar } from "../world/passability";
-import { nextAnimalTile, nextBoatTile, nextTownNpcTile } from "../systems/movement";
+import {
+	nextAnimalTile,
+	nextBoatTile,
+	nextTownNpcTile,
+} from "../systems/movement";
 import { interactVendorMenu } from "../systems/vendors";
 import { interactBuilderVendorMenu } from "../systems/builder";
 import {
 	clearFishingTimers as clearFishingTimersSystem,
 	startFishingSequence,
 } from "../systems/fishing";
-import {
-	rollBeachBottleReward,
-} from "../systems/rewards";
+import { rollBeachBottleReward } from "../systems/rewards";
 import { getFogTargetOpacity } from "../systems/vision";
 import {
 	cancelQuantityPrompt as cancelQuantityPromptMenu,
@@ -162,7 +179,10 @@ import {
 	getMarketBasePrice,
 	getMarketSellPrice,
 } from "../systems/commerce";
-import { evolveFarmWeeds, generateInitialFarmWeedField } from "../systems/weeds";
+import {
+	evolveFarmWeeds,
+	generateInitialFarmWeedField,
+} from "../systems/weeds";
 import { randomWeather, weatherEmojiById } from "../systems/weather";
 import {
 	buildUnlockFlagsFromProgress,
@@ -195,8 +215,15 @@ import { createServiceOrderActions } from "../systems/serviceOrders";
 import { renderGameRuntimeView } from "../ui/GameRuntimeView";
 import type { GameRuntimeViewModel } from "../ui/viewModel";
 import { createAreaMusicController } from "./areaMusic";
-import type { BoatTileMap, GameStateActions, GameStateSnapshot } from "./contracts";
-import { createAudioActions, initializeAudioEngine } from "./engine/audioEngine";
+import type {
+	BoatTileMap,
+	GameStateActions,
+	GameStateSnapshot,
+} from "./contracts";
+import {
+	createAudioActions,
+	initializeAudioEngine,
+} from "./engine/audioEngine";
 import {
 	continueAfterSleep as continueAfterSleepEngine,
 	playDayTransitionEarnedSfx,
@@ -313,10 +340,19 @@ import {
 	townBeachBottleTiles,
 	vendorMenuTitles,
 } from "../config/gameplay";
-import { groundClassForTile, spriteTilesNeedingGround, toVisual } from "../config/visuals";
+import { POSITION_ANIMATION_MS } from "../config/visualMotion";
+import {
+	groundClassForTile,
+	spriteTilesNeedingGround,
+	toVisual,
+} from "../config/visuals";
 import { GLYPH } from "../config/glyphs";
 import { applyMoneyDeltaState, updateInventoryState } from "../state/actions";
-import { gameStateReducer, type GameState, type GameStateAction } from "../state/gameState";
+import {
+	gameStateReducer,
+	type GameState,
+	type GameStateAction,
+} from "../state/gameState";
 import {
 	fromSaveGameData,
 	parseSaveGame,
@@ -329,8 +365,16 @@ const BUREAUCRACY_SPAWN = {
 	x: BUREAUCRACY_ENTRY_POS.x,
 	y: BUREAUCRACY_ENTRY_POS.y,
 };
-const DEFAULT_MAP_ZOOM = 1.75;
-const DIRECTOR_DEFAULT_FOCUS_ZOOM = 2.5;
+const DEFAULT_MAP_ZOOM = 1.5;
+const MANUAL_ZOOM_MIN = 1;
+const MANUAL_ZOOM_MAX = 2.25;
+const MANUAL_ZOOM_MID = DEFAULT_MAP_ZOOM;
+const MANUAL_ZOOM_LEVELS = [
+	MANUAL_ZOOM_MIN,
+	MANUAL_ZOOM_MID,
+	MANUAL_ZOOM_MAX,
+] as const;
+const DIRECTOR_DEFAULT_FOCUS_ZOOM = MANUAL_ZOOM_MAX + 0.25;
 const DIRECTOR_NAV_DURATION_MS = 2250;
 const DIRECTOR_RETURN_DURATION_MS = 1650;
 const DIRECTOR_RETURN_SETTLE_MS = 180;
@@ -420,6 +464,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const woofSoundRef = useRef<HTMLAudioElement | null>(null);
 	const tractorSoundRef = useRef<HTMLAudioElement | null>(null);
 	const sighSoundRef = useRef<HTMLAudioElement | null>(null);
+	const whooshSoundRef = useRef<HTMLAudioElement | null>(null);
 	const cafeOrderMusicRef = useRef<HTMLAudioElement | null>(null);
 	const currentAreaMusicRef = useRef<HTMLAudioElement | null>(null);
 	const musicFadeIntervalRef = useRef<number | null>(null);
@@ -470,7 +515,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			lastTurn: 0,
 		}),
 	);
-		const startedRef = useRef(false);
+	const startedRef = useRef(false);
 	const forestSnakeDirsRef = useRef<Record<number, SnakePatrolState>>(
 		makeSnakeDirections(initialForestStateRef.current.enemies),
 	);
@@ -487,18 +532,26 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		(): GameState => {
 			const farmForestBlockers = {
 				...Object.fromEntries(
-					FARM_FOREST_BLOCKER_POSITIONS.map((pos) => [keyForPos(pos.x, pos.y), true]),
+					FARM_FOREST_BLOCKER_POSITIONS.map((pos) => [
+						keyForPos(pos.x, pos.y),
+						true,
+					]),
 				),
 				...initialFarmExpansionBlockers.wood,
 			};
 			const farmCaveBlockers = {
 				...Object.fromEntries(
-					FARM_CAVE_BLOCKER_POSITIONS.map((pos) => [keyForPos(pos.x, pos.y), 24]),
+					FARM_CAVE_BLOCKER_POSITIONS.map((pos) => [
+						keyForPos(pos.x, pos.y),
+						24,
+					]),
 				),
 				...initialFarmExpansionBlockers.stone,
 			};
 			return {
-				player: bootSaveJson ? { ...BUREAUCRACY_SPAWN } : { map: "farm", x: 6, y: 10 },
+				player: bootSaveJson
+					? { ...BUREAUCRACY_SPAWN }
+					: { map: "farm", x: 6, y: 10 },
 				day: 1,
 				forestLayout: initialForestStateRef.current.layout,
 				forestEnemies: initialForestStateRef.current.enemies,
@@ -549,7 +602,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 							out[mapId] = slots;
 							return;
 						}
-						const placementCount = Math.min(shopDecorSlots.length, randomInt(2, 4));
+						const placementCount = Math.min(
+							shopDecorSlots.length,
+							randomInt(2, 4),
+						);
 						const chosenSlots = [...shopDecorSlots]
 							.sort(() => randomRoll() - 0.5)
 							.slice(0, placementCount);
@@ -569,7 +625,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				animals: [],
 				prices: initialPrices,
 				priceTrends: initialPriceTrends,
-				newspaper: "Sleep to start a new day and generate today's market newspaper.",
+				newspaper:
+					"Sleep to start a new day and generate today's market newspaper.",
 				log: ["Welcome to your farm."],
 				modal: null,
 				modalIndex: 0,
@@ -611,7 +668,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				waterRefillTile: null,
 				starterChestOpened: false,
 				beachBottlePos: rollBeachBottleSpawn(townBeachBottleTiles, randomInt),
-				beachShellDrops: rollBeachShellDrops(townBeachBottleTiles, keyForPos, randomInt),
+				beachShellDrops: rollBeachShellDrops(
+					townBeachBottleTiles,
+					keyForPos,
+					randomInt,
+				),
 				sketchyMerchantActive: randomRoll() < 0.25,
 				sketchyMerchantStock: generateSketchyMerchantStock(initialPrices),
 				traderActive: randomRoll() < 0.5,
@@ -626,7 +687,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				petHeartTile: null,
 				townNpcTiles: townNpcAnchors,
 				boatTiles: initialBoatTiles,
-				npcDailyAssignments: generateDailyAssignmentsForNpcs(Object.keys(townNpcNames)),
+				npcDailyAssignments: generateDailyAssignmentsForNpcs(
+					Object.keys(townNpcNames),
+				),
 				npcTalkedToday: {},
 				fishing: null,
 				isOrdering: false,
@@ -663,7 +726,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		smooth: boolean;
 		durationMs?: number;
 	} | null>(null);
-	const [directorPopup, setDirectorPopup] = useState<{ message: string } | null>(null);
+	const [directorPopup, setDirectorPopup] = useState<{
+		message: string;
+	} | null>(null);
 	const [directorInputLocked, setDirectorInputLocked] = useState(false);
 	const [cloudOverlayVisible, setCloudOverlayVisible] = useState(true);
 	const {
@@ -793,6 +858,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const directorConfirmRef = useRef<(() => void) | null>(null);
 	const directorTimersRef = useRef<number[]>([]);
 	const playerRef = useRef(player);
+	const playerMoveUnlockAtRef = useRef(0);
+	const prevZoomWhooshRef = useRef(mapZoom);
+	const heldMoveDirRef = useRef<Dir | null>(null);
+	const heldMoveKeyRef = useRef<string | null>(null);
+	const heldMoveTimerRef = useRef<number | null>(null);
 	const animalsRef = useRef(animals);
 	const animalTilesRef = useRef(animalTiles);
 	const animalAnchorsRef = useRef(animalAnchors);
@@ -809,7 +879,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		setterCacheRef.current.set(key, next);
 		return next;
 	};
-	const dispatchBatch: NonNullable<GameStateActions["dispatchBatch"]> = (updates) => {
+	const dispatchBatch: NonNullable<GameStateActions["dispatchBatch"]> = (
+		updates,
+	) => {
 		dispatch({ type: "batch", updates });
 	};
 	const setPlayer = setForKey("player");
@@ -937,7 +1009,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const width = activeMapRows[0]?.length ?? 0;
 	const height = activeMapRows.length;
 	const canSaveGame = player.map === "farm" || player.map === "town";
-	const headlampLetterVisible = unlockFlags.headlampVendorStock && !headlampLetterRead;
+	const headlampLetterVisible =
+		unlockFlags.headlampVendorStock && !headlampLetterRead;
 	const saveDisabledMessage = canSaveGame
 		? null
 		: player.map === "bureaucracy_office"
@@ -984,7 +1057,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				...BARN_EXTERIOR_ENTRY_XS.map((x) => ({
 					x,
 					y: BARN_EXTERIOR_ENTRY_Y,
-					target: { map: "barn" as MapId, x: barnSpawnPoint.x, y: barnSpawnPoint.y },
+					target: {
+						map: "barn" as MapId,
+						x: barnSpawnPoint.x,
+						y: barnSpawnPoint.y,
+					},
 					label: "Barn Entrance",
 				})),
 			];
@@ -1050,6 +1127,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				woofSoundRef,
 				tractorSoundRef,
 				sighSoundRef,
+				whooshSoundRef,
 				cafeOrderMusicRef,
 				currentAreaMusicRef,
 				ttsReadyRef,
@@ -1084,6 +1162,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				woofSoundSrc,
 				tractorSoundSrc,
 				sighSoundSrc,
+				whooshSoundSrc,
 			},
 		});
 	}, []);
@@ -1110,6 +1189,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		startTractorLoop,
 		stopTractorLoop,
 		playSigh,
+		playWhoosh,
 		speakNpcLine,
 	} = createAudioActions({
 		refs: {
@@ -1141,6 +1221,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			woofSoundRef,
 			tractorSoundRef,
 			sighSoundRef,
+			whooshSoundRef,
 			cafeOrderMusicRef,
 			currentAreaMusicRef,
 			ttsReadyRef,
@@ -1150,6 +1231,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		tiredFaceTimeoutRef,
 		setShowTiredFace,
 	});
+
+	useEffect(() => {
+		const zoomChanged = Math.abs(prevZoomWhooshRef.current - mapZoom) > 0.001;
+		prevZoomWhooshRef.current = mapZoom;
+		if (zoomChanged) playWhoosh();
+	}, [mapZoom]);
 
 	useEffect(() => {
 		if (startedRef.current) return;
@@ -1385,7 +1472,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (dayTransition) return;
 		if (bootSaveJson && !bootSaveHandledRef.current) return;
 		switchAreaMusic(getAreaMusicForMap(player.map), false);
-	}, [player.map, forestIsBonusLevel, caveIsBonusLevel, dayTransition, bootSaveJson]);
+	}, [
+		player.map,
+		forestIsBonusLevel,
+		caveIsBonusLevel,
+		dayTransition,
+		bootSaveJson,
+	]);
 
 	useEffect(() => {
 		stopStaleBackgroundTracks();
@@ -1520,7 +1613,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		if (player.map !== "cave") return;
 		const rows = activeMapLayouts.cave;
-		const torchSources = caveObstacles.filter((obstacle) => obstacle.type === "torch");
+		const torchSources = caveObstacles.filter(
+			(obstacle) => obstacle.type === "torch",
+		);
 		setCaveFog((prev) => {
 			let changed = false;
 			const next = { ...prev };
@@ -1530,7 +1625,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				for (let x = 0; x < row.length; x += 1) {
 					const key = keyForPos(x, y);
 					const current = prev[key] ?? 1;
-					const playerTarget = getForestFogTargetOpacity(x, y, player.x, player.y);
+					const playerTarget = getForestFogTargetOpacity(
+						x,
+						y,
+						player.x,
+						player.y,
+					);
 					let torchTarget = 1;
 					for (const torch of torchSources) {
 						const sourceTarget = getBaseFogTargetOpacityFromSource(
@@ -1829,7 +1929,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		playerX: number,
 		playerY: number,
 	) =>
-		getFogTargetOpacity({ x: playerX, y: playerY }, x, y, playerEmoji, hasHeadlamp);
+		getFogTargetOpacity(
+			{ x: playerX, y: playerY },
+			x,
+			y,
+			playerEmoji,
+			hasHeadlamp,
+		);
 
 	const getBaseFogTargetOpacityFromSource = (
 		x: number,
@@ -1875,7 +1981,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const isFarmHouseDoorTile = (mapId: MapId, x: number, y: number) =>
 		mapId === "farm" &&
-		mapDoors.farm.some((d) => d.x === x && d.y === y && d.target.map === "house");
+		mapDoors.farm.some(
+			(d) => d.x === x && d.y === y && d.target.map === "house",
+		);
 
 	const forestObstacleAt = (x: number, y: number) =>
 		forestObstacles.find((o) => o.x === x && o.y === y) ?? null;
@@ -1993,7 +2101,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			.map((delta) => {
 				const nx = fromX + delta.dx;
 				const ny = fromY + delta.dy;
-				const distance = Math.max(Math.abs(targetX - nx), Math.abs(targetY - ny));
+				const distance = Math.max(
+					Math.abs(targetX - nx),
+					Math.abs(targetY - ny),
+				);
 				return { ...delta, distance };
 			})
 			.sort((a, b) => a.distance - b.distance);
@@ -2152,7 +2263,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const targetX = playerInBearArea ? playerNow.x : enemy.anchorX;
 		const targetY = playerInBearArea ? playerNow.y : enemy.anchorY;
 		if (enemy.x === targetX && enemy.y === targetY) return enemy;
-		const candidates = getPrioritizedChaseDirs(enemy.x, enemy.y, targetX, targetY);
+		const candidates = getPrioritizedChaseDirs(
+			enemy.x,
+			enemy.y,
+			targetX,
+			targetY,
+		);
 
 		for (const delta of candidates) {
 			const nx = enemy.x + delta.dx;
@@ -2199,11 +2315,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			const canStep = (nx: number, ny: number) => {
 				if (nx < 0 || ny < 0) return false;
 				const rows = activeMapLayouts.cave;
-				if (!rows || ny >= rows.length || nx >= (rows[0]?.length ?? 0)) return false;
+				if (!rows || ny >= rows.length || nx >= (rows[0]?.length ?? 0))
+					return false;
 				const tile = rows[ny]?.[nx] ?? "<";
 				if (!isCaveWalkableTile(tile) || isCaveBlockedTile(tile)) return false;
 				if (caveObstacleAt(nx, ny)) return false;
-				if (caveEnemies.some((e) => e.id !== enemy.id && e.x === nx && e.y === ny)) return false;
+				if (
+					caveEnemies.some((e) => e.id !== enemy.id && e.x === nx && e.y === ny)
+				)
+					return false;
 				return true;
 			};
 			const tryHorizontal = (dir: -1 | 1): ForestEnemy | null => {
@@ -2322,7 +2442,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const targetX = playerInBearArea ? playerNow.x : enemy.anchorX;
 		const targetY = playerInBearArea ? playerNow.y : enemy.anchorY;
 		if (enemy.x === targetX && enemy.y === targetY) return enemy;
-		const candidates = getPrioritizedChaseDirs(enemy.x, enemy.y, targetX, targetY);
+		const candidates = getPrioritizedChaseDirs(
+			enemy.x,
+			enemy.y,
+			targetX,
+			targetY,
+		);
 		for (const delta of candidates) {
 			const nx = enemy.x + delta.dx;
 			const ny = enemy.y + delta.dy;
@@ -2347,7 +2472,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 		const current = nextNpcTiles[npcKey];
 		const anchor = townNpcAnchors[npcKey];
-		if (!current || !anchor) return;
+		if (!anchor) return;
+		const townRows = activeMapLayouts.town;
+		const currentTile = current
+			? (townRows[current.y]?.[current.x] ?? "#")
+			: "#";
+		if (!current || current.y !== TOWN_NPC_GRASS_ROW_Y || currentTile !== ",") {
+			nextNpcTiles[npcKey] = { ...anchor };
+			return;
+		}
 		const next = nextTownNpcTile({
 			current,
 			anchor,
@@ -2355,6 +2488,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			nextNpcTiles,
 			activeTownRows: activeMapLayouts.town,
 			isPassableChar,
+			requiredRowY: TOWN_NPC_GRASS_ROW_Y,
 			petVendorActive,
 			ownedPet,
 			petVendorPos: PET_VENDOR_POS,
@@ -2366,6 +2500,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 		if (next) nextNpcTiles[npcKey] = next;
 	};
+
+	useEffect(() => {
+		const townRows = activeMapLayouts.town;
+		if (!townRows || townRows.length <= TOWN_NPC_GRASS_ROW_Y) return;
+		const occupied = new Set<string>();
+		const hasInvalidTownNpcTile = Object.keys(townNpcAnchors).some((npcKey) => {
+			const pos = townNpcTiles[npcKey];
+			if (!pos) return true;
+			if (pos.y !== TOWN_NPC_GRASS_ROW_Y) return true;
+			const tile = townRows[pos.y]?.[pos.x] ?? "#";
+			if (tile !== ",") return true;
+			const key = keyForPos(pos.x, pos.y);
+			if (occupied.has(key)) return true;
+			occupied.add(key);
+			return false;
+		});
+		if (!hasInvalidTownNpcTile) return;
+		setTownNpcTiles({ ...townNpcAnchors });
+	}, [activeMapLayouts, townNpcTiles, setTownNpcTiles]);
 
 	const maybeMoveAnimal = (
 		animalId: number,
@@ -2481,7 +2634,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		dayTransitionTimersRef.current.forEach((id) => window.clearTimeout(id));
 		dayTransitionTimersRef.current = [];
-		dayTransitionCloseTimersRef.current.forEach((id) => window.clearTimeout(id));
+		dayTransitionCloseTimersRef.current.forEach((id) =>
+			window.clearTimeout(id),
+		);
 		dayTransitionCloseTimersRef.current = [];
 		quantityParentMenuRef.current = null;
 		quantityPromptRef.current = null;
@@ -2506,7 +2661,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			URL.revokeObjectURL(url);
 			setSaveLoadStatus("Saved. File stamped and approved by Town Hall.");
 		} catch {
-			setSaveLoadStatus("Save failed. The clipboard goblin dropped your paperwork.");
+			setSaveLoadStatus(
+				"Save failed. The clipboard goblin dropped your paperwork.",
+			);
 		}
 	};
 	const applyLoadedGameState = (rawState: GameState) => {
@@ -2599,14 +2756,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				.then((text) => {
 					const parsedSave = parseSaveGame(text);
 					if (!parsedSave) {
-						setSaveLoadStatus("Could not load that file. Wrong version or scrambled JSON.");
+						setSaveLoadStatus(
+							"Could not load that file. Wrong version or scrambled JSON.",
+						);
 						return;
 					}
 					const loadedState = fromSaveGameData(parsedSave);
 					applyLoadedGameState(loadedState);
 				})
 				.catch(() => {
-					setSaveLoadStatus("Load failed. That file reads like cursed confetti.");
+					setSaveLoadStatus(
+						"Load failed. That file reads like cursed confetti.",
+					);
 				});
 		};
 		picker.click();
@@ -2627,7 +2788,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		bootSaveHandledRef.current = true;
 		const parsedSave = parseSaveGame(bootSaveJson);
 		if (!parsedSave) {
-			setSaveLoadStatus("Could not load that file. Wrong version or scrambled JSON.");
+			setSaveLoadStatus(
+				"Could not load that file. Wrong version or scrambled JSON.",
+			);
 			return;
 		}
 		const loadedState = fromSaveGameData(parsedSave);
@@ -2735,9 +2898,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		for (let y = 1; y < FARM_HEIGHT - 1; y += 1) {
 			for (let x = 1; x < FARM_WIDTH - 1; x += 1) {
 				if (!isPetWalkableFarmTile(x, y)) continue;
-				if (playerRef.current.map === "farm" && playerRef.current.x === x && playerRef.current.y === y)
+				if (
+					playerRef.current.map === "farm" &&
+					playerRef.current.x === x &&
+					playerRef.current.y === y
+				)
 					continue;
-				if (Object.values(animalTiles).some((p) => p.x === x && p.y === y)) continue;
+				if (Object.values(animalTiles).some((p) => p.x === x && p.y === y))
+					continue;
 				candidates.push({ x, y });
 			}
 		}
@@ -2757,7 +2925,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			const nx = current.x + delta.dx;
 			const ny = current.y + delta.dy;
 			if (!isPetWalkableFarmTile(nx, ny)) continue;
-			if (Object.values(animalTiles).some((p) => p.x === nx && p.y === ny)) continue;
+			if (Object.values(animalTiles).some((p) => p.x === nx && p.y === ny))
+				continue;
 			const p = playerRef.current;
 			if (p.map === "farm" && p.x === nx && p.y === ny) continue;
 			return { x: nx, y: ny };
@@ -2769,7 +2938,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		day,
 		map: player.map,
 	};
-	const simulationPaused = pauseGame || isSaveLoadMenuOpen || !!modal || directorInputLocked;
+	const simulationPaused =
+		pauseGame || isSaveLoadMenuOpen || !!modal || directorInputLocked;
 	const gameActions: GameStateActions = {
 		setTownNpcTiles,
 		setBoatTiles,
@@ -2807,7 +2977,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		forestEnemyTickRef,
 		caveEnemyTickRef,
 		townNpcNames,
-		boatNpcKeys: Object.keys(boatNpcEmojis) as Array<keyof typeof boatNpcEmojis>,
+		boatNpcKeys: Object.keys(boatNpcEmojis) as Array<
+			keyof typeof boatNpcEmojis
+		>,
 		farmEggDrops,
 		farmForestBlockers,
 		farmCaveBlockers,
@@ -2864,35 +3036,46 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (fromMenu) closeMenu();
 	};
 	const openForestExitMenu = () => {
-		openMenu("Forest Exit", ["Go back to farm?"], [
-			{ label: "Keep exploring", onSelect: () => continueForestDungeon(true) },
-			{
-				label: "Go back to farm",
-				onSelect: () => {
-					setForestLockedToday(true);
-					setPlayer({ map: "farm", x: FARM_WIDTH - 2, y: FOREST_GATE_Y });
-					addLog("Returned to farm.");
-					closeMenu();
+		openMenu(
+			"Forest Exit",
+			["Go back to farm?"],
+			[
+				{
+					label: "Keep exploring",
+					onSelect: () => continueForestDungeon(true),
 				},
-			},
-		]);
+				{
+					label: "Go back to farm",
+					onSelect: () => {
+						setForestLockedToday(true);
+						setPlayer({ map: "farm", x: FARM_WIDTH - 2, y: FOREST_GATE_Y });
+						addLog("Returned to farm.");
+						closeMenu();
+					},
+				},
+			],
+		);
 	};
 	const openCaveExitMenu = () => {
-		openMenu("Cave Exit", ["Leave cave and return to farm?"], [
-			{
-				label: "Stay",
-				onSelect: closeMenu,
-			},
-			{
-				label: "Leave cave",
-				onSelect: () => {
-					setCaveLockedToday(true);
-					setPlayer({ map: "farm", x: 1, y: CAVE_GATE_Y });
-					addLog("Returned to farm.");
-					closeMenu();
+		openMenu(
+			"Cave Exit",
+			["Leave cave and return to farm?"],
+			[
+				{
+					label: "Stay",
+					onSelect: closeMenu,
 				},
-			},
-		]);
+				{
+					label: "Leave cave",
+					onSelect: () => {
+						setCaveLockedToday(true);
+						setPlayer({ map: "farm", x: 1, y: CAVE_GATE_Y });
+						addLog("Returned to farm.");
+						closeMenu();
+					},
+				},
+			],
+		);
 	};
 
 	const isOccupied = (map: MapId, x: number, y: number) => {
@@ -2915,12 +3098,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return (
 				(animalsMap === "farm" &&
 					Object.values(animalTiles).some(
-					(pos) => pos.x === x && pos.y === y,
-				)) || (!!petTile && petTile.x === x && petTile.y === y)
-					|| (hasTractor &&
-						tractorParked &&
-						x === TRACTOR_PARK_POS.x &&
-						y === TRACTOR_PARK_POS.y)
+						(pos) => pos.x === x && pos.y === y,
+					)) ||
+				(!!petTile && petTile.x === x && petTile.y === y) ||
+				(hasTractor &&
+					tractorParked &&
+					x === TRACTOR_PARK_POS.x &&
+					y === TRACTOR_PARK_POS.y)
 			);
 		}
 		if (map === "barn") {
@@ -2970,7 +3154,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			const baseTile = activeMapLayouts.farm[y]?.[x];
 			setPlots((prev) => {
 				if (baseTile !== "," || prev[key]) return prev;
-				return { ...prev, [key]: { crop: null, growthDays: 0, watered: false } };
+				return {
+					...prev,
+					[key]: { crop: null, growthDays: 0, watered: false },
+				};
 			});
 			return;
 		}
@@ -2990,7 +3177,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			if (!plot || plot.crop) return;
 			setPlots((prev) => ({
 				...prev,
-				[key]: { crop: cropId, growthDays: 0, watered: currentWeather === "rainy" },
+				[key]: {
+					crop: cropId,
+					growthDays: 0,
+					watered: currentWeather === "rainy",
+				},
 			}));
 			updateInventory(tractorSeedItem, -1);
 			if (inventory[tractorSeedItem] <= 1) {
@@ -3060,7 +3251,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 	};
 
-	const enterTractor = (implement: TractorImplement, seedItem: ItemId | null = null) => {
+	const enterTractor = (
+		implement: TractorImplement,
+		seedItem: ItemId | null = null,
+	) => {
 		setTractorDriverEmoji(playerEmoji);
 		setPlayerEmoji(GLYPH.tractor); // tractor driving avatar
 		setIsDrivingTractor(true);
@@ -3073,6 +3267,21 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const movePlayer = (dir: Dir) => {
+		const now = performance.now();
+		if (now < playerMoveUnlockAtRef.current) return;
+		let didMove = false;
+		const setPlayerTracked: typeof setPlayer = (value) => {
+			setPlayer((prev) => {
+				const next =
+					typeof value === "function"
+						? (value as (prevState: typeof prev) => typeof prev)(prev)
+						: value;
+				if (next.map !== prev.map || next.x !== prev.x || next.y !== prev.y) {
+					didMove = true;
+				}
+				return next;
+			});
+		};
 		runMovePlayer(
 			{
 				modal,
@@ -3112,7 +3321,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				setTractorFacing,
 				pendingPetGravePos,
 				setPetGraveObstacles,
-				setPlayer,
+				setPlayer: setPlayerTracked,
 				applyTractorImplementAt,
 				TRACTOR_PARK_POS,
 				exitTractor,
@@ -3132,6 +3341,32 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			},
 			dir,
 		);
+		if (didMove) {
+			playerMoveUnlockAtRef.current = now + POSITION_ANIMATION_MS;
+		}
+	};
+	const movePlayerRef = useRef(movePlayer);
+	movePlayerRef.current = movePlayer;
+
+	const clearHeldMove = () => {
+		heldMoveDirRef.current = null;
+		heldMoveKeyRef.current = null;
+		if (heldMoveTimerRef.current !== null) {
+			window.clearTimeout(heldMoveTimerRef.current);
+			heldMoveTimerRef.current = null;
+		}
+	};
+
+	const scheduleHeldMoveStep = () => {
+		if (heldMoveTimerRef.current !== null) return;
+		const tick = () => {
+			heldMoveTimerRef.current = null;
+			const dir = heldMoveDirRef.current;
+			if (!dir) return;
+			movePlayerRef.current(dir);
+			heldMoveTimerRef.current = window.setTimeout(tick, POSITION_ANIMATION_MS);
+		};
+		heldMoveTimerRef.current = window.setTimeout(tick, POSITION_ANIMATION_MS);
 	};
 
 	const updateInventory = (item: ItemId, amount: number) => {
@@ -3302,7 +3537,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		doctorObservationIntervalRef,
 	});
 
-	const countOpenBarnTiles = (occupied: Record<number, { x: number; y: number }>) => {
+	const countOpenBarnTiles = (
+		occupied: Record<number, { x: number; y: number }>,
+	) => {
 		const rows = activeMapLayouts[animalsMap];
 		return countOpenBarnTilesInBounds({
 			occupied,
@@ -3312,7 +3549,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 	};
 
-	const nextOpenBarnTile = (occupied: Record<number, { x: number; y: number }>) => {
+	const nextOpenBarnTile = (
+		occupied: Record<number, { x: number; y: number }>,
+	) => {
 		const rows = activeMapLayouts[animalsMap];
 		return nextOpenBarnTileInBounds({
 			occupied,
@@ -3325,7 +3564,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		if (animals.length <= 0) return;
 		const rows = activeMapLayouts[animalsMap];
-		const hasDuplicateIds = new Set(animals.map((a) => a.id)).size !== animals.length;
+		const hasDuplicateIds =
+			new Set(animals.map((a) => a.id)).size !== animals.length;
 		const occupiedKeys = new Set<string>();
 		let hasOverlappingTiles = false;
 		let hasMissingTile = false;
@@ -3344,7 +3584,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			occupiedKeys.add(key);
 			if (!animalAnchors[animal.id]) hasMissingAnchor = true;
 		});
-		if (!hasDuplicateIds && !hasOverlappingTiles && !hasMissingTile && !hasMissingAnchor)
+		if (
+			!hasDuplicateIds &&
+			!hasOverlappingTiles &&
+			!hasMissingTile &&
+			!hasMissingAnchor
+		)
 			return;
 
 		const usedIds = new Set<number>();
@@ -3363,7 +3608,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				normalizedId === animal.id ? animal : { ...animal, id: normalizedId };
 			nextAnimals.push(normalizedAnimal);
 
-			const preferred = animalTiles[animal.id] ?? animalAnchors[animal.id] ?? null;
+			const preferred =
+				animalTiles[animal.id] ?? animalAnchors[animal.id] ?? null;
 			let chosen: Point | null = null;
 			if (preferred) {
 				const withinBounds =
@@ -3371,7 +3617,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					preferred.x <= barnInteriorBounds.maxX &&
 					preferred.y >= barnInteriorBounds.minY &&
 					preferred.y <= barnInteriorBounds.maxY;
-				const passable = isPassableChar(rows[preferred.y]?.[preferred.x] ?? "#");
+				const passable = isPassableChar(
+					rows[preferred.y]?.[preferred.x] ?? "#",
+				);
 				const used = Object.values(nextTiles).some(
 					(pos) => pos.x === preferred.x && pos.y === preferred.y,
 				);
@@ -3388,7 +3636,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				});
 			}
 			if (!chosen && preferred) chosen = preferred;
-			if (!chosen) chosen = { x: barnInteriorBounds.minX, y: barnInteriorBounds.minY };
+			if (!chosen)
+				chosen = { x: barnInteriorBounds.minX, y: barnInteriorBounds.minY };
 			nextTiles[normalizedId] = chosen;
 			nextAnchors[normalizedId] = chosen;
 		});
@@ -3396,7 +3645,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		setAnimals(nextAnimals);
 		setAnimalTiles(nextTiles);
 		setAnimalAnchors(nextAnchors);
-	}, [animals, animalTiles, animalAnchors, animalsMap, barnInteriorBounds, activeMapLayouts]);
+	}, [
+		animals,
+		animalTiles,
+		animalAnchors,
+		animalsMap,
+		barnInteriorBounds,
+		activeMapLayouts,
+	]);
 
 	const getEggDropNearChicken = (
 		chickenPos: { x: number; y: number },
@@ -3458,7 +3714,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		return "Your tractor was delivered!";
 	};
 
-	const resolveUpgradeSceneFocus = (kind: UpgradeSceneEventKind): { x: number; y: number } => {
+	const resolveUpgradeSceneFocus = (
+		kind: UpgradeSceneEventKind,
+	): { x: number; y: number } => {
 		if (kind === "barn_upgraded") {
 			const barnRect = getFarmBarnOuterRect(barnTier);
 			return {
@@ -3476,7 +3734,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		return { x: 6, y: 10 };
 	};
 
-	const resolveDirectorTrack = (bgTrack: UpgradeSceneBgTrack | undefined): HTMLAudioElement | null => {
+	const resolveDirectorTrack = (
+		bgTrack: UpgradeSceneBgTrack | undefined,
+	): HTMLAudioElement | null => {
 		const track = bgTrack ?? "space_store";
 		if (track === "space_store") return cafeOrderMusicRef.current;
 		if (track === "space_bg") return bureaucracyMusicRef.current;
@@ -3500,7 +3760,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const waitDirector = (durationMs: number) =>
 		new Promise<void>((resolve) => {
 			const timer = window.setTimeout(() => {
-				directorTimersRef.current = directorTimersRef.current.filter((t) => t !== timer);
+				directorTimersRef.current = directorTimersRef.current.filter(
+					(t) => t !== timer,
+				);
 				resolve();
 			}, durationMs);
 			directorTimersRef.current.push(timer);
@@ -3808,17 +4070,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				[
 					"Hey I heard youve been heading deep into some dark places recently. So I decided to start stocking headlamps in the tool shop! Come on by and check it out!",
 				],
-				[{ label: "Close", info: ["Put the letter away."], onSelect: closeMenu }],
+				[
+					{
+						label: "Close",
+						info: ["Put the letter away."],
+						onSelect: closeMenu,
+					},
+				],
 			);
 			return;
 		}
 		if (player.map === "bureaucracy_office") {
 			const targetCell = activeMapLayouts.bureaucracy_office?.[ty]?.[tx] ?? "";
 			if (
-				(tx === BUREAUCRACY_SAVARIO_POS.x && ty === BUREAUCRACY_SAVARIO_POS.y) ||
+				(tx === BUREAUCRACY_SAVARIO_POS.x &&
+					ty === BUREAUCRACY_SAVARIO_POS.y) ||
 				targetCell === "x"
 			) {
-				const line = savarioLines[savarioLineIndexRef.current % savarioLines.length]!;
+				const line =
+					savarioLines[savarioLineIndexRef.current % savarioLines.length]!;
 				savarioLineIndexRef.current += 1;
 				playSigh();
 				if (savarioResponseTimeoutRef.current !== null) {
@@ -3833,198 +4103,198 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			}
 		}
 		const interactCtx: PlayerInteractContext = {
-				modal,
-				fishing,
-				isOrdering,
-				isDoctorCompounding,
-				isDrivingTractor,
-				dirDelta,
-				player,
-				activeMapLayouts,
-				forestEntranceDoorPos,
-				openForestExitMenu,
-				forestForwardExitPos,
-				continueForestDungeon,
-				caveEntranceDoorPos,
-				openCaveExitMenu,
-				caveLadderPos,
-				continueCaveDungeon,
-				mapDoors,
-				forestLockedToday,
-				canEnterForest,
-				caveLockedToday,
-				canEnterCave,
-				playBad,
-				addLog,
-				playNotification,
-				setPlayer,
-				ownedPet,
-				petTile,
-				playPetSound,
-				setPetHeartTile,
-				petHeartTimeoutRef,
-				hasTractor,
-				tractorParked,
-				TRACTOR_PARK_POS,
-				openMenu,
-				closeMenu,
-				enterTractor,
-				allPlantableCropIds,
-				cropDefs,
-				inventory,
-				itemNames,
-				beachBottlePos,
-				setBeachBottlePos,
-				playGotReward,
-				rollBeachBottleReward,
-				randomInt,
-				stamina,
-				staminaMax,
-				animals,
-				barnAnimalCap,
-				nextOpenBarnTile,
-				animalTiles,
-				setStamina,
-				setOwnedWardrobeLooks,
-				spawnAnimalInBarn,
-				makeGaryBottleMessage,
-				playSeagulls,
-				beachShellDrops,
-				keyForPos,
-				setBeachShellDrops,
-				playPluck,
-				day,
-				starterChestOpened,
-				STARTER_CHEST_POS,
-				setStarterChestOpened,
-				applyMoneyDelta,
-				updateInventory,
-				openRewardPopup,
-				farmWeedObstacles,
-				trySpendStamina,
-				setFarmWeedObstacles,
-				getWaterCapacity,
-				tools,
-				tryUseToolAction,
-				setWaterLevel,
-				playWater,
-				playSnakeSound,
-				setWaterRefillTile,
-				waterRefillTileTimeoutRef,
-				startFishing,
-				forestChest,
-				setForestChest,
-				openHighValueForestChestReward,
-				forestBonusChests,
-				setForestBonusChests,
-				forestIsBonusLevel,
-				grantBonusChestRewardSet,
-				forestObstacleAt,
-				setForestObstacles,
-				getSmashAxeActionCost,
-				getSmashAxeWoodSeedChance,
-				getRandomCropId,
-				standardCropIds,
-				getSmashAxeRockDamage,
-				getSmashAxeIronChance,
-				caveObstacleAt,
-				setCaveObstacles,
-				caveBonusChest,
-				setCaveBonusChest,
-				caveIsBonusLevel,
-				openCaveBonusChestReward,
-				caveLevel,
-				setCaveLadderPos,
-				caveObstacles,
-				animalsMap,
-				farmForestBlockers,
-				setFarmForestBlockers,
-				farmCaveBlockers,
-				setFarmCaveBlockers,
-				petGraveObstacles,
-				setPetGraveObstacles,
-				plots,
-				getHoeTargets,
-				setPlots,
-				currentWeather,
-				playPloop,
-				waterLevel,
-				playHoe,
-				playYaya,
-				CORAL_FRUIT_SELL_PRICE,
-				prices,
-				nextDay,
-				handleLateInteractionBlocks,
-				isBathing,
-				playBath,
-				setIsBathing,
-				clothingShopItems,
-				ownedWardrobeLooks,
-				starterWardrobeLooks,
-				purchasableFunnyLooks,
-				setPlayerEmoji,
-				farmEggDrops,
-				setFarmEggDrops,
-				isCowLikeAnimal,
-				rollLivestockYield,
-				setAnimals,
-				generateOverfedAnimalLine,
-				interactBuilderVendor,
-				interactVendor,
-				vendorByShopMap,
-				isShopMap,
-				shopDecorByMap,
-				isFarmHouseDoorTile,
-				getDoorGroundClass,
-				petVendorActive,
-				pendingPet,
-				canAfford,
-				money,
-				playChaChing,
-				setPendingPet,
-				petOptions,
-				petVendorSoldLine,
-				doctorVendorActive,
-				doctorUsedToday,
-				doctorFinishedTodayLine,
-				doctorIntroLines,
-				startDoctorMedicine,
-				traderActive,
-				TRADER_BOX_POS,
-				traderBoxLines,
-				TRADER_HELI_POS,
-				traderHeliLines,
-				TRADER_POS,
-				traderTrades,
-				traderSoldOutLines,
-				traderIntroLines,
-				openQuantityPrompt,
-				setTraderTrades,
-				traderAfterSaleLines,
-				sketchyMerchantActive,
-				sketchyMerchantStock,
-				SKETCHY_CRATE_POS,
-				dontTouchSketchy,
-				SKETCHY_MERCHANT_POS,
-				sketchyMerchantIntro,
-				setSketchyMerchantStock,
-				sketchyVendorSales,
-				boatTiles,
-				boatDialogArray,
-				townNpcTiles,
-				townNpcNames,
-				npcDailyAssignments,
-				generateDailyAssignmentsForNpcs,
-				npcTalkedToday,
-				townTips,
-				generateNpcGreetingLine,
-				generateNpcDialogLine,
-				setNpcTalkedToday,
-				DOCTOR_POS,
-				PET_VENDOR_POS,
-				playMunch,
-				speakNpcLine,
-			};
+			modal,
+			fishing,
+			isOrdering,
+			isDoctorCompounding,
+			isDrivingTractor,
+			dirDelta,
+			player,
+			activeMapLayouts,
+			forestEntranceDoorPos,
+			openForestExitMenu,
+			forestForwardExitPos,
+			continueForestDungeon,
+			caveEntranceDoorPos,
+			openCaveExitMenu,
+			caveLadderPos,
+			continueCaveDungeon,
+			mapDoors,
+			forestLockedToday,
+			canEnterForest,
+			caveLockedToday,
+			canEnterCave,
+			playBad,
+			addLog,
+			playNotification,
+			setPlayer,
+			ownedPet,
+			petTile,
+			playPetSound,
+			setPetHeartTile,
+			petHeartTimeoutRef,
+			hasTractor,
+			tractorParked,
+			TRACTOR_PARK_POS,
+			openMenu,
+			closeMenu,
+			enterTractor,
+			allPlantableCropIds,
+			cropDefs,
+			inventory,
+			itemNames,
+			beachBottlePos,
+			setBeachBottlePos,
+			playGotReward,
+			rollBeachBottleReward,
+			randomInt,
+			stamina,
+			staminaMax,
+			animals,
+			barnAnimalCap,
+			nextOpenBarnTile,
+			animalTiles,
+			setStamina,
+			setOwnedWardrobeLooks,
+			spawnAnimalInBarn,
+			makeGaryBottleMessage,
+			playSeagulls,
+			beachShellDrops,
+			keyForPos,
+			setBeachShellDrops,
+			playPluck,
+			day,
+			starterChestOpened,
+			STARTER_CHEST_POS,
+			setStarterChestOpened,
+			applyMoneyDelta,
+			updateInventory,
+			openRewardPopup,
+			farmWeedObstacles,
+			trySpendStamina,
+			setFarmWeedObstacles,
+			getWaterCapacity,
+			tools,
+			tryUseToolAction,
+			setWaterLevel,
+			playWater,
+			playSnakeSound,
+			setWaterRefillTile,
+			waterRefillTileTimeoutRef,
+			startFishing,
+			forestChest,
+			setForestChest,
+			openHighValueForestChestReward,
+			forestBonusChests,
+			setForestBonusChests,
+			forestIsBonusLevel,
+			grantBonusChestRewardSet,
+			forestObstacleAt,
+			setForestObstacles,
+			getSmashAxeActionCost,
+			getSmashAxeWoodSeedChance,
+			getRandomCropId,
+			standardCropIds,
+			getSmashAxeRockDamage,
+			getSmashAxeIronChance,
+			caveObstacleAt,
+			setCaveObstacles,
+			caveBonusChest,
+			setCaveBonusChest,
+			caveIsBonusLevel,
+			openCaveBonusChestReward,
+			caveLevel,
+			setCaveLadderPos,
+			caveObstacles,
+			animalsMap,
+			farmForestBlockers,
+			setFarmForestBlockers,
+			farmCaveBlockers,
+			setFarmCaveBlockers,
+			petGraveObstacles,
+			setPetGraveObstacles,
+			plots,
+			getHoeTargets,
+			setPlots,
+			currentWeather,
+			playPloop,
+			waterLevel,
+			playHoe,
+			playYaya,
+			CORAL_FRUIT_SELL_PRICE,
+			prices,
+			nextDay,
+			handleLateInteractionBlocks,
+			isBathing,
+			playBath,
+			setIsBathing,
+			clothingShopItems,
+			ownedWardrobeLooks,
+			starterWardrobeLooks,
+			purchasableFunnyLooks,
+			setPlayerEmoji,
+			farmEggDrops,
+			setFarmEggDrops,
+			isCowLikeAnimal,
+			rollLivestockYield,
+			setAnimals,
+			generateOverfedAnimalLine,
+			interactBuilderVendor,
+			interactVendor,
+			vendorByShopMap,
+			isShopMap,
+			shopDecorByMap,
+			isFarmHouseDoorTile,
+			getDoorGroundClass,
+			petVendorActive,
+			pendingPet,
+			canAfford,
+			money,
+			playChaChing,
+			setPendingPet,
+			petOptions,
+			petVendorSoldLine,
+			doctorVendorActive,
+			doctorUsedToday,
+			doctorFinishedTodayLine,
+			doctorIntroLines,
+			startDoctorMedicine,
+			traderActive,
+			TRADER_BOX_POS,
+			traderBoxLines,
+			TRADER_HELI_POS,
+			traderHeliLines,
+			TRADER_POS,
+			traderTrades,
+			traderSoldOutLines,
+			traderIntroLines,
+			openQuantityPrompt,
+			setTraderTrades,
+			traderAfterSaleLines,
+			sketchyMerchantActive,
+			sketchyMerchantStock,
+			SKETCHY_CRATE_POS,
+			dontTouchSketchy,
+			SKETCHY_MERCHANT_POS,
+			sketchyMerchantIntro,
+			setSketchyMerchantStock,
+			sketchyVendorSales,
+			boatTiles,
+			boatDialogArray,
+			townNpcTiles,
+			townNpcNames,
+			npcDailyAssignments,
+			generateDailyAssignmentsForNpcs,
+			npcTalkedToday,
+			townTips,
+			generateNpcGreetingLine,
+			generateNpcDialogLine,
+			setNpcTalkedToday,
+			DOCTOR_POS,
+			PET_VENDOR_POS,
+			playMunch,
+			speakNpcLine,
+		};
 		runInteract(interactCtx, dir);
 	};
 
@@ -4033,11 +4303,33 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const zoomIn = () => {
-		setMapZoom((prev) => Math.min(2.5, Math.round((prev + 0.15) * 100) / 100));
+		setMapZoom((prev) => {
+			const currentIndex = MANUAL_ZOOM_LEVELS.findIndex(
+				(level) => Math.abs(level - prev) < 0.001,
+			);
+			if (currentIndex === -1) {
+				if (prev < MANUAL_ZOOM_MID) return MANUAL_ZOOM_MID;
+				return MANUAL_ZOOM_MAX;
+			}
+			const next = MANUAL_ZOOM_LEVELS[
+				Math.min(MANUAL_ZOOM_LEVELS.length - 1, currentIndex + 1)
+			]!;
+			return next;
+		});
 	};
 
 	const zoomOut = () => {
-		setMapZoom((prev) => Math.max(1, Math.round((prev - 0.15) * 100) / 100));
+		setMapZoom((prev) => {
+			const currentIndex = MANUAL_ZOOM_LEVELS.findIndex(
+				(level) => Math.abs(level - prev) < 0.001,
+			);
+			if (currentIndex === -1) {
+				if (prev > MANUAL_ZOOM_MID) return MANUAL_ZOOM_MID;
+				return MANUAL_ZOOM_MIN;
+			}
+			const next = MANUAL_ZOOM_LEVELS[Math.max(0, currentIndex - 1)]!;
+			return next;
+		});
 	};
 
 	const moveQuantity = (delta: number) => {
@@ -4104,6 +4396,74 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		confirmDirectorDialog: confirmDirectorPopup,
 	};
 	const onKeyDown = useInputRouter(inputContext);
+	const keyToHeldDirection = (key: string): Dir | null => {
+		if (key === "w") return "up";
+		if (key === "s") return "down";
+		if (key === "a") return "left";
+		if (key === "d") return "right";
+		return null;
+	};
+	const onKeyDownWithHold = (e: KeyboardEvent<HTMLDivElement>) => {
+		onKeyDown(e);
+		const key = e.key.toLowerCase();
+		if (e.repeat) return;
+		const dir = keyToHeldDirection(key);
+		if (!dir) return;
+		if (
+			modal ||
+			directorInputLocked ||
+			!!directorPopup ||
+			isBathing ||
+			isOrdering ||
+			isDoctorCompounding ||
+			!!fishing ||
+			!!dayTransition
+		) {
+			clearHeldMove();
+			return;
+		}
+		heldMoveDirRef.current = dir;
+		heldMoveKeyRef.current = key;
+		scheduleHeldMoveStep();
+	};
+	const onKeyUp = (e: KeyboardEvent<HTMLDivElement>) => {
+		const key = e.key.toLowerCase();
+		if (heldMoveKeyRef.current !== key) return;
+		clearHeldMove();
+	};
+	const onInputBlur = () => {
+		clearHeldMove();
+	};
+
+	useEffect(() => {
+		if (
+			modal ||
+			directorInputLocked ||
+			!!directorPopup ||
+			isBathing ||
+			isOrdering ||
+			isDoctorCompounding ||
+			!!fishing ||
+			!!dayTransition
+		) {
+			clearHeldMove();
+		}
+	}, [
+		modal,
+		directorInputLocked,
+		directorPopup,
+		isBathing,
+		isOrdering,
+		isDoctorCompounding,
+		fishing,
+		dayTransition,
+	]);
+
+	useEffect(() => {
+		return () => {
+			clearHeldMove();
+		};
+	}, []);
 
 	const renderedMap = useMemo(() => {
 		return buildRenderedMapGrid({
@@ -4220,10 +4580,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	}, [animalsMap, animals, animalTiles]);
 
 	const viewCtx: GameRuntimeViewModel = buildGameRuntimeViewModel({
-		onKeyDown,
+		onKeyDown: onKeyDownWithHold,
+		onKeyUp,
+		onBlur: onInputBlur,
 		shellRef,
 		day,
 		player,
+		townNpcTiles,
+		forestEnemies,
+		caveEnemies,
+		animalsMap,
+		animals,
+		animalTiles,
 		currentWeather,
 		weatherEmojiById,
 		money,
@@ -4251,6 +4619,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		getDoorGroundClass,
 		fishing,
 		isDrivingTractor,
+		isBathing,
 		showTiredFace,
 		playerEmoji,
 		waterRefillTile,

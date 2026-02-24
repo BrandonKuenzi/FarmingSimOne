@@ -15,6 +15,7 @@ export const townNpcAnchors: Record<string, { x: number; y: number }> = {
 	neighbor_3: { x: 34, y: 10 },
 	neighbor_4: { x: 46, y: 10 },
 };
+export const TOWN_NPC_GRASS_ROW_Y = 10;
 
 export const SKETCHY_MERCHANT_POS = { x: TOWN_WIDTH - 3, y: 1 };
 export const SKETCHY_CRATE_POS = {

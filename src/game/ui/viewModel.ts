@@ -5,6 +5,8 @@ import type {
 	DayTransitionState,
 	Dir,
 	FishingState,
+	Animal,
+	ForestEnemy,
 	MapId,
 	ModalState,
 	Plot,
@@ -22,9 +24,17 @@ type DealBadge = {
 
 export type GameRuntimeViewModel = {
 	onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void;
+	onKeyUp: (e: KeyboardEvent<HTMLDivElement>) => void;
+	onBlur: () => void;
 	shellRef: MutableRefObject<HTMLDivElement | null>;
 	day: number;
 	player: Position;
+	townNpcTiles: Record<string, { x: number; y: number }>;
+	forestEnemies: ForestEnemy[];
+	caveEnemies: ForestEnemy[];
+	animalsMap: MapId;
+	animals: Animal[];
+	animalTiles: Record<number, { x: number; y: number }>;
 	currentWeather: WeatherId;
 	weatherEmojiById: Record<string, string>;
 	money: number;
@@ -53,6 +63,7 @@ export type GameRuntimeViewModel = {
 	getDoorGroundClass: (mapId: MapId, x: number, y: number) => string | undefined;
 	fishing: FishingState | null;
 	isDrivingTractor: boolean;
+	isBathing: boolean;
 	showTiredFace: boolean;
 	playerEmoji: string;
 	waterRefillTile: { map: MapId; x: number; y: number } | null;

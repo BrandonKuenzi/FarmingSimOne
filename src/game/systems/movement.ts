@@ -30,10 +30,11 @@ export const nextTownNpcTile = ({
 	anchor,
 	npcKey,
 	nextNpcTiles,
-	activeTownRows,
-	isPassableChar,
-	petVendorActive,
-	ownedPet,
+		activeTownRows,
+		isPassableChar,
+		requiredRowY,
+		petVendorActive,
+		ownedPet,
 	petVendorPos,
 	doctorVendorActive,
 	doctorPos,
@@ -47,6 +48,7 @@ export const nextTownNpcTile = ({
 	nextNpcTiles: Record<string, IntPoint>;
 	activeTownRows: string[];
 	isPassableChar: (c: string) => boolean;
+	requiredRowY: number;
 	petVendorActive: boolean;
 	ownedPet: unknown;
 	petVendorPos: IntPoint;
@@ -55,9 +57,10 @@ export const nextTownNpcTile = ({
 	player: Position;
 	randomInt: RandomFn;
 	moveDirections: Record<number, MoveDelta>;
-}): IntPoint | null =>
+	}): IntPoint | null =>
 	tryRandomWanderMove(current, 128, randomInt, moveDirections, (next) => {
 		if (Math.max(Math.abs(next.x - anchor.x), Math.abs(next.y - anchor.y)) > 2) return false;
+		if (next.y !== requiredRowY) return false;
 		if (
 			next.y < 0 ||
 			next.y >= activeTownRows.length ||
@@ -65,7 +68,9 @@ export const nextTownNpcTile = ({
 			next.x >= activeTownRows[0].length
 		)
 			return false;
-		if (!isPassableChar(activeTownRows[next.y]?.[next.x] ?? "#")) return false;
+		const tile = activeTownRows[next.y]?.[next.x] ?? "#";
+		if (tile !== ",") return false;
+		if (!isPassableChar(tile)) return false;
 
 		const occupiedByNpc = Object.entries(nextNpcTiles).some(
 			([otherKey, pos]) => otherKey !== npcKey && pos.x === next.x && pos.y === next.y,
@@ -164,6 +169,7 @@ export const nextAnimalTile = ({
 				continue;
 		}
 		const tile = activeMapRows[next.y]?.[next.x] ?? "#";
+		if (tile === "~") continue;
 		if (!isPassableChar(tile)) continue;
 		if (farmEggDrops[keyForPos(next.x, next.y)]) continue;
 
