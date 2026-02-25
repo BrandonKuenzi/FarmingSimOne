@@ -114,7 +114,9 @@ export type InteractionsContext = {
 	randomInt: (min: number, max: number) => number;
 };
 
-export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean => {
+export const handleLateInteractionBlocks = (
+	ctx: InteractionsContext,
+): boolean => {
 	const {
 		playerMap,
 		tx,
@@ -164,7 +166,7 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 		randomInt,
 	} = ctx;
 
-	if (playerMap === "farm") {
+	if (playerMap === "farm" || playerMap === "barn") {
 		if (farmEggDrops[farmTargetKey]) {
 			setFarmEggDrops((prev) => {
 				const next = { ...prev };
@@ -188,8 +190,9 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 			const animal = found.a;
 			if (animal.type !== "chicken" && animal.hasProductReady) {
 				const product = animalDefs[animal.type].productItem;
-				const toolLevel =
-					isCowLikeAnimal(animal.type) ? tools.milkingGloves : tools.shears;
+				const toolLevel = isCowLikeAnimal(animal.type)
+					? tools.milkingGloves
+					: tools.shears;
 				const produced = rollLivestockYield(toolLevel);
 				updateInventory(product, produced);
 				setAnimals((prev) =>
@@ -269,27 +272,31 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 			}
 			const intro = "Looking to adopt an animal? Pick one!";
 			speakNpcLine(intro);
-			openMenu("Pet Adoption", [intro], [
-				...petOptions.map((pet) => ({
-					label: `${pet} $500`,
-					info: ["A loyal buddy for your farm."],
-					onSelect: () => {
-						if (!canAfford(500)) {
-							playBad();
-							addLog("Not enough money to adopt that pet.");
+			openMenu(
+				"Pet Adoption",
+				[intro],
+				[
+					...petOptions.map((pet) => ({
+						label: `${pet} $500`,
+						info: ["A loyal buddy for your farm."],
+						onSelect: () => {
+							if (!canAfford(500)) {
+								playBad();
+								addLog("Not enough money to adopt that pet.");
+								closeMenu();
+								return;
+							}
+							applyMoneyDelta(-500);
+							playChaChing();
+							setPendingPet(pet);
 							closeMenu();
-							return;
-						}
-						applyMoneyDelta(-500);
-						playChaChing();
-						setPendingPet(pet);
-						closeMenu();
-						speakNpcLine(petVendorSoldLine);
-						addLog(petVendorSoldLine);
-					},
-				})),
-				{ label: "Back", onSelect: closeMenu },
-			]);
+							speakNpcLine(petVendorSoldLine);
+							addLog(petVendorSoldLine);
+						},
+					})),
+					{ label: "Back", onSelect: closeMenu },
+				],
+			);
 			return true;
 		}
 		if (doctorVendorActive && tx === DOCTOR_POS.x && ty === DOCTOR_POS.y) {
@@ -298,39 +305,44 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 				addLog(doctorFinishedTodayLine);
 				return true;
 			}
-			const intro = doctorIntroLines[randomInt(0, doctorIntroLines.length - 1)]!;
+			const intro =
+				doctorIntroLines[randomInt(0, doctorIntroLines.length - 1)]!;
 			speakNpcLine(intro);
-			openMenu("Doctor", [intro, "Cost: 1 Diamond, 1 Emerald, 1 Ruby, and $1000."], [
-				{
-					label: "Yes",
-					info: ["A custom treatment that increases max stamina by 20."],
-					onSelect: () => {
-						if (!canAfford(1000)) {
-							playBad();
-							addLog("Not enough money for treatment.");
-							closeMenu();
-							return;
-						}
-						if (
-							inventory.diamond < 1 ||
-							inventory.emerald < 1 ||
-							inventory.ruby < 1
-						) {
-							playBad();
-							addLog("You need 1 Diamond, 1 Emerald, and 1 Ruby.");
-							closeMenu();
-							return;
-						}
-						applyMoneyDelta(-1000);
-						updateInventory("diamond", -1);
-						updateInventory("emerald", -1);
-						updateInventory("ruby", -1);
-						playChaChing();
-						startDoctorMedicine();
+			openMenu(
+				"Doctor",
+				[intro, "Cost: 1 Diamond, 1 Emerald, 1 Ruby, and $1000."],
+				[
+					{
+						label: "Yes",
+						info: ["A custom treatment that increases max stamina by 20."],
+						onSelect: () => {
+							if (!canAfford(1000)) {
+								playBad();
+								addLog("Not enough money for treatment.");
+								closeMenu();
+								return;
+							}
+							if (
+								inventory.diamond < 1 ||
+								inventory.emerald < 1 ||
+								inventory.ruby < 1
+							) {
+								playBad();
+								addLog("You need 1 Diamond, 1 Emerald, and 1 Ruby.");
+								closeMenu();
+								return;
+							}
+							applyMoneyDelta(-1000);
+							updateInventory("diamond", -1);
+							updateInventory("emerald", -1);
+							updateInventory("ruby", -1);
+							playChaChing();
+							startDoctorMedicine();
+						},
 					},
-				},
-				{ label: "No", onSelect: closeMenu },
-			]);
+					{ label: "No", onSelect: closeMenu },
+				],
+			);
 			return true;
 		}
 		if (traderActive && tx === TRADER_BOX_POS.x && ty === TRADER_BOX_POS.y) {
@@ -347,62 +359,73 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 		}
 		if (traderActive && tx === TRADER_POS.x && ty === TRADER_POS.y) {
 			if (traderTrades.length <= 0) {
-				const line = traderSoldOutLines[randomInt(0, traderSoldOutLines.length - 1)]!;
+				const line =
+					traderSoldOutLines[randomInt(0, traderSoldOutLines.length - 1)]!;
 				speakNpcLine(line);
 				addLog(line);
 				return true;
 			}
-			const intro = traderIntroLines[randomInt(0, traderIntroLines.length - 1)]!;
+			const intro =
+				traderIntroLines[randomInt(0, traderIntroLines.length - 1)]!;
 			speakNpcLine(intro);
-			openMenu("Trader", [intro], [
-				...traderTrades.map((trade) => {
-					const maxCanTrade = Math.min(trade.remaining, inventory[trade.wantItem]);
-					return {
-						label: `Trade ${itemNames[trade.wantItem]} -> ${itemNames[trade.giveItem]}`,
-						info: [
-							`Needs: ${itemNames[trade.wantItem]}`,
-							`Gives: ${itemNames[trade.giveItem]}`,
-							`You have: ${inventory[trade.wantItem]}`,
-							`Trader stock: ${trade.remaining}`,
-							"Rate: 1 for 1",
-						],
-						onSelect: () => {
-							openQuantityPrompt({
-								mode: "buy",
-								itemLabel: `${itemNames[trade.wantItem]} -> ${itemNames[trade.giveItem]}`,
-								max: maxCanTrade,
-								unitPrice: 0,
-								onConfirm: (quantity) => {
-									updateInventory(trade.wantItem, -quantity);
-									updateInventory(trade.giveItem, quantity);
-									setTraderTrades((prev) =>
-										prev
-											.map((t) =>
-												t.id === trade.id
-													? {
-															...t,
-															remaining: Math.max(0, t.remaining - quantity),
-														}
-													: t,
-											)
-											.filter((t) => t.remaining > 0),
-									);
-									playChaChing();
-									const line =
-										traderAfterSaleLines[randomInt(0, traderAfterSaleLines.length - 1)]!;
-									speakNpcLine(line);
-									addLog(line);
-								},
-							});
-						},
-					};
-				}),
-				{
-					label: "Back",
-					info: ["Close this shop menu."],
-					onSelect: closeMenu,
-				},
-			]);
+			openMenu(
+				"Trader",
+				[intro],
+				[
+					...traderTrades.map((trade) => {
+						const maxCanTrade = Math.min(
+							trade.remaining,
+							inventory[trade.wantItem],
+						);
+						return {
+							label: `Trade ${itemNames[trade.wantItem]} -> ${itemNames[trade.giveItem]}`,
+							info: [
+								`Needs: ${itemNames[trade.wantItem]}`,
+								`Gives: ${itemNames[trade.giveItem]}`,
+								`You have: ${inventory[trade.wantItem]}`,
+								`Trader stock: ${trade.remaining}`,
+								"Rate: 1 for 1",
+							],
+							onSelect: () => {
+								openQuantityPrompt({
+									mode: "buy",
+									itemLabel: `${itemNames[trade.wantItem]} -> ${itemNames[trade.giveItem]}`,
+									max: maxCanTrade,
+									unitPrice: 0,
+									onConfirm: (quantity) => {
+										updateInventory(trade.wantItem, -quantity);
+										updateInventory(trade.giveItem, quantity);
+										setTraderTrades((prev) =>
+											prev
+												.map((t) =>
+													t.id === trade.id
+														? {
+																...t,
+																remaining: Math.max(0, t.remaining - quantity),
+															}
+														: t,
+												)
+												.filter((t) => t.remaining > 0),
+										);
+										playChaChing();
+										const line =
+											traderAfterSaleLines[
+												randomInt(0, traderAfterSaleLines.length - 1)
+											]!;
+										speakNpcLine(line);
+										addLog(line);
+									},
+								});
+							},
+						};
+					}),
+					{
+						label: "Back",
+						info: ["Close this shop menu."],
+						onSelect: closeMenu,
+					},
+				],
+			);
 			return true;
 		}
 		if (
@@ -426,65 +449,72 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 				addLog(soldOutLine);
 				return true;
 			}
-			const intro = sketchyMerchantIntro[randomInt(0, sketchyMerchantIntro.length - 1)]!;
+			const intro =
+				sketchyMerchantIntro[randomInt(0, sketchyMerchantIntro.length - 1)]!;
 			speakNpcLine(intro);
-			openMenu("Sketchy Merchant", [intro], [
-				...sketchyMerchantStock.map((entry) => {
-					const maxCanBuy = Math.min(
-						entry.qty,
-						Math.floor(money / Math.max(1, entry.price)),
-					);
-					return {
-						label: `${itemNames[entry.item]} $${entry.price}`,
-						info: [
-							`Stock: ${entry.qty}`,
-							`You can buy now: ${maxCanBuy}`,
-							`Price: $${entry.price} each`,
-							`Item: ${itemNames[entry.item]}`,
-						],
-						dealMeta: {
-							itemId: entry.item,
-							mode: "buy" as const,
-							unitPrice: entry.price,
-							baseUnitPrice: entry.basePrice,
-						},
-						onSelect: () => {
-							openQuantityPrompt({
-								mode: "buy",
-								itemLabel: itemNames[entry.item],
-								max: maxCanBuy,
+			openMenu(
+				"Sketchy Merchant",
+				[intro],
+				[
+					...sketchyMerchantStock.map((entry) => {
+						const maxCanBuy = Math.min(
+							entry.qty,
+							Math.floor(money / Math.max(1, entry.price)),
+						);
+						return {
+							label: `${itemNames[entry.item]} $${entry.price}`,
+							info: [
+								`Stock: ${entry.qty}`,
+								`You can buy now: ${maxCanBuy}`,
+								`Price: $${entry.price} each`,
+								`Item: ${itemNames[entry.item]}`,
+							],
+							dealMeta: {
+								itemId: entry.item,
+								mode: "buy" as const,
 								unitPrice: entry.price,
-								onConfirm: (quantity) => {
-									applyMoneyDelta(-entry.price * quantity);
-									updateInventory(entry.item, quantity);
-									setSketchyMerchantStock((prev) =>
-										prev
-											.map((stockEntry) =>
-												stockEntry.item === entry.item
-													? {
-															...stockEntry,
-															qty: Math.max(0, stockEntry.qty - quantity),
-														}
-													: stockEntry,
-											)
-											.filter((stockEntry) => stockEntry.qty > 0),
-									);
-									playChaChing();
-									const salesLine =
-										sketchyVendorSales[randomInt(0, sketchyVendorSales.length - 1)]!;
-									speakNpcLine(salesLine);
-									addLog(salesLine);
-								},
-							});
-						},
-					};
-				}),
-				{
-					label: "Back",
-					info: ["Close this shop menu."],
-					onSelect: closeMenu,
-				},
-			]);
+								baseUnitPrice: entry.basePrice,
+							},
+							onSelect: () => {
+								openQuantityPrompt({
+									mode: "buy",
+									itemLabel: itemNames[entry.item],
+									max: maxCanBuy,
+									unitPrice: entry.price,
+									onConfirm: (quantity) => {
+										applyMoneyDelta(-entry.price * quantity);
+										updateInventory(entry.item, quantity);
+										setSketchyMerchantStock((prev) =>
+											prev
+												.map((stockEntry) =>
+													stockEntry.item === entry.item
+														? {
+																...stockEntry,
+																qty: Math.max(0, stockEntry.qty - quantity),
+															}
+														: stockEntry,
+												)
+												.filter((stockEntry) => stockEntry.qty > 0),
+										);
+										playChaChing();
+										const salesLine =
+											sketchyVendorSales[
+												randomInt(0, sketchyVendorSales.length - 1)
+											]!;
+										speakNpcLine(salesLine);
+										addLog(salesLine);
+									},
+								});
+							},
+						};
+					}),
+					{
+						label: "Back",
+						info: ["Close this shop menu."],
+						onSelect: closeMenu,
+					},
+				],
+			);
 			return true;
 		}
 
@@ -509,8 +539,7 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 		const key = on[0];
 		if (townNpcNames[key]) {
 			const assignment =
-				npcDailyAssignments[key] ??
-				generateDailyAssignmentsForNpcs([key])[key];
+				npcDailyAssignments[key] ?? generateDailyAssignmentsForNpcs([key])[key];
 			const firstTalkToday = !npcTalkedToday[key];
 			const tipText = townTips[randomInt(0, townTips.length - 1)]!;
 			const isTip = !firstTalkToday && randomRoll() < 0.5;
@@ -521,7 +550,11 @@ export const handleLateInteractionBlocks = (ctx: InteractionsContext): boolean =
 					: generateNpcDialogLine(assignment);
 			setNpcTalkedToday((prev) => ({ ...prev, [key]: true }));
 			speakNpcLine(isTip ? `Heres a tip: ${tipText}` : line);
-			openMenu(townNpcNames[key]!, [line], [{ label: "Bye", onSelect: closeMenu }]);
+			openMenu(
+				townNpcNames[key]!,
+				[line],
+				[{ label: "Bye", onSelect: closeMenu }],
+			);
 			return true;
 		}
 	}
