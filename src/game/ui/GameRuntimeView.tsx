@@ -852,52 +852,65 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 							height: `${mapRowCount}em`,
 						}}
 					>
-						{movingEntities.map((entity) => (
-							<span
-								key={entity.id}
-								className={[
-									"tile",
-									"tile-entity",
-									entity.className ?? "",
-									entity.isPlayer &&
-									(player.map === "forest" || player.map === "cave") &&
-									showForestHit
-										? "tile-player-hit"
-										: "",
-								]
-									.filter(Boolean)
-									.join(" ")}
-								data-overlay={entity.overlayGlyph ?? ""}
-								style={{
-									left: 0,
-									top: 0,
-									width: "1em",
-									height: "1em",
-									transform: `translate(${entity.x}em, ${entity.y}em)`,
-									transition:
-										isZoomAnchoring ||
-										(entity.isPlayer && mapChangedForEntityAnimation)
-											? "none"
-											: `transform ${POSITION_ANIMATION_S}s ${POSITION_ANIMATION_EASE}`,
-								}}
-							>
+						{movingEntities.map((entity) => {
+							const tileKey = keyForPos(
+								Math.round(entity.x),
+								Math.round(entity.y),
+							); // or entity.tileKey if you have it
+
+							const isUnfed =
+								player.map === unfedAnimalMap && !!unfedAnimalTileKeys[tileKey];
+
+							return (
 								<span
+									key={entity.id}
 									className={[
-										"emoji-glyph",
-										player.map === "forest" ? "forest-emoji-glyph" : "",
-										player.map === "cave" ? "cave-emoji-glyph" : "",
+										"tile",
+										"tile-entity",
+										entity.className ?? "",
+										entity.isPlayer &&
+										(player.map === "forest" || player.map === "cave") &&
+										showForestHit
+											? "tile-player-hit"
+											: "",
 									]
 										.filter(Boolean)
 										.join(" ")}
+									data-overlay={entity.overlayGlyph ?? ""}
 									style={{
-										transform: entity.flip ? "scaleX(-1)" : undefined,
-										transformOrigin: entity.flip ? "center center" : undefined,
+										left: 0,
+										top: 0,
+										width: "1em",
+										height: "1em",
+										transform: `translate(${entity.x}em, ${entity.y}em)`,
+										transition:
+											isZoomAnchoring ||
+											(entity.isPlayer && mapChangedForEntityAnimation)
+												? "none"
+												: `transform ${POSITION_ANIMATION_S}s ${POSITION_ANIMATION_EASE}`,
 									}}
 								>
-									{entity.glyph}
+									<span
+										className={[
+											"emoji-glyph",
+											isUnfed ? "animal-unfed-emoji-glyph" : "",
+											player.map === "forest" ? "forest-emoji-glyph" : "",
+											player.map === "cave" ? "cave-emoji-glyph" : "",
+										]
+											.filter(Boolean)
+											.join(" ")}
+										style={{
+											transform: entity.flip ? "scaleX(-1)" : undefined,
+											transformOrigin: entity.flip
+												? "center center"
+												: undefined,
+										}}
+									>
+										{entity.glyph}
+									</span>
 								</span>
-							</span>
-						))}
+							);
+						})}
 					</div>
 				)}
 				{(player.map === "forest" || player.map === "cave") && (
