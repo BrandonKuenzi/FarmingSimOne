@@ -14,7 +14,9 @@ import type {
 	PriceState,
 	QuantityPromptState,
 	WeatherId,
+	TileFxApi,
 } from "../shared/types";
+import type { TileFxBus } from "./tileFxBus";
 
 type DealBadge = {
 	label: string;
@@ -43,6 +45,7 @@ export type GameRuntimeViewModel = {
 	waterLevel: number;
 	inventoryRows: Array<{ id: string; icon: string; name: string; amount: number }>;
 	log: string[];
+	showLegacyLogStrip: boolean;
 	activeMapLayouts: Record<string, string[]>;
 	isWindSlashOn: (x: number, y: number) => boolean;
 	renderedMap: string[][];
@@ -135,4 +138,6 @@ export type GameRuntimeViewModel = {
 	loadGameFromFilePicker: () => void;
 	directorPopup: { message: string } | null;
 	confirmDirectorPopup: () => void;
+	tileFx: TileFxApi;
+	tileFxBus: TileFxBus;
 };

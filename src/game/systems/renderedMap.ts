@@ -46,6 +46,8 @@ type RenderedMapContext = {
 	hasTractor: boolean;
 	tractorParked: boolean;
 	TRACTOR_PARK_POS: { x: number; y: number };
+	hasAutoCollector: boolean;
+	barnAutoCollectorPos: { x: number; y: number } | null;
 	forestObstacles: ForestObstacle[];
 	forestChest: ForestChest;
 	forestBonusChests: ForestChest[];
@@ -100,6 +102,8 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		hasTractor,
 		tractorParked,
 		TRACTOR_PARK_POS,
+		hasAutoCollector,
+		barnAutoCollectorPos,
 		forestObstacles,
 		forestChest,
 		forestBonusChests,
@@ -176,6 +180,12 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 			if (!Number.isFinite(x) || !Number.isFinite(y)) return;
 			base[y]![x] = "J";
 		});
+	}
+
+	if (playerMap === "barn" && hasAutoCollector && barnAutoCollectorPos) {
+		if (base[barnAutoCollectorPos.y]?.[barnAutoCollectorPos.x]) {
+			base[barnAutoCollectorPos.y]![barnAutoCollectorPos.x] = "P";
+		}
 	}
 
 	if (playerMap === "town") {

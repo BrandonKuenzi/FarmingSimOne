@@ -6,6 +6,8 @@ import { GLYPH } from "../config/glyphs";
 export const interactBuilderVendorMenu = (ctx: {
 	barnTier: BarnTier;
 	pendingBarnUpgrade: boolean;
+	hasAutoCollector: boolean;
+	pendingAutoCollectorInstall: boolean;
 	inventory: Inventory;
 	canAfford: (value: number) => boolean;
 	playBad: () => void;
@@ -16,10 +18,13 @@ export const interactBuilderVendorMenu = (ctx: {
 	applyMoneyDelta: (delta: number) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	setPendingBarnUpgrade: (value: boolean) => void;
+	setPendingAutoCollectorInstall: (value: boolean) => void;
 }): void => {
 	const {
 		barnTier,
 		pendingBarnUpgrade,
+		hasAutoCollector,
+		pendingAutoCollectorInstall,
 		inventory,
 		canAfford,
 		playBad,
@@ -30,16 +35,17 @@ export const interactBuilderVendorMenu = (ctx: {
 		applyMoneyDelta,
 		updateInventory,
 		setPendingBarnUpgrade,
+		setPendingAutoCollectorInstall,
 	} = ctx;
 
-	if (barnTier >= BARN_MAX_TIER) {
-		const line = "I hope you enjoy your legendary barn";
+	if (pendingBarnUpgrade) {
+		const line = "I will build your barn tonight. Check on it tomorrow morning.";
 		speakNpcLine(line);
 		addLog(line);
 		return;
 	}
-	if (pendingBarnUpgrade) {
-		const line = "I will build your barn tonight. Check on it tomorrow morning.";
+	if (pendingAutoCollectorInstall) {
+		const line = "ill install this tomorrow";
 		speakNpcLine(line);
 		addLog(line);
 		return;
@@ -59,91 +65,148 @@ export const interactBuilderVendorMenu = (ctx: {
 		!isBarnExternal(barnTier) && !isBarnExternal(nextTier)
 			? Math.max(0, nextRect.x + nextRect.w - (currentRect.x + currentRect.w))
 			: 0;
+	const openBarnUpgradePrompt = () => {
+		if (barnTier >= BARN_MAX_TIER) {
+			const line = "I hope you enjoy your legendary barn";
+			speakNpcLine(line);
+			addLog(line);
+			closeMenu();
+			return;
+		}
+		openMenu(
+			"Constrution",
+			[
+				`Upgrade barn from ${getToolTierName(barnTier)} to ${getToolTierName(nextTier)} for ${costParts.join(" + ")}?`,
+			],
+			[
+				{
+					label: "Yes",
+					info: [
+						`Interior Space: ${nextSize.width}x${nextSize.height}`,
+						`Animal capacity: ${nextCapacity}`,
+					],
+					onSelect: () => {
+						if (!canAfford(upgradeCost.money)) {
+							playBad();
+							addLog("Not enough money for that barn upgrade.");
+							closeMenu();
+							return;
+						}
+						if (inventory.iron < upgradeCost.iron) {
+							playBad();
+							addLog("Not enough iron for that barn upgrade.");
+							closeMenu();
+							return;
+						}
+						if (
+							(upgradeCost.gems.ruby ?? 0) > 0 &&
+							inventory.ruby < (upgradeCost.gems.ruby ?? 0)
+						) {
+							playBad();
+							addLog("Not enough Ruby for that barn upgrade.");
+							closeMenu();
+							return;
+						}
+						if (
+							(upgradeCost.gems.emerald ?? 0) > 0 &&
+							inventory.emerald < (upgradeCost.gems.emerald ?? 0)
+						) {
+							playBad();
+							addLog("Not enough Emerald for that barn upgrade.");
+							closeMenu();
+							return;
+						}
+						if (
+							(upgradeCost.gems.diamond ?? 0) > 0 &&
+							inventory.diamond < (upgradeCost.gems.diamond ?? 0)
+						) {
+							playBad();
+							addLog("Not enough Diamond for that barn upgrade.");
+							closeMenu();
+							return;
+						}
+						const finalizeBarnUpgradePurchase = () => {
+							applyMoneyDelta(-upgradeCost.money);
+							if (upgradeCost.iron > 0) updateInventory("iron", -upgradeCost.iron);
+							if ((upgradeCost.gems.ruby ?? 0) > 0)
+								updateInventory("ruby", -(upgradeCost.gems.ruby ?? 0));
+							if ((upgradeCost.gems.emerald ?? 0) > 0)
+								updateInventory("emerald", -(upgradeCost.gems.emerald ?? 0));
+							if ((upgradeCost.gems.diamond ?? 0) > 0)
+								updateInventory("diamond", -(upgradeCost.gems.diamond ?? 0));
+							setPendingBarnUpgrade(true);
+							closeMenu();
+							const line =
+								"I will build your barn tonight. Check on it tomorrow morning.";
+							speakNpcLine(line);
+							addLog(line);
+						};
+						if (isBarnExternal(nextTier)) {
+							finalizeBarnUpgradePurchase();
+							return;
+						}
+						openMenu(
+							"Constrution",
+							[
+								`Just so you know we will be expanding the barn to the right ${expansionRightTiles} tiles. Any crops planted there will be destroyed overnight. You want to continue`,
+							],
+							[
+								{
+									label: "Yes",
+									onSelect: finalizeBarnUpgradePurchase,
+								},
+								{ label: "No", onSelect: closeMenu },
+							],
+						);
+					},
+				},
+				{ label: "No", onSelect: closeMenu },
+			],
+		);
+	};
+
+	const autoCollectorCost = 3000;
 	openMenu(
 		"Constrution",
-		[
-			`Upgrade barn from ${getToolTierName(barnTier)} to ${getToolTierName(nextTier)} for ${costParts.join(" + ")}?`,
-		],
+		["What do you need built?"],
 		[
 			{
-				label: "Yes",
-				info: [
-					`Interior Space: ${nextSize.width}x${nextSize.height}`,
-					`Animal capacity: ${nextCapacity}`,
-				],
+				label: "Barn Upgrade",
+				info:
+					barnTier >= BARN_MAX_TIER
+						? ["Your barn is already at max tier."]
+						: [
+								`Next: ${getToolTierName(nextTier)} for ${costParts.join(" + ")}`,
+								`Capacity: ${nextCapacity}`,
+							],
+				onSelect: openBarnUpgradePrompt,
+			},
+			{
+				label: "Auto Milker/Shearer/Egg Collector",
+				info: [`${GLYPH.satelliteAntenna} $${autoCollectorCost}`, "Installs tomorrow."],
 				onSelect: () => {
-					if (!canAfford(upgradeCost.money)) {
-						playBad();
-						addLog("Not enough money for that barn upgrade.");
-						closeMenu();
-						return;
-					}
-					if (inventory.iron < upgradeCost.iron) {
-						playBad();
-						addLog("Not enough iron for that barn upgrade.");
-						closeMenu();
-						return;
-					}
-					if ((upgradeCost.gems.ruby ?? 0) > 0 && inventory.ruby < (upgradeCost.gems.ruby ?? 0)) {
-						playBad();
-						addLog("Not enough Ruby for that barn upgrade.");
-						closeMenu();
-						return;
-					}
-					if (
-						(upgradeCost.gems.emerald ?? 0) > 0 &&
-						inventory.emerald < (upgradeCost.gems.emerald ?? 0)
-					) {
-						playBad();
-						addLog("Not enough Emerald for that barn upgrade.");
-						closeMenu();
-						return;
-					}
-					if (
-						(upgradeCost.gems.diamond ?? 0) > 0 &&
-						inventory.diamond < (upgradeCost.gems.diamond ?? 0)
-					) {
-						playBad();
-						addLog("Not enough Diamond for that barn upgrade.");
-						closeMenu();
-						return;
-					}
-					const finalizeBarnUpgradePurchase = () => {
-						applyMoneyDelta(-upgradeCost.money);
-						if (upgradeCost.iron > 0) updateInventory("iron", -upgradeCost.iron);
-						if ((upgradeCost.gems.ruby ?? 0) > 0)
-							updateInventory("ruby", -(upgradeCost.gems.ruby ?? 0));
-						if ((upgradeCost.gems.emerald ?? 0) > 0)
-							updateInventory("emerald", -(upgradeCost.gems.emerald ?? 0));
-						if ((upgradeCost.gems.diamond ?? 0) > 0)
-							updateInventory("diamond", -(upgradeCost.gems.diamond ?? 0));
-						setPendingBarnUpgrade(true);
-						closeMenu();
-						const line =
-							"I will build your barn tonight. Check on it tomorrow morning.";
+					if (hasAutoCollector) {
+						const line = "That auto collector is already installed.";
 						speakNpcLine(line);
 						addLog(line);
-					};
-					if (isBarnExternal(nextTier)) {
-						finalizeBarnUpgradePurchase();
+						closeMenu();
 						return;
 					}
-					openMenu(
-						"Constrution",
-						[
-							`Just so you know we will be expanding the barn to the right ${expansionRightTiles} tiles. Any crops planted there will be destroyed overnight. You want to continue`,
-						],
-						[
-							{
-								label: "Yes",
-								onSelect: finalizeBarnUpgradePurchase,
-							},
-							{ label: "No", onSelect: closeMenu },
-						],
-					);
+					if (!canAfford(autoCollectorCost)) {
+						playBad();
+						addLog("Not enough money for that build.");
+						closeMenu();
+						return;
+					}
+					applyMoneyDelta(-autoCollectorCost);
+					setPendingAutoCollectorInstall(true);
+					closeMenu();
+					const line = "ill install this tomorrow";
+					speakNpcLine(line);
+					addLog(line);
 				},
 			},
-			{ label: "No", onSelect: closeMenu },
+			{ label: "Back", onSelect: closeMenu },
 		],
 	);
 };

@@ -26,6 +26,8 @@ type PlayerMovementContext = {
 	tractorImplementOn: boolean;
 	isPassableAt: (map: MapId, x: number, y: number) => boolean;
 	handleBlockedStep?: (map: MapId, x: number, y: number) => boolean;
+	canLeapfrogBarnAnimalAt?: (map: MapId, x: number, y: number) => boolean;
+	onLeapfrog?: () => void;
 	ownedPet: PetEmoji | null;
 	petTile: Point | null;
 	isOccupied: (map: MapId, x: number, y: number) => boolean;
@@ -78,6 +80,8 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		tractorImplementOn,
 		isPassableAt,
 		handleBlockedStep,
+		canLeapfrogBarnAnimalAt,
+		onLeapfrog,
 		ownedPet,
 		petTile,
 		isOccupied,
@@ -139,14 +143,37 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		if (handleBlockedStep?.(player.map, nx, ny)) return;
 		return;
 	}
+	let moveX = nx;
+	let moveY = ny;
+	let didLeapfrog = false;
+	const shouldTryLeapfrog =
+		!isDrivingTractor &&
+		!!canLeapfrogBarnAnimalAt?.(player.map, nx, ny) &&
+		isOccupied(player.map, nx, ny);
+	if (shouldTryLeapfrog) {
+		const lx = nx + dx;
+		const ly = ny + dy;
+		if (
+			lx >= 0 &&
+			ly >= 0 &&
+			ly < height &&
+			lx < width &&
+			isPassableAt(player.map, lx, ly) &&
+			!isOccupied(player.map, lx, ly)
+		) {
+			moveX = lx;
+			moveY = ly;
+			didLeapfrog = true;
+		}
+	}
 	const tractorCrushesPet =
 		isDrivingTractor &&
 		player.map === "farm" &&
 		!!ownedPet &&
 		!!petTile &&
-		petTile.x === nx &&
-		petTile.y === ny;
-	if (isOccupied(player.map, nx, ny) && !tractorCrushesPet) return;
+		petTile.x === moveX &&
+		petTile.y === moveY;
+	if (isOccupied(player.map, moveX, moveY) && !tractorCrushesPet) return;
 	if (tractorCrushesPet) {
 		playHoe();
 		if (petRunoverBadTimeoutRef.current !== null) {
@@ -161,7 +188,7 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		setPendingPet(null);
 		setPetTile(null);
 		setPetHeartTile(null);
-		setPendingPetGravePos({ x: nx, y: ny });
+		setPendingPetGravePos({ x: moveX, y: moveY });
 		setPetVendorActive(true);
 		addLog("Your pet was run over by the tractor.");
 	}
@@ -175,38 +202,56 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		pendingPetGravePos &&
 		pendingPetGravePos.x === player.x &&
 		pendingPetGravePos.y === player.y &&
-		(nx !== player.x || ny !== player.y)
+		(moveX !== player.x || moveY !== player.y)
 	) {
 		const key = keyForPos(player.x, player.y);
 		setPetGraveObstacles((prev) => ({ ...prev, [key]: 24 }));
 		setPendingPetGravePos(null);
 	}
-	setPlayer((prev) => ({ ...prev, x: nx, y: ny }));
+	setPlayer((prev) => ({ ...prev, x: moveX, y: moveY }));
+	if (didLeapfrog) onLeapfrog?.();
 	if (isDrivingTractor && player.map === "farm") {
-		applyTractorImplementAt(nx, ny);
-		if (nx === TRACTOR_PARK_POS.x && ny === TRACTOR_PARK_POS.y) {
+		applyTractorImplementAt(moveX, moveY);
+		if (moveX === TRACTOR_PARK_POS.x && moveY === TRACTOR_PARK_POS.y) {
 			exitTractor();
 		}
 		return;
 	}
-	if (player.map === "forest" && nx === forestEntranceDoorPos.x && ny === forestEntranceDoorPos.y) {
+	if (
+		player.map === "forest" &&
+		moveX === forestEntranceDoorPos.x &&
+		moveY === forestEntranceDoorPos.y
+	) {
 		openForestExitMenu();
 		return;
 	}
-	if (player.map === "forest" && nx === forestForwardExitPos.x && ny === forestForwardExitPos.y) {
+	if (
+		player.map === "forest" &&
+		moveX === forestForwardExitPos.x &&
+		moveY === forestForwardExitPos.y
+	) {
 		continueForestDungeon();
 		return;
 	}
-	if (player.map === "cave" && nx === caveEntranceDoorPos.x && ny === caveEntranceDoorPos.y) {
+	if (
+		player.map === "cave" &&
+		moveX === caveEntranceDoorPos.x &&
+		moveY === caveEntranceDoorPos.y
+	) {
 		openCaveExitMenu();
 		return;
 	}
-	if (player.map === "cave" && caveLadderPos && nx === caveLadderPos.x && ny === caveLadderPos.y) {
+	if (
+		player.map === "cave" &&
+		caveLadderPos &&
+		moveX === caveLadderPos.x &&
+		moveY === caveLadderPos.y
+	) {
 		continueCaveDungeon();
 		return;
 	}
 
-	const door = mapDoors[player.map].find((d) => d.x === nx && d.y === ny);
+	const door = mapDoors[player.map].find((d) => d.x === moveX && d.y === moveY);
 	if (door) {
 		if (door.target.map === "forest" && forestLockedToday) {
 			playBad();

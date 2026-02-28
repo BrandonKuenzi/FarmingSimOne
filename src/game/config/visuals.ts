@@ -79,6 +79,7 @@ const tileVisuals: Record<string, VisualCell> = {
 	"`": { glyph: GLYPH.bat },
 	"\\": { glyph: GLYPH.envelope },
 	"|": { glyph: GLYPH.fire },
+	P: { glyph: GLYPH.satelliteAntenna },
 	"1": { glyph: GLYPH.cow },
 	"2": { glyph: GLYPH.sheep },
 	"3": { glyph: GLYPH.chicken },

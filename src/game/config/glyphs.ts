@@ -73,6 +73,7 @@ export const GLYPH = {
 	bat: "\u{1F987}", // 🦇 U+1F987
 	envelope: "\u{2709}\u{FE0F}", // ✉️ U+2709 U+FE0F
 	fire: "\u{1F525}", // 🔥 U+1F525
+	satelliteAntenna: "\u{1F4E1}", // 📡 U+1F4E1
 	turnip: "\u{1F96C}", // 🥬 U+1F96C
 	carrot: "\u{1F955}", // 🥕 U+1F955
 	pumpkin: "\u{1F383}", // 🎃 U+1F383

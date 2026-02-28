@@ -30,11 +30,10 @@ export const nextTownNpcTile = ({
 	anchor,
 	npcKey,
 	nextNpcTiles,
-		activeTownRows,
-		isPassableChar,
-		requiredRowY,
-		petVendorActive,
-		ownedPet,
+	activeTownRows,
+	isPassableChar,
+	petVendorActive,
+	ownedPet,
 	petVendorPos,
 	doctorVendorActive,
 	doctorPos,
@@ -48,7 +47,6 @@ export const nextTownNpcTile = ({
 	nextNpcTiles: Record<string, IntPoint>;
 	activeTownRows: string[];
 	isPassableChar: (c: string) => boolean;
-	requiredRowY: number;
 	petVendorActive: boolean;
 	ownedPet: unknown;
 	petVendorPos: IntPoint;
@@ -57,10 +55,9 @@ export const nextTownNpcTile = ({
 	player: Position;
 	randomInt: RandomFn;
 	moveDirections: Record<number, MoveDelta>;
-	}): IntPoint | null =>
+		}): IntPoint | null =>
 	tryRandomWanderMove(current, 128, randomInt, moveDirections, (next) => {
 		if (Math.max(Math.abs(next.x - anchor.x), Math.abs(next.y - anchor.y)) > 2) return false;
-		if (next.y !== requiredRowY) return false;
 		if (
 			next.y < 0 ||
 			next.y >= activeTownRows.length ||
@@ -69,7 +66,7 @@ export const nextTownNpcTile = ({
 		)
 			return false;
 		const tile = activeTownRows[next.y]?.[next.x] ?? "#";
-		if (tile !== ",") return false;
+		if (tile === "~" || tile === "+") return false;
 		if (!isPassableChar(tile)) return false;
 
 		const occupiedByNpc = Object.entries(nextNpcTiles).some(
