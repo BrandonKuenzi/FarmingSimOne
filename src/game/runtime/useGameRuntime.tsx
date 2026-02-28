@@ -4362,6 +4362,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const moveQuantity = (delta: number) => {
 		moveQuantitySelection(setQuantityPrompt, delta);
 	};
+	const setQuantityToMax = () => {
+		setQuantityPrompt((prev) => (prev ? { ...prev, value: prev.max } : prev));
+	};
+	const setQuantityToMin = () => {
+		setQuantityPrompt((prev) => (prev ? { ...prev, value: prev.min } : prev));
+	};
 
 	const selectModal = () => {
 		selectModalOption({
@@ -4409,6 +4415,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		getAreaMusicForMap,
 		switchAreaMusic,
 		moveQuantity,
+		setQuantityToMax,
+		setQuantityToMin,
 		moveModal,
 		movePlayer,
 		interact,
