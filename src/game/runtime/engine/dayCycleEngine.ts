@@ -294,7 +294,8 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 		});
 		if (eggsLaid > 0) addLog(`Chickens laid ${eggsLaid} egg${eggsLaid === 1 ? "" : "s"}.`);
 	}
-	setAnimals((prev) => resetAnimalsForNewDay(prev));
+	const nextDayAnimals = resetAnimalsForNewDay(animals);
+	setAnimals(nextDayAnimals);
 
 	if (pendingBarnUpgrade) {
 		queueUpgradeScene({
@@ -342,7 +343,7 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 				maxY: rows.length - 2,
 			};
 			const relocation = placeAnimalsInBounds({
-				animals,
+				animals: nextDayAnimals,
 				cap: getBarnAnimalCap(nextBarnTier),
 				bounds,
 				rows: nextLayout,

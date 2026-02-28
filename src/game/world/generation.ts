@@ -466,11 +466,14 @@ export const generateForestState = (cfg?: ForestGenConfig): ForestGenerationResu
 
 	const lootVariance = randomInt(0, 1) * (randomRoll() < 0.5 ? -1 : 1);
 	const totalLootBoxes = Math.max(1, level + lootVariance);
+	const restrictLootToRightSide = level === 1;
 	const hasGoodChest = randomRoll() < 0.5;
 	let chest: ForestChest = { id: 1, x: 1, y: 1, opened: true };
 	if (hasGoodChest) {
-		const chestCell = randomForestOpenCell(grid, isBlocked, true) ?? {
-			x: Math.max(2, FARM_WIDTH - 4),
+		const chestCell = randomForestOpenCell(grid, isBlocked, restrictLootToRightSide) ?? {
+			x: restrictLootToRightSide
+				? Math.max(2, FARM_WIDTH - 4)
+				: Math.max(2, Math.floor(FARM_WIDTH / 2)),
 			y: entrancePair.inside.y,
 		};
 		chest = { id: 1, ...chestCell, opened: false };
@@ -479,11 +482,12 @@ export const generateForestState = (cfg?: ForestGenConfig): ForestGenerationResu
 
 	const bonusChests: ForestChest[] = [];
 	const basicChestCount = Math.max(0, totalLootBoxes - (hasGoodChest ? 1 : 0));
+	const minLootX = restrictLootToRightSide ? Math.floor(FARM_WIDTH / 4) : 1;
 	for (let i = 0; i < basicChestCount; i += 1) {
 		let cell: { x: number; y: number } | null = null;
 		for (let tries = 0; tries < 300; tries += 1) {
 			const candidate = randomForestOpenCell(grid, isBlocked, false);
-			if (candidate && candidate.x >= Math.floor(FARM_WIDTH / 4)) {
+			if (candidate && candidate.x >= minLootX) {
 				cell = candidate;
 				break;
 			}

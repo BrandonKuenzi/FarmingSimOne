@@ -1,5 +1,10 @@
 import { allWardrobeLooks, cafeMenuItems } from "../config/gameplay";
-import { animalDefs, cropDefs, highValueChestAnimalTypes, standardCropIds } from "../content/catalog";
+import {
+	animalDefs,
+	cropDefs,
+	highValueChestAnimalTypes,
+	standardCropIds,
+} from "../content/catalog";
 import { getRandomCropId, toolNames, TOOL_MAX_LEVEL } from "./tools";
 import { randomRoll } from "../shared/random";
 import type { AnimalType, ItemId, ToolId, ToolLevels } from "../shared/types";
@@ -62,9 +67,10 @@ export const openHighValueForestChestReward = (ctx: {
 	openRewardPopup: (line: string) => void;
 }): void => {
 	const roll = randomRoll() * 100;
-	const canGrantAnimalReward = ctx.animalsCount < ctx.barnAnimalCap && ctx.canSpawnAnimal;
+	const canGrantAnimalReward =
+		ctx.animalsCount < ctx.barnAnimalCap && ctx.canSpawnAnimal;
 	let rewardLine = "";
-	if (roll < 50) {
+	if (roll < 40) {
 		const foundMoney = ctx.randomInt(50, 200);
 		ctx.applyMoneyDelta(foundMoney);
 		rewardLine = `You found $${foundMoney} in the chest.`;
@@ -72,7 +78,7 @@ export const openHighValueForestChestReward = (ctx: {
 			ctx.updateInventory("iron", 1);
 			rewardLine += " Also found Iron +1.";
 		}
-	} else if (roll < 75) {
+	} else if (roll < 60) {
 		const pick = getRandomCropId(standardCropIds, ctx.randomInt);
 		const amount = ctx.randomInt(5, 15);
 		ctx.updateInventory(cropDefs[pick].seedItem, amount);
@@ -81,7 +87,7 @@ export const openHighValueForestChestReward = (ctx: {
 			ctx.updateInventory("iron", 1);
 			rewardLine += " Also found Iron +1.";
 		}
-	} else if (roll < 90) {
+	} else if (roll < 70) {
 		const foundMoney = ctx.randomInt(200, 500);
 		const pick = getRandomCropId(standardCropIds, ctx.randomInt);
 		const amount = ctx.randomInt(5, 15);
@@ -92,8 +98,10 @@ export const openHighValueForestChestReward = (ctx: {
 			ctx.updateInventory("iron", 1);
 			rewardLine += " Also found Iron +1.";
 		}
-	} else if (roll < 95) {
-		const lockedLooks = allWardrobeLooks.filter((look) => !ctx.ownedWardrobeLooks.includes(look));
+	} else if (roll < 90) {
+		const lockedLooks = allWardrobeLooks.filter(
+			(look) => !ctx.ownedWardrobeLooks.includes(look),
+		);
 		if (lockedLooks.length > 0) {
 			const look = lockedLooks[ctx.randomInt(0, lockedLooks.length - 1)]!;
 			ctx.setOwnedWardrobeLooks((prev) => [...prev, look]);
@@ -103,7 +111,7 @@ export const openHighValueForestChestReward = (ctx: {
 			ctx.applyMoneyDelta(fallbackMoney);
 			rewardLine = `You already own all the outfits! So instead, you found $${fallbackMoney} instead.`;
 		}
-	} else if (roll < 99 && canGrantAnimalReward) {
+	} else if (roll < 97 && canGrantAnimalReward) {
 		const types: AnimalType[] = highValueChestAnimalTypes;
 		const type = types[ctx.randomInt(0, types.length - 1)]!;
 		if (ctx.spawnAnimalInBarn(type)) {
@@ -137,24 +145,24 @@ export const openCaveBonusChestReward = (ctx: {
 }): void => {
 	const roll = randomRoll() * 100;
 	let line = "";
-	if (roll < 25) {
+	if (roll < 15) {
 		ctx.updateInventory("diamond", 1);
 		line = "You found Diamond +1.";
-	} else if (roll < 50) {
+	} else if (roll < 35) {
 		ctx.updateInventory("emerald", 1);
 		line = "You found Emerald +1.";
-	} else if (roll < 75) {
+	} else if (roll < 60) {
 		ctx.updateInventory("ruby", 1);
 		line = "You found Ruby +1.";
-	} else if (roll < 85) {
+	} else if (roll < 75) {
 		ctx.updateInventory("emerald", 1);
 		ctx.updateInventory("ruby", 1);
 		line = "You found Emerald +1 and Ruby +1.";
-	} else if (roll < 95) {
+	} else if (roll < 90) {
 		ctx.updateInventory("emerald", 1);
 		ctx.updateInventory("diamond", 1);
 		line = "You found Emerald +1 and Diamond +1.";
-	} else if (roll < 99) {
+	} else if (roll < 97) {
 		ctx.updateInventory("diamond", 1);
 		ctx.updateInventory("emerald", 1);
 		ctx.updateInventory("ruby", 1);
@@ -183,7 +191,8 @@ export const rollBeachBottleReward = (ctx: {
 	spawnAnimalInBarn: (type: AnimalType) => boolean;
 }): string => {
 	const canRewardFood = ctx.stamina < ctx.staminaMax;
-	const canGrantAnimalReward = ctx.animalsCount < ctx.barnAnimalCap && ctx.canSpawnAnimal;
+	const canGrantAnimalReward =
+		ctx.animalsCount < ctx.barnAnimalCap && ctx.canSpawnAnimal;
 	const maxRoll = canRewardFood
 		? canGrantAnimalReward
 			? 100

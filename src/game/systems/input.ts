@@ -105,6 +105,8 @@ export type GameKeyDownContext = {
 	getAreaMusicForMap: (map: MapId) => HTMLAudioElement | null;
 	switchAreaMusic: (nextTrack: HTMLAudioElement | null, immediate?: boolean) => void;
 	moveQuantity: (delta: number) => void;
+	setQuantityToMax: () => void;
+	setQuantityToMin: () => void;
 	moveModal: (dir: Dir) => void;
 	movePlayer: (dir: Dir) => void;
 	interact: (dir: Dir) => void;
@@ -133,7 +135,14 @@ export const handleGameKeyDown = (
 		key === "arrowdown" ||
 		key === "arrowleft" ||
 		key === "arrowright";
-	if (e.repeat && isDirectionalKey) {
+	const isQuantityRepeatKey =
+		key === "a" || key === "d" || key === "arrowleft" || key === "arrowright";
+	const allowQuantityRepeat = !!ctx.modal && !!ctx.quantityPrompt && isQuantityRepeatKey;
+	if (e.repeat && isDirectionalKey && !allowQuantityRepeat) {
+		e.preventDefault();
+		return;
+	}
+	if (e.repeat && (key === " " || key === "enter") && !!ctx.modal) {
 		e.preventDefault();
 		return;
 	}
@@ -265,14 +274,14 @@ export const handleGameKeyDown = (
 
 	if (key === "w") {
 		e.preventDefault();
-		if (ctx.modal && ctx.quantityPrompt) ctx.moveQuantity(1);
+		if (ctx.modal && ctx.quantityPrompt) ctx.setQuantityToMax();
 		else if (ctx.modal) ctx.moveModal("up");
 		else ctx.movePlayer("up");
 		return;
 	}
 	if (key === "s") {
 		e.preventDefault();
-		if (ctx.modal && ctx.quantityPrompt) ctx.moveQuantity(-1);
+		if (ctx.modal && ctx.quantityPrompt) ctx.setQuantityToMin();
 		else if (ctx.modal) ctx.moveModal("down");
 		else ctx.movePlayer("down");
 		return;
