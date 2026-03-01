@@ -1177,6 +1177,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		initialPrices,
 		cancelQuantityPrompt,
 		moveQuantity,
+		setQuantityToMax,
+		setQuantityToMin,
 		moveModal,
 		moonPhases,
 		dayTransition,
@@ -1186,13 +1188,25 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		continueAfterSleep,
 		dayTransitionPrompt,
 		isSaveLoadMenuOpen,
+		controlMode,
 		canSaveGame,
 		saveDisabledMessage,
 		saveLoadStatus,
 		toggleSaveLoadMenu,
+		toggleControlMode,
 		closeSaveLoadMenu,
 		saveGameToFile,
 		loadGameFromFilePicker,
+		mobileMoveJoystickAnchor,
+		mobileMoveJoystickThumb,
+		mobileInteractJoystickAnchor,
+		mobileInteractJoystickThumb,
+		onMobileMoveJoystickTouchStart,
+		onMobileMoveJoystickTouchMove,
+		onMobileMoveJoystickTouchEnd,
+		onMobileInteractJoystickTouchStart,
+		onMobileInteractJoystickTouchMove,
+		onMobileInteractJoystickTouchEnd,
 		directorPopup,
 		confirmDirectorPopup,
 		tileFxBus,
@@ -1207,7 +1221,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 	const newspaperPictureSeed = day + newspaper.length;
 	return (
 		<div
-			className='game-shell'
+			className={`game-shell${controlMode === "mobile" ? " mobile-controls-enabled" : ""}`}
 			tabIndex={0}
 			onKeyDown={onKeyDown}
 			onKeyUp={onKeyUp}
@@ -1246,6 +1260,13 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 						>
 							Close
 						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={toggleControlMode}
+						>
+							Controls: {controlMode === "pc" ? "PC" : "Mobile"}
+						</button>
 						{saveDisabledMessage && (
 							<div className='small'>{saveDisabledMessage}</div>
 						)}
@@ -1279,122 +1300,127 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 				</div>
 			</div>
 
-			<div className='inventory inventory-strip'>
-				<div className='header-inline-list'>
-					<div className='panel-title'>Inventory</div>
-					<ul className='inventory-row'>
-						<li
-							key='water-row'
-							className='inventory-item'
-						>
-							<span className='inventory-item-icon'>{GLYPH.pouringLiquid}</span>{" "}
-							{/* water can */}
-							<span>Water:</span>
-							<span>{waterLevel}</span>
-						</li>
-						{inventoryRows.map((r) => (
+			<div className='gameplay-main'>
+				<div className='inventory inventory-strip gameplay-inventory'>
+					<div className='header-inline-list'>
+						<div className='panel-title'>Inventory</div>
+						<ul className='inventory-row'>
 							<li
-								key={r.id}
+								key='water-row'
 								className='inventory-item'
 							>
-								<span className='inventory-item-icon'>{r.icon}</span>
-								<span>{r.name}:</span>
-								<span>{r.amount}</span>
+								<span className='inventory-item-icon'>{GLYPH.pouringLiquid}</span>{" "}
+								{/* water can */}
+								<span>Water:</span>
+								<span>{waterLevel}</span>
 							</li>
-						))}
-					</ul>
+							{inventoryRows.map((r) => (
+								<li
+									key={r.id}
+									className='inventory-item'
+								>
+									<span className='inventory-item-icon'>{r.icon}</span>
+									<span>{r.name}:</span>
+									<span>{r.amount}</span>
+								</li>
+							))}
+						</ul>
+					</div>
 				</div>
-			</div>
-			<div className='tools tools-strip'>
-				<div className='header-inline-list'>
-					<div className='panel-title'>Tools</div>
-					<ul className='inventory-row'>
-						{toolRows.map((tool) => (
-							<li
-								key={tool.id}
-								className='inventory-item'
-							>
-								{getToolTierName(tool.level)} {tool.name}
-							</li>
-						))}
-						{pendingTractorDelivery && (
-							<li
-								key='tractor-pending'
-								className='inventory-item'
-							>
-								Tractor (arrives tomorrow)
-							</li>
-						)}
-						{hasTractor && (
-							<li
-								key='tractor-owned'
-								className='inventory-item'
-							>
-								Tractor
-							</li>
-						)}
-						{hasHeadlamp && (
-							<li
-								key='headlamp-owned'
-								className='inventory-item'
-							>
-								Headlamp
-							</li>
-						)}
-					</ul>
-				</div>
-			</div>
 
-			<MemoMapViewport
-				ctx={{
-					activeMapLayouts,
-					player,
-					townNpcTiles,
-					forestEnemies,
-					caveEnemies,
-					animalsMap,
-					animals,
-					animalTiles,
-					isWindSlashOn,
-					renderedMap,
-					mapZoom,
-					cameraTarget,
-					plots,
-					keyForPos,
-					currentWeather,
-					groundClassForTile,
-					isShopMap,
-					shopDecorByMap,
-					isFarmHouseDoorTile,
-					getDoorGroundClass,
-					fishing,
-					isDrivingTractor,
-					isBathing,
-					showTiredFace,
-					playerEmoji,
-					waterRefillTile,
-					isRippleWaterTile,
-					waterRipplePhase,
-					isAnimatedGrassTile,
-					grassFoliageVariant,
-					caveLadderPos,
-					caveRubble,
-					toVisual,
-					spriteTilesNeedingGround,
-					petFacing,
-					tractorFacing,
-					showForestHit,
-					getForestFogOpacity,
-					getCaveFogOpacity,
-					clouds,
-					setClouds,
-					cloudOverlayVisible,
-					unfedAnimalMap,
-					unfedAnimalTileKeys,
-					dayTransitionStarsState,
-					tileFxBus,
-				}}
-			/>
+				<div className='tools tools-strip gameplay-tools'>
+					<div className='header-inline-list'>
+						<div className='panel-title'>Tools</div>
+						<ul className='inventory-row'>
+							{toolRows.map((tool) => (
+								<li
+									key={tool.id}
+									className='inventory-item'
+								>
+									{getToolTierName(tool.level)} {tool.name}
+								</li>
+							))}
+							{pendingTractorDelivery && (
+								<li
+									key='tractor-pending'
+									className='inventory-item'
+								>
+									Tractor (arrives tomorrow)
+								</li>
+							)}
+							{hasTractor && (
+								<li
+									key='tractor-owned'
+									className='inventory-item'
+								>
+									Tractor
+								</li>
+							)}
+							{hasHeadlamp && (
+								<li
+									key='headlamp-owned'
+									className='inventory-item'
+								>
+									Headlamp
+								</li>
+							)}
+						</ul>
+					</div>
+				</div>
+
+				<div className='gameplay-map-slot'>
+					<MemoMapViewport
+						ctx={{
+							activeMapLayouts,
+							player,
+							townNpcTiles,
+							forestEnemies,
+							caveEnemies,
+							animalsMap,
+							animals,
+							animalTiles,
+							isWindSlashOn,
+							renderedMap,
+							mapZoom,
+							cameraTarget,
+							plots,
+							keyForPos,
+							currentWeather,
+							groundClassForTile,
+							isShopMap,
+							shopDecorByMap,
+							isFarmHouseDoorTile,
+							getDoorGroundClass,
+							fishing,
+							isDrivingTractor,
+							isBathing,
+							showTiredFace,
+							playerEmoji,
+							waterRefillTile,
+							isRippleWaterTile,
+							waterRipplePhase,
+							isAnimatedGrassTile,
+							grassFoliageVariant,
+							caveLadderPos,
+							caveRubble,
+							toVisual,
+							spriteTilesNeedingGround,
+							petFacing,
+							tractorFacing,
+							showForestHit,
+							getForestFogOpacity,
+							getCaveFogOpacity,
+							clouds,
+							setClouds,
+							cloudOverlayVisible,
+							unfedAnimalMap,
+							unfedAnimalTileKeys,
+							dayTransitionStarsState,
+							tileFxBus,
+						}}
+					/>
+				</div>
+			</div>
 			{isNewspaperPopupOpen && (
 				<div
 					className='newspaper-popup-backdrop'
@@ -1534,27 +1560,77 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 														<div>Amount:</div>
 														<div>{`\u25C0 ${quantityPrompt.value} \u25B6`}</div>
 													</div>
+													<div className='quantity-touch-controls'>
+														<div className='quantity-touch-row'>
+															<button
+																type='button'
+																className='option quantity-touch-button'
+																onClick={setQuantityToMin}
+															>
+																Min
+															</button>
+															<button
+																type='button'
+																className='option quantity-touch-button'
+																onClick={() => moveQuantity(-1)}
+															>
+																-
+															</button>
+															<button
+																type='button'
+																className='option quantity-touch-button'
+																onClick={() => moveQuantity(1)}
+															>
+																+
+															</button>
+															<button
+																type='button'
+																className='option quantity-touch-button'
+																onClick={setQuantityToMax}
+															>
+																Max
+															</button>
+														</div>
+														<div className='quantity-touch-row'>
+															<button
+																type='button'
+																className='option active quantity-touch-button'
+																onClick={selectModal}
+															>
+																OK
+															</button>
+															<button
+																type='button'
+																className='option quantity-touch-button'
+																onClick={cancelQuantityPrompt}
+															>
+																Cancel
+															</button>
+														</div>
+													</div>
 													<div className='small quantity-footer'>
 														Space to confirm. Esc to cancel
 													</div>
 												</div>
 											) : (
 												modal.options.map((opt, idx) => (
-													<div
+													<button
 														key={opt.label + idx}
-														className={`option ${idx === modalIndex ? "active" : ""}`}
+														type='button'
+														className={`option modal-option-button ${idx === modalIndex ? "active" : ""}`}
+														onClick={opt.onSelect}
 													>
 														{idx === modalIndex ? ">" : " "}{" "}
 														<span
 															className={
 																modal.title === "Wardrobe"
-																	? "wardrobe-option-label"
-																	: undefined
+																? "wardrobe-option-label"
+																: undefined
 															}
 														>
 															{opt.label}
 														</span>
-													</div>
+													</button>
 												))
 											)}
 										</div>
@@ -1726,6 +1802,72 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 						)}
 					</motion.div>
 				</motion.div>
+			)}
+			{controlMode === "mobile" && (
+				<div className='mobile-controls-overlay'>
+					<div
+						className='mobile-joystick-zone'
+						onTouchStart={onMobileMoveJoystickTouchStart}
+						onTouchMove={onMobileMoveJoystickTouchMove}
+						onTouchEnd={onMobileMoveJoystickTouchEnd}
+						onTouchCancel={onMobileMoveJoystickTouchEnd}
+					>
+						<div
+							className={`mobile-joystick-anchor${mobileMoveJoystickAnchor ? " active" : ""}`}
+							style={
+								mobileMoveJoystickAnchor
+									? {
+											position: "fixed",
+											left: mobileMoveJoystickAnchor.x,
+											top: mobileMoveJoystickAnchor.y,
+										}
+									: undefined
+							}
+						>
+							<span className='mobile-joystick-label'>Movement</span>
+						</div>
+					</div>
+					{mobileMoveJoystickThumb && (
+						<div
+							className='mobile-joystick-thumb'
+							style={{
+								left: mobileMoveJoystickThumb.x,
+								top: mobileMoveJoystickThumb.y,
+							}}
+						/>
+					)}
+					<div
+						className='mobile-interact-zone'
+						onTouchStart={onMobileInteractJoystickTouchStart}
+						onTouchMove={onMobileInteractJoystickTouchMove}
+						onTouchEnd={onMobileInteractJoystickTouchEnd}
+						onTouchCancel={onMobileInteractJoystickTouchEnd}
+					>
+						<div
+							className={`mobile-joystick-anchor${mobileInteractJoystickAnchor ? " active" : ""}`}
+							style={
+								mobileInteractJoystickAnchor
+									? {
+											position: "fixed",
+											left: mobileInteractJoystickAnchor.x,
+											top: mobileInteractJoystickAnchor.y,
+										}
+									: undefined
+							}
+						>
+							<span className='mobile-joystick-label'>Interact</span>
+						</div>
+					</div>
+					{mobileInteractJoystickThumb && (
+						<div
+							className='mobile-joystick-thumb'
+							style={{
+								left: mobileInteractJoystickThumb.x,
+								top: mobileInteractJoystickThumb.y,
+							}}
+						/>
+					)}
+				</div>
 			)}
 			{directorPopup && (
 				<div className='director-popup-backdrop'>

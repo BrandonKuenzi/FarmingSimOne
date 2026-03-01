@@ -2,6 +2,7 @@
 	font-family: "Consolas", "Cascadia Mono", monospace;
 	color: #1f1812;
 	background: #e9dfc9;
+	--ui-edge-pad: 8px;
 }
 
 * {
@@ -12,7 +13,9 @@ html,
 body,
 #root {
 	margin: 0;
-	min-height: 100vh;
+	height: 100vh;
+	height: 100dvh;
+	overflow: hidden;
 }
 
 body {
@@ -74,11 +77,17 @@ body {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-	padding: 8px;
+	padding: var(--ui-edge-pad);
 	width: 100%;
-	min-height: 100vh;
-	max-width: 100vw;
+	height: 100vh;
+	height: 100dvh;
+	max-width: 100%;
 	margin: 0;
+	overflow: hidden;
+}
+
+.game-shell.mobile-controls-enabled {
+	padding-bottom: calc(var(--mobile-controls-height, 180px) + var(--ui-edge-pad));
 }
 
 .save-load-menu-button {
@@ -746,6 +755,56 @@ body {
 	margin-bottom: 0;
 }
 
+.gameplay-main {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+}
+
+.gameplay-map-slot {
+	min-width: 0;
+	width: 100%;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.gameplay-main > * {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.gameplay-map-slot .map-wrap {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+}
+
+.game-shell:not(.mobile-controls-enabled) .gameplay-main {
+	flex: 1;
+	min-height: 0;
+}
+
+.game-shell:not(.mobile-controls-enabled) .gameplay-map-slot {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.game-shell:not(.mobile-controls-enabled) .gameplay-map-slot .map-wrap {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.game-shell:not(.mobile-controls-enabled) .gameplay-map-slot .map {
+	flex: 1;
+	min-height: 0;
+	max-height: none;
+}
+
 .inventory-strip .inventory-row,
 .tools-strip .inventory-row {
 	flex-wrap: nowrap;
@@ -1118,6 +1177,37 @@ li {
 	text-align: center;
 }
 
+.quantity-touch-controls {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.quantity-touch-row {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 6px;
+}
+
+.quantity-touch-row:last-child {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quantity-touch-button {
+	margin-top: 0;
+	min-height: 34px;
+	background: #f7f0df;
+	cursor: pointer;
+}
+
+.modal-option-button {
+	width: 100%;
+	text-align: left;
+	background: transparent;
+	cursor: pointer;
+}
+
 .quantity-footer {
 	text-align: center;
 	margin-top: 8px;
@@ -1144,6 +1234,68 @@ li {
 	font-size: 0.92em;
 }
 
+.mobile-controls-overlay {
+	position: fixed;
+	left: 0;
+	right: 0;
+	top: auto;
+	bottom: 0;
+	height: var(--mobile-controls-height, 180px);
+	z-index: 999;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	pointer-events: none;
+}
+
+.mobile-joystick-zone,
+.mobile-interact-zone {
+	position: relative;
+	pointer-events: auto;
+	touch-action: none;
+}
+
+.mobile-joystick-anchor,
+.mobile-joystick-thumb {
+	position: fixed;
+	width: 58px;
+	height: 58px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.5);
+	border: 1px solid rgba(255, 255, 255, 0.9);
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+	z-index: 1000;
+}
+
+.mobile-joystick-anchor {
+	width: 74px;
+	height: 74px;
+	background: rgba(255, 255, 255, 0.34);
+	position: absolute;
+	left: 50%;
+	top: 50%;
+}
+
+.mobile-joystick-anchor.active {
+	position: fixed;
+}
+
+.mobile-joystick-label {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	color: rgba(255, 255, 255, 0.92);
+	font-weight: 700;
+	font-size: 0.58rem;
+	letter-spacing: 0.02em;
+	line-height: 1;
+	text-align: center;
+	max-width: 88%;
+	text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+	pointer-events: none;
+}
+
 @media (max-width: 920px) {
 	.info-grid {
 		grid-template-columns: 1fr;
@@ -1168,5 +1320,75 @@ li {
 
 	.modal-layout {
 		grid-template-columns: 1fr;
+	}
+}
+
+@media (orientation: landscape) {
+	.game-shell.mobile-controls-enabled {
+		padding-bottom: var(--ui-edge-pad);
+	}
+
+	.game-shell.mobile-controls-enabled .gameplay-main {
+		flex-direction: row;
+		align-items: stretch;
+		flex: 1;
+		min-height: 0;
+		gap: 0;
+		width: 100%;
+		max-width: 100%;
+		overflow: hidden;
+	}
+
+	.game-shell.mobile-controls-enabled .gameplay-main > * {
+		min-width: 0;
+	}
+
+	.game-shell.mobile-controls-enabled .gameplay-inventory {
+		flex: 0 0 20%;
+		width: 20%;
+		max-width: 20%;
+		overflow: auto;
+		order: 1;
+	}
+
+	.game-shell.mobile-controls-enabled .gameplay-map-slot {
+		flex: 0 0 60%;
+		width: 60%;
+		max-width: 60%;
+		display: flex;
+		min-height: 0;
+		overflow: hidden;
+		order: 2;
+	}
+
+	.game-shell.mobile-controls-enabled .gameplay-map-slot .map-wrap {
+		flex: 1;
+		min-height: 0;
+		min-width: 0;
+		display: flex;
+		overflow: hidden;
+	}
+
+	.game-shell.mobile-controls-enabled .gameplay-map-slot .map {
+		flex: 1;
+		min-height: 0;
+		min-width: 0;
+		max-width: 100%;
+		max-height: none;
+	}
+
+	.game-shell.mobile-controls-enabled .gameplay-tools {
+		flex: 0 0 20%;
+		width: 20%;
+		max-width: 20%;
+		overflow: auto;
+		order: 3;
+	}
+
+	.game-shell.mobile-controls-enabled .inventory-strip .inventory-row,
+	.game-shell.mobile-controls-enabled .tools-strip .inventory-row {
+		flex-wrap: wrap;
+		overflow-x: visible;
+		white-space: normal;
 	}
 }

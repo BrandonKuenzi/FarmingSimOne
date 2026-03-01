@@ -56,6 +56,25 @@ export const PC_KEYBOARD_PRESET: KeyboardInputPreset = {
 	},
 };
 
+export const MOBILE_KEYBOARD_PRESET: KeyboardInputPreset = {
+	id: "mobile",
+	keyToCommand: {
+		arrowup: "MOVE_UP",
+		arrowdown: "MOVE_DOWN",
+		arrowleft: "MOVE_LEFT",
+		arrowright: "MOVE_RIGHT",
+		" ": "OK",
+		enter: "OK",
+		escape: "CANCEL",
+	},
+	keyToHeldMoveDirection: {
+		arrowup: "up",
+		arrowdown: "down",
+		arrowleft: "left",
+		arrowright: "right",
+	},
+};
+
 export type InputCommandHandler = (
 	ctx: GameKeyDownContext,
 	command: GameInputCommand,
