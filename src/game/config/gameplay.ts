@@ -1,4 +1,5 @@
 import { cropDefs } from "../content/catalog";
+import { fishItemCatalog, fishItemIds } from "../content/fishCatalog";
 import { GEM_SELL_PRICES } from "../systems/commerce";
 import { getHoeShape } from "../systems/tools";
 import { keyForPos } from "../shared/coords";
@@ -154,7 +155,7 @@ export const priceItems: ItemId[] = [
 	"milk",
 	"wool",
 	"egg",
-	"fish",
+	...fishItemIds,
 	"shell",
 ];
 
@@ -225,14 +226,14 @@ export const makeEmptyInventory = (): Inventory => ({
 	milk: 0,
 	wool: 0,
 	egg: 0,
-	fish: 0,
+	...Object.fromEntries(fishItemIds.map((id) => [id, 0])),
 	iron: 0,
 	shell: 0,
 	diamond: 0,
 	emerald: 0,
 	ruby: 0,
 	coral_fruit: 0,
-});
+} as Inventory);
 
 export const initialPrices: PriceState = {
 	turnip_seed: cropDefs.turnip.buyPrice,
@@ -247,14 +248,14 @@ export const initialPrices: PriceState = {
 	milk: 30,
 	wool: 28,
 	egg: 16,
-	fish: 5,
+	...Object.fromEntries(fishItemCatalog.map((fish) => [fish.itemId, fish.sellPrice])),
 	iron: 40,
 	shell: 10,
 	diamond: GEM_SELL_PRICES.diamond,
 	emerald: GEM_SELL_PRICES.emerald,
 	ruby: GEM_SELL_PRICES.ruby,
 	coral_fruit: 500,
-};
+} as PriceState;
 
 export const initialPriceTrends: PriceTrendState = {
 	turnip_seed: 0,
@@ -269,14 +270,14 @@ export const initialPriceTrends: PriceTrendState = {
 	milk: 0,
 	wool: 0,
 	egg: 0,
-	fish: 0,
+	...Object.fromEntries(fishItemIds.map((id) => [id, 0])),
 	iron: 0,
 	shell: 0,
 	diamond: 0,
 	emerald: 0,
 	ruby: 0,
 	coral_fruit: 0,
-};
+} as PriceTrendState;
 
 export const getFarmBarnInteriorBounds = (barnTier: BarnTier) => {
 	const { x, y, w, h } = getFarmBarnOuterRect(barnTier);

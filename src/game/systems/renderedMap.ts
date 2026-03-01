@@ -315,7 +315,6 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 
 	if (fishing && fishing.map === playerMap) {
 		if (fishing.phase === "waiting") base[fishing.y][fishing.x] = "b";
-		else if (fishing.phase === "bite") base[fishing.y][fishing.x] = "F";
 	}
 
 	return base;

@@ -38,6 +38,7 @@ import woofSoundSrc from "../../assets/woof.m4a";
 import tractorSoundSrc from "../../assets/tractor.wav";
 import sighSoundSrc from "../../assets/sigh.m4a";
 import whooshSoundSrc from "../../assets/whoosh.m4a";
+import battleMusicSrc from "../../assets/battleMusic.mp3";
 import {
 	generateDailyAssignmentsForNpcs,
 	generateNpcDialogLine,
@@ -86,6 +87,7 @@ import {
 	rareCowVariantTypes,
 	standardCropIds,
 } from "../content/catalog";
+import { getFishItemMetaById } from "../content/fishCatalog";
 import { makeGaryBottleMessage } from "../content/garyBottle";
 import { rollBeachBottleSpawn, rollBeachShellDrops } from "../world/beach";
 import {
@@ -156,6 +158,23 @@ import { interactVendorMenu } from "../systems/vendors";
 import { interactBuilderVendorMenu } from "../systems/builder";
 import {
 	clearFishingTimers as clearFishingTimersSystem,
+	FISHING_FISH_MOVE_IMPACT_SOUNDS,
+	FISHING_LEVEL_UP_COMPLIMENTS,
+	FISHING_PLAYER_MOVES,
+	FISHING_PLAYER_MOVE_IMPACT_SOUNDS,
+	FISHING_PLAYER_MOVE_ORDER,
+	applyFishingExpGain,
+	getFishMovePoolWithFallback,
+	getFishingAttackForLevel,
+	getFishingCategoryForMap,
+	getFishingDefenseForLevel,
+	getFishingExpToNextLevel,
+	pickFishForEncounter,
+	resolveFishTurn,
+	resolvePlayerFishingMove,
+	rollFishingLevelUpAttackBuffAmount,
+	rollFishingLevelUpDefenseBuffAmount,
+	rollFishMove,
 	startFishingSequence,
 } from "../systems/fishing";
 import { rollBeachBottleReward } from "../systems/rewards";
@@ -250,7 +269,6 @@ import { useWorldSimulation } from "./worldSimulation";
 import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
-	getFishingRodMaxWaitSeconds,
 	getFishingRodUiText,
 	getRandomCropId,
 	getSmashAxeActionCost,
@@ -282,6 +300,8 @@ import type {
 	DayTransitionState,
 	Dir,
 	FishingState,
+	FishingFishMoveId,
+	FishingPlayerMoveId,
 	ForestChest,
 	ForestEnemy,
 	ForestEnemyType,
@@ -456,6 +476,12 @@ type GameRuntimeBootOptions = {
 	bootSaveJson?: string | null;
 };
 
+type PendingFishingReward = {
+	itemId: ItemId;
+	fishName: string;
+	fishGlyph: string;
+};
+
 export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const bootSaveJson = options?.bootSaveJson ?? null;
 	const shellRef = useRef<HTMLDivElement | null>(null);
@@ -488,6 +514,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const tractorSoundRef = useRef<HTMLAudioElement | null>(null);
 	const sighSoundRef = useRef<HTMLAudioElement | null>(null);
 	const whooshSoundRef = useRef<HTMLAudioElement | null>(null);
+	const battleMusicRef = useRef<HTMLAudioElement | null>(null);
 	const cafeOrderMusicRef = useRef<HTMLAudioElement | null>(null);
 	const currentAreaMusicRef = useRef<HTMLAudioElement | null>(null);
 	const musicFadeIntervalRef = useRef<number | null>(null);
@@ -510,6 +537,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const orderCompleteTimeoutRef = useRef<number | null>(null);
 	const orderRewardTimeoutRef = useRef<number | null>(null);
 	const savarioResponseTimeoutRef = useRef<number | null>(null);
+	const pendingFishingRewardRef = useRef<PendingFishingReward | null>(null);
 	const cafeObservationIntervalRef = useRef<number | null>(null);
 	const doctorProcessTimeoutRef = useRef<number | null>(null);
 	const doctorRewardTimeoutRef = useRef<number | null>(null);
@@ -725,6 +753,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				),
 				npcTalkedToday: {},
 				fishing: null,
+				fishingProgress: { level: 1, exp: 0, attackBonus: 0, defenseBonus: 0 },
 				isOrdering: false,
 				cafeObservation: "",
 				isDoctorCompounding: false,
@@ -893,6 +922,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		npcDailyAssignments,
 		npcTalkedToday,
 		fishing,
+		fishingProgress,
 		isOrdering,
 		cafeObservation,
 		isDoctorCompounding,
@@ -1070,6 +1100,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setNpcDailyAssignments = setForKey("npcDailyAssignments");
 	const setNpcTalkedToday = setForKey("npcTalkedToday");
 	const setFishing = setForKey("fishing");
+	const setFishingProgress = setForKey("fishingProgress");
 	const setIsOrdering = setForKey("isOrdering");
 	const setCafeObservation = setForKey("cafeObservation");
 	const setIsDoctorCompounding = setForKey("isDoctorCompounding");
@@ -1292,6 +1323,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				tractorSoundRef,
 				sighSoundRef,
 				whooshSoundRef,
+				battleMusicRef,
 				cafeOrderMusicRef,
 				currentAreaMusicRef,
 				ttsReadyRef,
@@ -1327,6 +1359,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				tractorSoundSrc,
 				sighSoundSrc,
 				whooshSoundSrc,
+				battleMusicSrc,
 			},
 		});
 	}, []);
@@ -1354,6 +1387,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		stopTractorLoop,
 		playSigh,
 		playWhoosh,
+		startBattleMusicLoop,
+		stopBattleMusicLoop,
 		speakNpcLine,
 	} = createAudioActions({
 		refs: {
@@ -1386,6 +1421,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			tractorSoundRef,
 			sighSoundRef,
 			whooshSoundRef,
+			battleMusicRef,
 			cafeOrderMusicRef,
 			currentAreaMusicRef,
 			ttsReadyRef,
@@ -1459,6 +1495,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				tractorSoundRef,
 				sighSoundRef,
 				whooshSoundRef,
+				battleMusicRef,
 				cafeOrderMusicRef,
 				currentAreaMusicRef,
 				musicFadeFromRef,
@@ -1681,35 +1718,530 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const endFishing = () => {
 		clearFishingTimers();
+		stopBattleMusicLoop();
+		if (cafeOrderMusicRef.current) {
+			cafeOrderMusicRef.current.pause();
+			cafeOrderMusicRef.current.currentTime = 0;
+		}
+		setPauseGame(false);
 		setFishing(null);
+		const pendingFishingReward = pendingFishingRewardRef.current;
+		pendingFishingRewardRef.current = null;
+		if (pendingFishingReward) {
+			window.setTimeout(() => {
+				updateInventory(pendingFishingReward.itemId, 1, {
+					toastText: `+1 ${pendingFishingReward.fishGlyph} ${pendingFishingReward.fishName}`,
+				});
+			}, 80);
+		}
 		if (!dayTransition && !modal) {
 			switchAreaMusic(getAreaMusicForMap(playerRef.current.map), true);
 		}
 	};
 
+	const moveFishingSelection = (delta: number) => {
+		setFishing((prev) => {
+			if (!prev || prev.phase !== "player_turn") return prev;
+			const total = FISHING_PLAYER_MOVE_ORDER.length;
+			const nextIndex = (prev.selectedMoveIndex + delta + total) % total;
+			return { ...prev, selectedMoveIndex: nextIndex };
+		});
+	};
+
+	const finishFishingEncounter = (outcome: "caught" | "escaped" | "cut_line") => {
+		if (fishingResolveTimeoutRef.current !== null) {
+			window.clearTimeout(fishingResolveTimeoutRef.current);
+		}
+		setFishing((prev) => {
+			if (!prev) return prev;
+			if (outcome !== "caught") {
+				pendingFishingRewardRef.current = null;
+			}
+			const message =
+				outcome === "caught"
+					? `You caught ${prev.fishName}!`
+					: outcome === "cut_line"
+						? "You cut the line and ended the encounter."
+						: `${prev.fishName} escaped.`;
+			return {
+				...prev,
+				phase: outcome,
+				message,
+				showMenu: false,
+				openingStage: prev.openingStage,
+				playerAnim: null,
+				fishAnim: outcome === "caught" ? "defeat" : null,
+			};
+		});
+		fishingResolveTimeoutRef.current = window.setTimeout(() => {
+			endFishing();
+		}, outcome === "caught" ? 2000 : 900);
+	};
+
+	const queueFishingReward = (encounter: FishingState) => {
+		const fishMeta = getFishItemMetaById(encounter.fishId);
+		if (!fishMeta) {
+			pendingFishingRewardRef.current = null;
+			addLog(`Caught ${encounter.fishName}, but inventory item mapping is missing.`);
+			return;
+		}
+		pendingFishingRewardRef.current = {
+			itemId: fishMeta.itemId,
+			fishName: fishMeta.name,
+			fishGlyph: fishMeta.glyph,
+		};
+	};
+
+	const buildPlayerActionIntroText = (moveId: FishingPlayerMoveId) => {
+		const label = FISHING_PLAYER_MOVES[moveId].label;
+		return `You used ${label}.`;
+	};
+
+	const buildFishActionIntroText = (fishName: string, moveId: FishingFishMoveId) => {
+		const label = moveId.replace(/_/g, " ");
+		return `The ${fishName} used ${label}!`;
+	};
+
+	const playFishingImpactSound = (sound: "hoe" | "water") => {
+		if (sound === "water") {
+			playWater();
+			return;
+		}
+		playHoe();
+	};
+
+	const resolveCaughtEncounter = (caughtFishing: FishingState) => {
+		stopBattleMusicLoop();
+		switchAreaMusic(cafeOrderMusicRef.current, true);
+		playYaya();
+		queueFishingReward(caughtFishing);
+		setFishing({
+			...caughtFishing,
+			phase: "caught",
+			message: `You caught ${caughtFishing.fishName}!`,
+			showMenu: false,
+			openingStage: "ready",
+			playerAnim: null,
+			fishAnim: "defeat",
+			canChooseLevelUpBuff: false,
+		});
+
+		fishingResolveTimeoutRef.current = window.setTimeout(() => {
+			const expGain = caughtFishing.fishExpGranted;
+			const expResult = applyFishingExpGain(fishingProgress, expGain);
+			setFishingProgress(expResult.progress);
+			playNotification();
+			setFishing((prev) =>
+				prev
+					? {
+							...prev,
+							phase: "caught",
+							message: `You gained ${expGain} Fishing EXP!`,
+							showMenu: false,
+							openingStage: "ready",
+							playerAnim: null,
+							fishAnim: "defeat",
+							playerLevel: expResult.progress.level,
+							playerExp: expResult.progress.exp,
+						}
+					: prev,
+			);
+			addLog(`Caught ${caughtFishing.fishName} (+${expGain} fishing EXP).`);
+
+			if (expResult.levelsGained > 0) {
+				addLog(`Fishing Level Up! Level ${expResult.progress.level}.`);
+				fishingResolveTimeoutRef.current = window.setTimeout(() => {
+					playYaya();
+					const attackBuffAmount = rollFishingLevelUpAttackBuffAmount(randomInt);
+					const defenseBuffAmount = rollFishingLevelUpDefenseBuffAmount(randomInt);
+					setFishing((prev) =>
+						prev
+							? {
+									...prev,
+									phase: "caught",
+									message: `You reached level ${expResult.progress.level}!`,
+									showMenu: false,
+									openingStage: "ready",
+									playerAnim: null,
+									fishAnim: "defeat",
+									playerLevel: expResult.progress.level,
+									playerExp: expResult.progress.exp,
+									awaitingLevelUpBuffChoice: false,
+									canChooseLevelUpBuff: false,
+									levelUpBuffAttackAmount: attackBuffAmount,
+									levelUpBuffDefenseAmount: defenseBuffAmount,
+								}
+							: prev,
+					);
+					fishingResolveTimeoutRef.current = window.setTimeout(() => {
+						setFishing((prev) =>
+							prev
+								? {
+										...prev,
+										phase: "caught",
+										message: "Choose a buff",
+										showMenu: true,
+										openingStage: "ready",
+										playerAnim: null,
+										fishAnim: "defeat",
+										playerLevel: expResult.progress.level,
+										playerExp: expResult.progress.exp,
+										awaitingLevelUpBuffChoice: true,
+										canChooseLevelUpBuff: false,
+										selectedMoveIndex: 0,
+									}
+								: prev,
+						);
+						fishingResolveTimeoutRef.current = window.setTimeout(() => {
+							setFishing((prev) =>
+								prev && prev.awaitingLevelUpBuffChoice
+									? { ...prev, canChooseLevelUpBuff: true }
+									: prev,
+							);
+						}, 1000);
+					}, 2000);
+				}, 2000);
+				return;
+			}
+
+			fishingResolveTimeoutRef.current = window.setTimeout(() => {
+				endFishing();
+			}, 2000);
+		}, 2000);
+	};
+
+	const runFishTurn = (baseFishing: FishingState, currentStamina: number) => {
+		const fishMoveId = rollFishMove(baseFishing.fishMovePool, randomRoll);
+		playNotification();
+		setFishing({
+			...baseFishing,
+			phase: "fish_turn",
+			message: buildFishActionIntroText(baseFishing.fishName, fishMoveId),
+			showMenu: false,
+			openingStage: "ready",
+			playerAnim: null,
+			fishAnim: "stretch",
+		});
+		fishingResolveTimeoutRef.current = window.setTimeout(() => {
+			const fishTurn = resolveFishTurn({
+				fishing: baseFishing,
+				moveId: fishMoveId,
+				playerStamina: currentStamina,
+				playerStaminaMax: staminaMax,
+			});
+			const nextStamina = Math.max(0, currentStamina - fishTurn.staminaDamage);
+			setStamina(nextStamina);
+			setFishing({
+				...fishTurn.fishing,
+				phase: "fish_turn",
+				message: fishTurn.message,
+				showMenu: false,
+				openingStage: "ready",
+				playerAnim: fishTurn.staminaDamage > 0 ? "squash" : null,
+				fishAnim: null,
+			});
+			if (fishTurn.staminaDamage > 0) {
+				playFishingImpactSound(FISHING_FISH_MOVE_IMPACT_SOUNDS[fishMoveId]);
+			}
+			addLog(fishTurn.message);
+			if (nextStamina <= 0) {
+				playBad();
+			}
+			fishingResolveTimeoutRef.current = window.setTimeout(() => {
+				if (nextStamina <= 0) {
+					finishFishingEncounter("escaped");
+					return;
+				}
+				if (fishTurn.fishing.fishHp <= 0) {
+					resolveCaughtEncounter(fishTurn.fishing);
+					return;
+				}
+				setFishing((prev) =>
+					prev
+						? {
+								...prev,
+								phase: "player_turn",
+								showMenu: true,
+								openingStage: "ready",
+								playerAnim: null,
+								fishAnim: null,
+								message: "What would you like to do?",
+								awaitingLevelUpBuffChoice: false,
+								canChooseLevelUpBuff: false,
+							}
+						: prev,
+				);
+			}, 2000);
+		}, 1000);
+	};
+
+	const selectFishingMoveById = (moveId: FishingPlayerMoveId) => {
+		if (!fishing || fishing.phase !== "player_turn") return;
+		if (moveId === "cut_line") {
+			setFishing({
+				...fishing,
+				phase: "cut_line",
+				message: "You cut the line.",
+				showMenu: false,
+				openingStage: "ready",
+				playerAnim: null,
+				fishAnim: null,
+				awaitingLevelUpBuffChoice: false,
+				canChooseLevelUpBuff: false,
+			});
+			finishFishingEncounter("cut_line");
+			return;
+		}
+		const turnStart = fishing;
+		playNotification();
+		setFishing({
+			...turnStart,
+			phase: "player_action",
+			message: buildPlayerActionIntroText(moveId),
+			showMenu: false,
+			openingStage: "ready",
+			playerAnim: "stretch",
+			fishAnim: null,
+			awaitingLevelUpBuffChoice: false,
+			canChooseLevelUpBuff: false,
+		});
+		fishingResolveTimeoutRef.current = window.setTimeout(() => {
+			const playerTurn = resolvePlayerFishingMove({
+				moveId,
+				fishing: turnStart,
+				randomRoll,
+				fishingRodTierLevel: tools.fishingRod,
+			});
+			const fishDamage = Math.max(0, turnStart.fishHp - playerTurn.fishing.fishHp);
+			setFishing({
+				...playerTurn.fishing,
+				phase: "player_action",
+				message: playerTurn.message,
+				showMenu: false,
+				openingStage: "ready",
+				playerAnim: null,
+				fishAnim: fishDamage > 0 ? "squash" : null,
+			});
+			if (fishDamage > 0) {
+				playFishingImpactSound(FISHING_PLAYER_MOVE_IMPACT_SOUNDS[moveId]);
+			}
+			addLog(playerTurn.message);
+			fishingResolveTimeoutRef.current = window.setTimeout(() => {
+				if (playerTurn.caught) {
+					resolveCaughtEncounter(playerTurn.fishing);
+					return;
+				}
+				runFishTurn(playerTurn.fishing, stamina);
+			}, 2000);
+		}, 1000);
+	};
+
+	const selectFishingMove = () => {
+		if (!fishing || fishing.phase !== "player_turn") return;
+		const moveId = FISHING_PLAYER_MOVE_ORDER[fishing.selectedMoveIndex];
+		if (!moveId) return;
+		selectFishingMoveById(moveId);
+	};
+
+	const moveFishingBuffSelection = (delta: number) => {
+		setFishing((prev) => {
+			if (!prev || !prev.awaitingLevelUpBuffChoice) return prev;
+			const nextIndex = prev.selectedMoveIndex + delta;
+			return {
+				...prev,
+				selectedMoveIndex: Math.max(0, Math.min(1, nextIndex)),
+			};
+		});
+	};
+
+	const selectFishingLevelUpBuffChoice = (choiceIndex?: number) => {
+		if (
+			!fishing ||
+			!fishing.awaitingLevelUpBuffChoice ||
+			!fishing.canChooseLevelUpBuff
+		)
+			return;
+		const pickedIndex =
+			choiceIndex === undefined ? fishing.selectedMoveIndex : Math.max(0, Math.min(1, choiceIndex));
+		const choseAttack = pickedIndex <= 0;
+		const chosenAttribute = choseAttack ? "Attack" : "Defense";
+		const amount = choseAttack
+			? fishing.levelUpBuffAttackAmount
+			: fishing.levelUpBuffDefenseAmount;
+		setFishingProgress((prev) => ({
+			...prev,
+			attackBonus: prev.attackBonus + (choseAttack ? amount : 0),
+			defenseBonus: prev.defenseBonus + (choseAttack ? 0 : amount),
+		}));
+		playNotification();
+		setFishing((prev) =>
+			prev
+				? {
+						...prev,
+						phase: "caught",
+						message: `Your ${chosenAttribute} rose by ${amount}!`,
+						showMenu: false,
+						openingStage: "ready",
+						playerAnim: null,
+						fishAnim: "defeat",
+						awaitingLevelUpBuffChoice: false,
+						canChooseLevelUpBuff: false,
+						playerAttack: prev.playerAttack + (choseAttack ? amount : 0),
+						playerDefense: prev.playerDefense + (choseAttack ? 0 : amount),
+					}
+				: prev,
+		);
+		fishingResolveTimeoutRef.current = window.setTimeout(() => {
+			const compliment =
+				FISHING_LEVEL_UP_COMPLIMENTS[
+					randomInt(0, FISHING_LEVEL_UP_COMPLIMENTS.length - 1)
+				]!;
+			setFishing((prev) =>
+				prev
+					? {
+							...prev,
+							phase: "caught",
+							message: compliment,
+							showMenu: false,
+							openingStage: "ready",
+							playerAnim: null,
+							fishAnim: "defeat",
+						}
+					: prev,
+			);
+			fishingResolveTimeoutRef.current = window.setTimeout(() => {
+				endFishing();
+			}, 2000);
+		}, 2000);
+	};
+
+	const cutFishingLine = () => {
+		selectFishingMoveById("cut_line");
+	};
+
 	const startFishing = (map: MapId, x: number, y: number) => {
 		clearFishingTimers();
+		pendingFishingRewardRef.current = null;
 		startFishingSequence({
 			map,
 			x,
 			y,
+			castX: playerRef.current.x,
+			castY: playerRef.current.y,
 			fishing,
 			hasBlockingModal: !!modal || !!dayTransition,
 			playWater,
-			fadeOutCurrentAreaMusic,
 			setFishing,
 			addLog,
-			maxWaitSeconds: getFishingRodMaxWaitSeconds(tools),
 			randomInt,
 			waitTimeoutRef: fishingWaitTimeoutRef,
-			catchTimeoutRef: fishingCatchTimeoutRef,
-			waterIntervalRef: fishingWaterIntervalRef,
-			onFishEscaped: () => {
-				playBad();
-				endFishing();
+			onEncounterReady: () => {
+				const category = getFishingCategoryForMap(map);
+				const fishDef = pickFishForEncounter(category, randomRoll);
+				const fishMovePool = getFishMovePoolWithFallback(fishDef.movePool);
+				const playerLevel = fishingProgress.level;
+				const playerAttack =
+					getFishingAttackForLevel(playerLevel) + fishingProgress.attackBonus;
+				const playerDefense =
+					getFishingDefenseForLevel(playerLevel) + fishingProgress.defenseBonus;
+				fadeOutCurrentAreaMusic(500);
+				startBattleMusicLoop();
+				setPauseGame(true);
+				setFishing((prev) => {
+					if (!prev || prev.phase !== "waiting") return prev;
+					return {
+						...prev,
+						phase: "intro",
+						message: `You hooked a ${fishDef.name}!`,
+						selectedMoveIndex: 0,
+						fishId: fishDef.id,
+						fishName: fishDef.name,
+						fishGlyph: fishDef.glyph,
+						fishExpGranted: fishDef.expGranted,
+						fishMaxHp: fishDef.stats.maxHp,
+						fishHp: fishDef.stats.maxHp,
+						fishAttack: fishDef.stats.attack,
+						fishDefense: fishDef.stats.defense,
+						fishMovePool,
+						playerLevel: fishingProgress.level,
+						playerExp: fishingProgress.exp,
+						playerAttack,
+						playerDefense,
+						awaitingLevelUpBuffChoice: false,
+						canChooseLevelUpBuff: false,
+						levelUpBuffAttackAmount: 0,
+						levelUpBuffDefenseAmount: 0,
+						showMenu: false,
+						openingStage: "fade_bg",
+						playerAnim: null,
+						fishAnim: null,
+					};
+				});
+				fishingResolveTimeoutRef.current = window.setTimeout(() => {
+					setFishing((prev) =>
+						prev && prev.phase === "intro"
+							? { ...prev, openingStage: "fish_enter" }
+							: prev,
+					);
+					fishingResolveTimeoutRef.current = window.setTimeout(() => {
+						setFishing((prev) =>
+							prev && prev.phase === "intro"
+								? { ...prev, openingStage: "fish_hook_text", fishAnim: "bobble" }
+								: prev,
+						);
+						fishingResolveTimeoutRef.current = window.setTimeout(() => {
+							setFishing((prev) =>
+								prev && prev.phase === "intro"
+									? {
+											...prev,
+											openingStage: "player_stats_enter",
+											fishAnim: null,
+										}
+									: prev,
+							);
+							fishingResolveTimeoutRef.current = window.setTimeout(() => {
+								setFishing((prev) =>
+									prev && prev.phase === "intro"
+										? {
+												...prev,
+												phase: "player_turn",
+												showMenu: true,
+												openingStage: "ready",
+												message: "What would you like to do?",
+												playerAnim: null,
+												fishAnim: null,
+											}
+										: prev,
+								);
+							}, 1000);
+						}, 2000);
+					}, 1000);
+				}, 2000);
 			},
 		});
 	};
+
+	useEffect(() => {
+		if (!fishing || fishing.phase !== "waiting") return;
+		const movedAway =
+			player.map !== fishing.map || player.x !== fishing.castX || player.y !== fishing.castY;
+		if (!movedAway) return;
+		clearFishingTimers();
+		setFishing(null);
+		setLog((prev) => {
+			const next = [...prev, "You moved away and reeled in early."];
+			while (next.length > 12) next.shift();
+			return next;
+		});
+	}, [
+		fishing,
+		player.map,
+		player.x,
+		player.y,
+		clearFishingTimers,
+		setFishing,
+		setLog,
+	]);
 
 	useEffect(() => {
 		if (dayTransition) return;
@@ -3003,6 +3535,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 	const clearLoadTransientState = () => {
 		clearFishingTimers();
+		stopBattleMusicLoop();
 		directorTimersRef.current.forEach((timer) => window.clearTimeout(timer));
 		directorTimersRef.current = [];
 		directorConfirmRef.current = null;
@@ -3117,6 +3650,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				generateNewspaperEmojiPicture(rawState.newspaper ?? ""),
 			newspaperRead:
 				(rawState as Partial<GameState>).newspaperRead ?? false,
+			fishingProgress: (() => {
+				const rawProgress = (rawState as Partial<GameState>).fishingProgress;
+				const level = Math.max(1, Math.min(100, rawProgress?.level ?? 1));
+				const maxExp = level >= 100 ? 0 : getFishingExpToNextLevel(level) - 1;
+				const exp = Math.max(0, Math.min(maxExp, rawProgress?.exp ?? 0));
+				const attackBonus = Math.max(0, rawProgress?.attackBonus ?? 0);
+				const defenseBonus = Math.max(0, rawProgress?.defenseBonus ?? 0);
+				return { level, exp, attackBonus, defenseBonus };
+			})(),
 			unlockFlags: resolveUnlockFlags(
 				{
 					forestLevel: rawState.forestLevel,
@@ -3127,6 +3669,29 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					...(rawState as Partial<GameState>).unlockFlags,
 				},
 			),
+			inventory: (() => {
+				const defaultInventory = makeEmptyInventory();
+				const rawInventory = (rawState as Partial<GameState>).inventory as
+					| Record<string, number>
+					| undefined;
+				const migratedFishCount = Math.max(0, rawInventory?.fish ?? 0);
+				const migratedInventory: Inventory = {
+					...defaultInventory,
+					...(rawInventory as Partial<Inventory>),
+				};
+				if (migratedFishCount > 0) {
+					migratedInventory.river_perch_01 += migratedFishCount;
+				}
+				return migratedInventory;
+			})(),
+			prices: {
+				...initialPrices,
+				...((rawState as Partial<GameState>).prices ?? {}),
+			},
+			priceTrends: {
+				...initialPriceTrends,
+				...((rawState as Partial<GameState>).priceTrends ?? {}),
+			},
 			player: { ...BUREAUCRACY_SPAWN },
 			forestLayout: regeneratedForest.layout,
 			forestEnemies: regeneratedForest.enemies,
@@ -3875,11 +4440,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		mobileInteractCommandSentRef.current = false;
 	};
 
-	const updateInventory = (item: ItemId, amount: number) => {
+	const updateInventory = (
+		item: ItemId,
+		amount: number,
+		options?: { toastText?: string; suppressToast?: boolean },
+	) => {
 		updateInventoryState(setInventory, item, amount);
-		if (amount > 0) {
+		if (amount > 0 && !options?.suppressToast) {
 			const icon = itemIcons[item] ?? "";
-			tileFxBusRef.current.api.actor("player").toast(`+${amount} ${icon}`.trim());
+			const toastText = options?.toastText ?? `+${amount} ${icon}`.trim();
+			tileFxBusRef.current.api.actor("player").toast(toastText);
 		}
 	};
 
@@ -5067,6 +5637,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		endFishing,
 		clearFishingTimers,
 		setFishing,
+		moveFishingSelection,
+		moveFishingBuffSelection,
+		selectFishingMove,
+		selectFishingLevelUpBuffChoice,
+		cutFishingLine,
 		playYaya,
 		fishingResolveTimeoutRef,
 		modal,
@@ -5115,6 +5690,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const key = e.key.toLowerCase();
 		if (e.repeat) return;
 		const dir = inputRouter.resolveHeldMoveDirectionForKey(key);
+		const fishingBlocksMovement = !!fishing && fishing.phase !== "waiting";
 		if (!dir) return;
 		if (
 			modal ||
@@ -5124,7 +5700,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			isBathing ||
 			isOrdering ||
 			isDoctorCompounding ||
-			!!fishing ||
+			fishingBlocksMovement ||
 			!!dayTransition
 		) {
 			clearHeldMove();
@@ -5333,6 +5909,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	useEffect(() => {
+		const fishingBlocksMovement = !!fishing && fishing.phase !== "waiting";
 		if (
 			modal ||
 			directorInputLocked ||
@@ -5340,7 +5917,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			isBathing ||
 			isOrdering ||
 			isDoctorCompounding ||
-			!!fishing ||
+			fishingBlocksMovement ||
 			!!dayTransition
 		) {
 			clearHeldMove();
@@ -5526,6 +6103,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		isFarmHouseDoorTile,
 		getDoorGroundClass,
 		fishing,
+		fishingProgress,
+		moveFishingSelection,
+		moveFishingBuffSelection,
+		selectFishingMove,
+		selectFishingLevelUpBuffChoice,
+		selectFishingMoveById,
+		cutFishingLine,
+		fishingMoveOrder: FISHING_PLAYER_MOVE_ORDER,
+		fishingMoveInfo: FISHING_PLAYER_MOVES,
 		isDrivingTractor,
 		isBathing,
 		showTiredFace,

@@ -819,7 +819,11 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			addLog("You need a Fishing Rod to fish.");
 			return;
 		}
-		if (!tryUseToolAction(tools.fishingRod)) return;
+		if (stamina <= 0) {
+			playBad();
+			addLog("Too tired to fish.");
+			return;
+		}
 		startFishing(player.map, tx, ty);
 		return;
 	}

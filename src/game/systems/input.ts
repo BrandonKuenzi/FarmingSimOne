@@ -103,6 +103,11 @@ export type GameKeyDownContext = {
 	endFishing: () => void;
 	clearFishingTimers: () => void;
 	setFishing: Dispatch<SetStateAction<FishingState | null>>;
+	moveFishingSelection: (delta: number) => void;
+	moveFishingBuffSelection: (delta: number) => void;
+	selectFishingMove: () => void;
+	selectFishingLevelUpBuffChoice: (choiceIndex?: number) => void;
+	cutFishingLine: () => void;
 	playYaya: () => void;
 	fishingResolveTimeoutRef: MutableRefObject<number | null>;
 	modal: ModalState | null;
@@ -159,6 +164,12 @@ export const handleGameInputCommand = (
 	}
 	if (meta.repeat && command === "OK" && !!ctx.modal) {
 		return consume();
+	}
+
+	if (ctx.fishing?.phase === "waiting") {
+		ctx.clearFishingTimers();
+		ctx.setFishing(null);
+		ctx.addLog("You reeled in early.");
 	}
 
 	if (command === "DEBUG_GRANT_RESOURCES") {
@@ -250,25 +261,63 @@ export const handleGameInputCommand = (
 	}
 
 	if (ctx.fishing) {
-		if (ctx.fishing.phase === "waiting") {
-			ctx.playBad();
-			ctx.endFishing();
+		if (ctx.fishing.phase === "intro") {
 			return consume();
 		}
-		if (ctx.fishing.phase !== "bite") return consume();
-		if (key.length !== 1) return consume();
-		if (key === ctx.fishing.requiredKey) {
-			ctx.clearFishingTimers();
-			ctx.setFishing((prev) => (prev ? { ...prev, phase: "success" } : prev));
-			ctx.playYaya();
-			ctx.updateInventory("fish", 1);
-			ctx.fishingResolveTimeoutRef.current = window.setTimeout(() => {
-				ctx.endFishing();
-			}, 2000);
+		if (ctx.fishing.awaitingLevelUpBuffChoice) {
+			if (
+				command === "MOVE_UP" ||
+				command === "INTERACT_UP" ||
+				command === "MOVE_LEFT" ||
+				command === "INTERACT_LEFT"
+			) {
+				ctx.moveFishingBuffSelection(-1);
+				return consume();
+			}
+			if (
+				command === "MOVE_DOWN" ||
+				command === "INTERACT_DOWN" ||
+				command === "MOVE_RIGHT" ||
+				command === "INTERACT_RIGHT"
+			) {
+				ctx.moveFishingBuffSelection(1);
+				return consume();
+			}
+			if (command === "OK") {
+				ctx.selectFishingLevelUpBuffChoice();
+				return consume();
+			}
 			return consume();
 		}
-		ctx.playBad();
-		ctx.endFishing();
+		if (ctx.fishing.phase === "player_turn") {
+			if (
+				command === "MOVE_UP" ||
+				command === "INTERACT_UP" ||
+				command === "MOVE_LEFT" ||
+				command === "INTERACT_LEFT"
+			) {
+				ctx.moveFishingSelection(-1);
+				return consume();
+			}
+			if (
+				command === "MOVE_DOWN" ||
+				command === "INTERACT_DOWN" ||
+				command === "MOVE_RIGHT" ||
+				command === "INTERACT_RIGHT"
+			) {
+				ctx.moveFishingSelection(1);
+				return consume();
+			}
+			if (command === "OK") {
+				ctx.selectFishingMove();
+				return consume();
+			}
+			if (command === "CANCEL") {
+				ctx.cutFishingLine();
+				return consume();
+			}
+			return consume();
+		}
 		return consume();
 	}
 

@@ -136,7 +136,13 @@ export const createAreaMusicController = (
 
 		if (hasDayTransition) {
 			if (endOfDayRef.current) allowed.add(endOfDayRef.current);
-		} else if (isOrdering || isDoctorCompounding) {
+		} else if (
+			isOrdering ||
+			isDoctorCompounding ||
+			(isFishing &&
+				currentAreaMusicRef.current === cafeOrderMusicRef.current &&
+				!!cafeOrderMusicRef.current)
+		) {
 			if (cafeOrderMusicRef.current) allowed.add(cafeOrderMusicRef.current);
 		} else if (!isFishing) {
 			const intended = getAreaMusicForMap(playerRef.current.map);

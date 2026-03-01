@@ -943,6 +943,233 @@ li {
 	text-shadow: none;
 }
 
+.fishing-encounter-backdrop {
+	position: fixed;
+	inset: 0;
+	background: transparent;
+	display: block;
+	padding: 0;
+	z-index: 118;
+}
+
+.fishing-intro-wipe {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	pointer-events: none;
+	z-index: 2;
+}
+
+.fishing-intro-wipe-half {
+	flex: 1;
+	background: #000;
+}
+
+.fishing-intro-wipe-half.top {
+	transform-origin: right center;
+}
+
+.fishing-intro-wipe-half.bottom {
+	transform-origin: left center;
+}
+
+.fishing-encounter-stage {
+	width: 100vw;
+	height: 100vh;
+	height: 100dvh;
+	color: #f4f7ff;
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	padding: 18px;
+	background: radial-gradient(circle at 50% 42%, #142334 0%, #080e16 45%, #000 90%);
+}
+
+.fishing-encounter-stage.wipe-only {
+	background: transparent;
+}
+
+.fishing-hud {
+	position: absolute;
+	top: 16px;
+	width: min(360px, 42vw);
+	background: rgba(8, 15, 22, 0.88);
+	border: 1px solid #4b6782;
+	padding: 8px 10px;
+}
+
+.fishing-hud-enemy {
+	left: 16px;
+}
+
+.fishing-hud-player {
+	right: 16px;
+	text-align: right;
+}
+
+.fishing-hud-name {
+	font-weight: 800;
+	font-size: 1.1rem;
+}
+
+.fishing-bar-wrap {
+	margin-top: 4px;
+}
+
+.fishing-bar-track {
+	height: 14px;
+	background: #1a1a1a;
+	border: 1px solid #798a94;
+	overflow: hidden;
+}
+
+.fishing-bar-fill {
+	height: 100%;
+}
+
+.fishing-bar-fill.fish {
+	background: linear-gradient(to right, #74c7ff, #2f8fd4);
+}
+
+.fishing-bar-fill.player {
+	background: linear-gradient(to right, #89d96f, #3a9b3c);
+}
+
+.fishing-bar-track.exp {
+	height: 7px;
+	flex: 1;
+	min-width: 84px;
+}
+
+.fishing-bar-fill.exp {
+	background: linear-gradient(to right, #8cc9ff, #2f7fe0);
+}
+
+.fishing-exp-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.fishing-hud-player .fishing-exp-row {
+	justify-content: flex-end;
+}
+
+.fishing-portraits {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	padding: 0 7vw 8vh;
+}
+
+.fishing-portrait-slot {
+	flex: 1;
+	display: flex;
+	align-items: center;
+}
+
+.fishing-portrait-slot.player {
+	justify-content: flex-start;
+}
+
+.fishing-portrait-slot.fish {
+	justify-content: flex-end;
+}
+
+.fishing-portrait {
+	font-size: clamp(130px, 16vw, 320px);
+	line-height: 1;
+	filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.72));
+	transform-origin: center bottom;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.fishing-move-button {
+	display: grid;
+	grid-template-columns: 14px 120px 1fr;
+	gap: 8px;
+	align-items: center;
+	text-align: left;
+	background: rgba(5, 11, 16, 0.9);
+	border: 1px solid #33516c;
+	color: #e8f5ff;
+	margin-top: 0;
+}
+
+.fishing-bottom-panel {
+	position: relative;
+	overflow: hidden;
+	min-height: 190px;
+	border: 1px solid #4f6378;
+	background: rgba(1, 4, 7, 0.88);
+	transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.fishing-bottom-panel.inactive {
+	border-color: transparent;
+	background: transparent;
+}
+
+.fishing-text-panel {
+	width: 100%;
+	height: 100%;
+	border: none;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+	padding: 16px;
+	cursor: pointer;
+}
+
+.fishing-encounter-line {
+	font-size: clamp(18px, 2.2vw, 32px);
+	font-weight: 800;
+}
+
+.fishing-options-panel {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 8px;
+	padding: 10px;
+}
+
+.fishing-panel-layer {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 180ms ease;
+}
+
+.fishing-panel-layer.active {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.fishing-encounter-tip {
+	padding-top: 6px;
+	opacity: 0.85;
+}
+
+@media (max-width: 920px) {
+	.fishing-hud {
+		width: calc(50vw - 24px);
+	}
+
+	.fishing-portraits {
+		padding: 0 2vw 4vh;
+	}
+
+	.fishing-bottom-panel {
+		min-height: 220px;
+	}
+}
+
 .day-transition-card {
 	width: min(520px, 92vw);
 	border: 3px solid #1f1f1f;

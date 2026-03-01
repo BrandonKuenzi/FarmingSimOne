@@ -60,6 +60,17 @@ const getBureaucracyStarGlyph = (star: {
 	return star.glyph;
 };
 
+const PopStatValue = ({ value }: { value: number }) => (
+	<motion.span
+		key={`stat-${value}`}
+		initial={{ scale: 1 }}
+		animate={{ scale: [1, 1.22, 1] }}
+		transition={{ duration: 0.35, ease: "easeOut" }}
+	>
+		{value}
+	</motion.span>
+);
+
 type VisualMover = {
 	id: string;
 	x: number;
@@ -270,7 +281,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		const entities: VisualMover[] = [];
 		const resolvePlayerGlyph = () => {
 			if (isDrivingTractor) return GLYPH.tractor;
-			if (fishing && fishing.phase !== "success") return GLYPH.fishingPole;
+			if (fishing && fishing.phase === "waiting") return GLYPH.fishingPole;
 			if (showTiredFace) return GLYPH.yawn;
 			return playerEmoji;
 		};
@@ -456,12 +467,6 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 														glyph: ".",
 														className: "tile-water tile-fishing-bobber",
 													}
-												: effectiveCell === "F" && fishing?.phase === "bite"
-													? {
-															glyph: GLYPH.fish,
-															className: "tile-water tile-fishing-catch",
-															overlayGlyph: fishing.requiredKey.toUpperCase(),
-														}
 													: effectiveCell === "~" &&
 														  isRippleWaterTile(player.map, x, y)
 														? {
@@ -1131,6 +1136,15 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		isFarmHouseDoorTile,
 		getDoorGroundClass,
 		fishing,
+		fishingProgress,
+		moveFishingSelection,
+		moveFishingBuffSelection,
+		selectFishingMove,
+		selectFishingLevelUpBuffChoice,
+		selectFishingMoveById,
+		cutFishingLine,
+		fishingMoveOrder,
+		fishingMoveInfo,
 		isDrivingTractor,
 		isBathing,
 		showTiredFace,
@@ -1223,6 +1237,44 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 	const newspaperSecondSection = newspaperSections[1] ?? "";
 	const newspaperTailSections = newspaperSections.slice(2);
 	const newspaperPictureSeed = day + newspaper.length;
+	const showFishingEncounter = !!fishing && fishing.phase !== "waiting";
+	const openingStage = fishing?.openingStage ?? "none";
+	const fishingBuffChoiceVisible = !!fishing && fishing.awaitingLevelUpBuffChoice;
+	const fishingMenuVisible =
+		(!!fishing &&
+			fishing.showMenu &&
+			fishing.phase === "player_turn" &&
+			openingStage === "ready") ||
+		fishingBuffChoiceVisible;
+	const fishingTextVisible =
+		!!fishing &&
+		!fishingMenuVisible &&
+		(fishing.phase !== "intro" || openingStage === "fish_hook_text");
+	const fishingBottomActive = fishingTextVisible || fishingMenuVisible;
+	const fishingBuffChoiceEnabled = !!fishing && fishing.canChooseLevelUpBuff;
+	const fishingWipeActive =
+		!!fishing && fishing.phase === "intro" && openingStage === "fade_bg";
+	const showFishPortrait =
+		!!fishing && (fishing.phase !== "intro" || openingStage !== "fade_bg");
+	const showPlayerPortrait =
+		!!fishing &&
+		(fishing.phase !== "intro" ||
+			openingStage === "player_stats_enter" ||
+			openingStage === "ready");
+	const showHud =
+		!!fishing &&
+		(fishing.phase !== "intro" ||
+			openingStage === "player_stats_enter" ||
+			openingStage === "ready");
+	const hasFishingRod = toolRows.some((tool) => tool.id === "fishingRod");
+	const displayedFishingLevel = fishing?.playerLevel ?? fishingProgress.level;
+	const displayedFishingExp = fishing?.playerExp ?? fishingProgress.exp;
+	const fishingExpToNext =
+		displayedFishingLevel >= 100 ? 0 : Math.max(10, Math.floor(displayedFishingLevel * 10));
+	const fishingExpRatio =
+		displayedFishingLevel >= 100
+			? 1
+			: Math.max(0, Math.min(1, displayedFishingExp / Math.max(1, fishingExpToNext)));
 	return (
 		<div
 			className={`game-shell${controlMode === "mobile" ? " mobile-controls-enabled" : ""}`}
@@ -1289,7 +1341,10 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 				</button>
 				<div>Day: {day}</div>
 				<div>Location: {player.map}</div>
-				<div>Current Weather: {weatherEmojiById[currentWeather]}</div>
+				<div>
+					Current Weather: {weatherEmojiById[currentWeather]}
+					{hasFishingRod ? ` | Fishing Level: ${displayedFishingLevel}` : ""}
+				</div>
 				<div>Money: ${money}</div>
 				<div className='stamina-wrap'>
 					<span title={`${stamina}/${staminaMax}`}>Stamina</span>
@@ -1550,6 +1605,300 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 						</div>
 					</div>
 				</div>
+			)}
+			{showFishingEncounter && fishing && (
+				<motion.div
+					className='fishing-encounter-backdrop'
+					animate={{ opacity: 1 }}
+					transition={{
+						duration: 0.2,
+						ease: "linear",
+					}}
+				>
+					{fishingWipeActive && (
+						<div className='fishing-intro-wipe'>
+							<motion.div
+								className='fishing-intro-wipe-half top'
+								initial={{ scaleX: 0 }}
+								animate={{ scaleX: 1 }}
+								transition={{ duration: 2, ease: "easeInOut" }}
+							/>
+							<motion.div
+								className='fishing-intro-wipe-half bottom'
+								initial={{ scaleX: 0 }}
+								animate={{ scaleX: 1 }}
+								transition={{ duration: 2, ease: "easeInOut" }}
+							/>
+						</div>
+					)}
+					<div
+						className={`fishing-encounter-stage ${fishingWipeActive ? "wipe-only" : ""}`}
+					>
+						{showHud && (
+							<>
+								<motion.div
+									className='fishing-hud fishing-hud-enemy'
+									initial={{ y: -50, opacity: 0 }}
+									animate={{ y: 0, opacity: 1 }}
+									transition={{
+										duration:
+											fishing.phase === "intro" &&
+											openingStage === "player_stats_enter"
+												? 1
+												: 0.2,
+									}}
+								>
+									<div className='fishing-hud-name'>You LVL {displayedFishingLevel}</div>
+									<div className='small'>
+										ATK <PopStatValue value={fishing.playerAttack} /> DEF{" "}
+										<PopStatValue value={fishing.playerDefense} />
+									</div>
+									<div className='fishing-bar-wrap'>
+										<div className='fishing-bar-track'>
+											<div
+												className='fishing-bar-fill player'
+												style={{
+													width: `${(Math.max(0, Math.min(staminaMax, stamina)) / Math.max(1, staminaMax)) * 100}%`,
+												}}
+											/>
+										</div>
+										<div className='small'>
+											STA <PopStatValue value={stamina} />/{staminaMax}
+										</div>
+										<div className='fishing-exp-row small'>
+											<span>EXP</span>
+											<div className='fishing-bar-track exp'>
+												<div
+													className='fishing-bar-fill exp'
+													style={{ width: `${fishingExpRatio * 100}%` }}
+												/>
+											</div>
+											<span>
+												<PopStatValue value={displayedFishingExp} />/
+												{fishingExpToNext}
+											</span>
+										</div>
+									</div>
+								</motion.div>
+								<motion.div
+									className='fishing-hud fishing-hud-player'
+									initial={{ y: -50, opacity: 0 }}
+									animate={{ y: 0, opacity: 1 }}
+									transition={{
+										duration:
+											fishing.phase === "intro" &&
+											openingStage === "player_stats_enter"
+												? 1
+												: 0.2,
+									}}
+								>
+									<div className='fishing-hud-name'>{fishing.fishName}</div>
+									<div className='small'>
+										ATK <PopStatValue value={fishing.fishAttack} /> DEF{" "}
+										<PopStatValue value={fishing.fishDefense} />
+									</div>
+									<div className='fishing-bar-wrap'>
+										<div className='fishing-bar-track'>
+											<div
+												className='fishing-bar-fill fish'
+												style={{
+													width: `${(Math.max(0, Math.min(fishing.fishMaxHp, fishing.fishHp)) / Math.max(1, fishing.fishMaxHp)) * 100}%`,
+												}}
+											/>
+										</div>
+										<div className='small'>
+											HP <PopStatValue value={fishing.fishHp} />/
+											{fishing.fishMaxHp}
+										</div>
+									</div>
+								</motion.div>
+							</>
+						)}
+						<div className='fishing-portraits'>
+							<div className='fishing-portrait-slot player'>
+								{showPlayerPortrait && (
+									<motion.div
+										className='fishing-portrait player'
+										initial={{
+											x:
+												fishing.phase === "intro" &&
+												openingStage === "player_stats_enter"
+													? 260
+													: 0,
+											opacity:
+												fishing.phase === "intro" &&
+												openingStage === "player_stats_enter"
+													? 0
+													: 1,
+										}}
+										animate={
+											fishing.playerAnim === "stretch"
+												? {
+														x: 0,
+														opacity: 1,
+														scaleY: [1, 1.35, 0.82, 1],
+														scaleX: [1, 0.95, 1.08, 1],
+													}
+												: fishing.playerAnim === "squash"
+													? {
+															x: 0,
+															opacity: 1,
+															scaleY: [1, 0.78, 1.1, 1],
+															scaleX: [1, 1.18, 0.95, 1],
+														}
+													: { x: 0, opacity: 1, scaleY: 1, scaleX: 1 }
+										}
+										transition={{
+											duration:
+												fishing.phase === "intro" &&
+												openingStage === "player_stats_enter"
+													? 1
+													: 0.45,
+											ease: "easeInOut",
+										}}
+									>
+										{playerEmoji}
+									</motion.div>
+								)}
+							</div>
+							<div className='fishing-portrait-slot fish'>
+								{showFishPortrait && (
+									<motion.div
+										className='fishing-portrait fish'
+										initial={{
+											x:
+												fishing.phase === "intro" &&
+												openingStage === "fish_enter"
+													? 260
+													: 0,
+											opacity:
+												fishing.phase === "intro" &&
+												openingStage === "fish_enter"
+													? 0
+													: 1,
+										}}
+										animate={
+											fishing.fishAnim === "defeat"
+												? { x: 0, opacity: 0, scale: 0, rotate: 360 }
+												: fishing.fishAnim === "stretch"
+													? {
+															x: 0,
+															opacity: 1,
+															scaleY: [1, 1.35, 0.82, 1],
+															scaleX: [1, 0.95, 1.08, 1],
+															rotate: 0,
+														}
+													: fishing.fishAnim === "squash"
+														? {
+																x: 0,
+																opacity: 1,
+																scaleY: [1, 0.78, 1.1, 1],
+																scaleX: [1, 1.18, 0.95, 1],
+																rotate: 0,
+															}
+														: fishing.fishAnim === "bobble"
+															? {
+																	x: 0,
+																	opacity: 1,
+																	y: [0, -14, 0, -14, 0],
+																	rotate: 0,
+																}
+															: { x: 0, opacity: 1, y: 0, scale: 1, rotate: 0 }
+										}
+										transition={{
+											duration:
+												fishing.fishAnim === "defeat"
+													? 2
+													: fishing.phase === "intro" &&
+															openingStage === "fish_enter"
+														? 1
+														: fishing.fishAnim === "bobble"
+															? 2
+															: 0.45,
+											ease: "easeInOut",
+										}}
+									>
+										{fishing.fishGlyph}
+									</motion.div>
+								)}
+							</div>
+						</div>
+						<div
+							className={`fishing-bottom-panel ${fishingBottomActive ? "active" : "inactive"}`}
+						>
+							<div
+								className={`fishing-text-panel fishing-panel-layer ${fishingTextVisible ? "active" : ""}`}
+								aria-hidden={!fishingTextVisible}
+							>
+								<div className='fishing-encounter-line'>{fishing.message}</div>
+							</div>
+							<div
+								className={`fishing-options-panel fishing-panel-layer ${fishingMenuVisible ? "active" : ""}`}
+								aria-hidden={!fishingMenuVisible}
+							>
+								{fishingBuffChoiceVisible
+									? [
+											{
+												key: "attack",
+												label: `Attack +${fishing.levelUpBuffAttackAmount}`,
+												description: "Permanently increase fishing attack.",
+												onSelect: () => selectFishingLevelUpBuffChoice(0),
+											},
+											{
+												key: "defense",
+												label: `Defense +${fishing.levelUpBuffDefenseAmount}`,
+												description: "Permanently increase fishing defense.",
+												onSelect: () => selectFishingLevelUpBuffChoice(1),
+											},
+										].map((option, idx) => {
+											const isSelected = fishing.selectedMoveIndex === idx;
+											return (
+												<button
+													key={option.key}
+													type='button'
+													className={`option fishing-move-button ${isSelected ? "active" : ""}`}
+													onClick={option.onSelect}
+													onMouseEnter={() =>
+														moveFishingBuffSelection(idx - fishing.selectedMoveIndex)
+													}
+													disabled={!fishingMenuVisible || !fishingBuffChoiceEnabled}
+												>
+													<span>{isSelected ? ">" : " "}</span>
+													<span>{option.label}</span>
+													<span className='small'>{option.description}</span>
+												</button>
+											);
+										})
+									: fishingMoveOrder.map((moveId, idx) => {
+									const info = fishingMoveInfo[moveId];
+									const isSelected = fishing.selectedMoveIndex === idx;
+									const isTurn = fishing.phase === "player_turn";
+									return (
+										<button
+											key={moveId}
+											type='button'
+											className={`option fishing-move-button ${isSelected ? "active" : ""}`}
+											onClick={() => selectFishingMoveById(moveId)}
+											onMouseEnter={() =>
+												moveFishingSelection(idx - fishing.selectedMoveIndex)
+											}
+											disabled={!isTurn || !fishingMenuVisible}
+										>
+											<span>{isSelected ? ">" : " "}</span>
+											<span>{info.label}</span>
+											<span className='small'>{info.description}</span>
+										</button>
+									);
+								})}
+							</div>
+						</div>
+						{openingStage === "ready" && (
+							<div className='small fishing-encounter-tip'>
+								Arrows/WASD to choose, Space/Enter to act, Esc for Cut Line.
+							</div>
+						)}
+					</div>
+				</motion.div>
 			)}
 
 			{modal && (

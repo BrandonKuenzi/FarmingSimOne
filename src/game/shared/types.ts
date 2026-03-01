@@ -28,6 +28,13 @@ export type AnimalType =
 
 export type WeatherId = "sunny" | "windy" | "rainy";
 
+export type FishItemId =
+	| "river_perch_01"
+	| "koi_guard_01"
+	| "bitey_shark_01"
+	| "tide_eel_01"
+	| "cave_lurker_01";
+
 export type ItemId =
 	| "turnip_seed"
 	| "carrot_seed"
@@ -41,7 +48,7 @@ export type ItemId =
 	| "milk"
 	| "wool"
 	| "egg"
-	| "fish"
+	| FishItemId
 	| "iron"
 	| "shell"
 	| "diamond"
@@ -155,12 +162,103 @@ export type DayTransitionState = {
 	previousDayEarned: number;
 };
 
+export type FishingCategory = "freshwater" | "saltwater" | "cavewater";
+
+export type FishingFishMoveId =
+	| "bite"
+	| "thrash"
+	| "dive_deep"
+	| "wrap_line"
+	| "go_along"
+	| "undertow_rip"
+	| "thalassophobia"
+	| "cavernous_hunger"
+	| "pressure_of_the_deep"
+	| "clear_water_focus";
+
+export type FishingPlayerMoveId =
+	| "reel_in"
+	| "pull_rod"
+	| "release_line"
+	| "use_net"
+	| "cut_line";
+
+export type FishingMovePoolEntry = {
+	moveId: FishingFishMoveId;
+	weight?: number;
+};
+
+export type FishDefinition = {
+	id: string;
+	name: string;
+	glyph: string;
+	category: FishingCategory;
+	sellPrice: number;
+	spawnWeight?: number;
+	stats: {
+		maxHp: number;
+		attack: number;
+		defense: number;
+	};
+	expGranted: number;
+	movePool?: FishingMovePoolEntry[];
+};
+
+export type FishingProgressState = {
+	level: number;
+	exp: number;
+	attackBonus: number;
+	defenseBonus: number;
+};
+
+export type FishingEncounterPhase =
+	| "waiting"
+	| "intro"
+	| "player_turn"
+	| "player_action"
+	| "fish_turn"
+	| "caught"
+	| "escaped"
+	| "cut_line";
+
+export type FishingOpeningStage =
+	| "none"
+	| "fade_bg"
+	| "fish_enter"
+	| "fish_hook_text"
+	| "player_stats_enter"
+	| "ready";
+
 export type FishingState = {
 	map: MapId;
 	x: number;
 	y: number;
-	phase: "waiting" | "bite" | "success";
-	requiredKey: string;
+	castX: number;
+	castY: number;
+	phase: FishingEncounterPhase;
+	message: string;
+	selectedMoveIndex: number;
+	fishId: string | null;
+	fishName: string;
+	fishGlyph: string;
+	fishExpGranted: number;
+	fishMaxHp: number;
+	fishHp: number;
+	fishAttack: number;
+	fishDefense: number;
+	fishMovePool: FishingMovePoolEntry[];
+	playerLevel: number;
+	playerExp: number;
+	playerAttack: number;
+	playerDefense: number;
+	awaitingLevelUpBuffChoice: boolean;
+	canChooseLevelUpBuff: boolean;
+	levelUpBuffAttackAmount: number;
+	levelUpBuffDefenseAmount: number;
+	showMenu: boolean;
+	openingStage: FishingOpeningStage;
+	playerAnim: "stretch" | "squash" | null;
+	fishAnim: "stretch" | "squash" | "defeat" | "bobble" | null;
 };
 
 export type Warp = {
