@@ -366,6 +366,7 @@ import {
 	serializeSaveGame,
 	toSaveGameData,
 } from "../state/saveGame";
+import { stopAllBufferedAudio } from "../systems/sound";
 
 const BUREAUCRACY_SPAWN = {
 	map: "bureaucracy_office" as const,
@@ -1418,6 +1419,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				track.pause();
 				track.currentTime = 0;
 			});
+			stopAllBufferedAudio();
 			if (seagullsSoundRef.current) {
 				seagullsSoundRef.current.volume = 1;
 			}

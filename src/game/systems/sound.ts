@@ -1,20 +1,50 @@
+import {
+	attachAudioContextUnlock,
+	fadeOutBufferedSound,
+	hasBufferedPlayback,
+	playBufferedOneShot,
+	registerMediaElementTrack,
+	startBufferedLoop,
+	stopAllBufferedAudio,
+	stopBufferedSound,
+} from "./webAudioMixer";
+
 type AudioLike = HTMLAudioElement | null;
+
+export const initializeSharedAudioGraph = (sounds: ReadonlyArray<AudioLike>) => {
+	attachAudioContextUnlock();
+	sounds.forEach((sound) => {
+		if (!sound) return;
+		registerMediaElementTrack(sound);
+	});
+};
+
+export { stopAllBufferedAudio };
 
 export const playOneShot = (sound: AudioLike) => {
 	if (!sound) return;
-	sound.currentTime = 0;
-	void sound.play().catch(() => undefined);
+	void (async () => {
+		const playedBuffered = await playBufferedOneShot(sound);
+		if (playedBuffered) return;
+		sound.currentTime = 0;
+		void sound.play().catch(() => undefined);
+	})();
 };
 
 export const startLoopSound = (sound: AudioLike, volume = 1) => {
 	if (!sound) return;
 	sound.volume = volume;
-	sound.currentTime = 0;
-	void sound.play().catch(() => undefined);
+	void (async () => {
+		const startedBuffered = await startBufferedLoop(sound);
+		if (startedBuffered) return;
+		sound.currentTime = 0;
+		void sound.play().catch(() => undefined);
+	})();
 };
 
 export const stopAndResetSound = (sound: AudioLike) => {
 	if (!sound) return;
+	stopBufferedSound(sound);
 	sound.pause();
 	sound.currentTime = 0;
 };
@@ -30,6 +60,17 @@ export const fadeOutAndStopSound = (ctx: {
 	if (ctx.intervalRef.current !== null) {
 		window.clearInterval(ctx.intervalRef.current);
 		ctx.intervalRef.current = null;
+	}
+	const fadedBuffered = fadeOutBufferedSound({
+		element: sound,
+		durationMs,
+		intervalRef: ctx.intervalRef,
+	});
+	if (fadedBuffered) return;
+	if (hasBufferedPlayback(sound)) {
+		stopBufferedSound(sound);
+		sound.volume = 1;
+		return;
 	}
 	if (sound.paused || sound.volume <= 0) {
 		sound.volume = 1;
