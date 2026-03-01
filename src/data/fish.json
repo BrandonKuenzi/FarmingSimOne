@@ -145,7 +145,7 @@
 		"glyph": "🐚",
 		"category": "saltwater",
 		"sellPrice": 120,
-		"spawnWeight": 75,
+		"spawnWeight": 30,
 		"stats": {
 			"maxHp": 14,
 			"attack": 3,
@@ -173,7 +173,7 @@
 		"glyph": "🪼",
 		"category": "saltwater",
 		"sellPrice": 280,
-		"spawnWeight": 45,
+		"spawnWeight": 30,
 		"stats": {
 			"maxHp": 24,
 			"attack": 8,
@@ -201,7 +201,7 @@
 		"glyph": "🦀",
 		"category": "saltwater",
 		"sellPrice": 420,
-		"spawnWeight": 40,
+		"spawnWeight": 30,
 		"stats": {
 			"maxHp": 30,
 			"attack": 9,
@@ -233,7 +233,7 @@
 		"glyph": "🐡",
 		"category": "saltwater",
 		"sellPrice": 650,
-		"spawnWeight": 28,
+		"spawnWeight": 30,
 		"stats": {
 			"maxHp": 34,
 			"attack": 12,
@@ -341,7 +341,7 @@
 		"glyph": "🦈",
 		"category": "saltwater",
 		"sellPrice": 2000,
-		"spawnWeight": 12,
+		"spawnWeight": 16,
 		"stats": {
 			"maxHp": 64,
 			"attack": 22,
@@ -365,7 +365,7 @@
 		"glyph": "🪸",
 		"category": "saltwater",
 		"sellPrice": 3200,
-		"spawnWeight": 8,
+		"spawnWeight": 12,
 		"stats": {
 			"maxHp": 78,
 			"attack": 14,
@@ -389,7 +389,7 @@
 		"glyph": "🧽",
 		"category": "saltwater",
 		"sellPrice": 260,
-		"spawnWeight": 6,
+		"spawnWeight": 12,
 		"stats": {
 			"maxHp": 16,
 			"attack": 5,
@@ -421,7 +421,7 @@
 		"glyph": "🧜‍♀️",
 		"category": "saltwater",
 		"sellPrice": 5000,
-		"spawnWeight": 1,
+		"spawnWeight": 2,
 		"stats": {
 			"maxHp": 135,
 			"attack": 38,
