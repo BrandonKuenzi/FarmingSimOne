@@ -202,7 +202,8 @@ export type UpgradeSceneEventKind =
 	| "pet_arrived"
 	| "barn_upgraded"
 	| "tractor_delivered"
-	| "auto_collector_installed";
+	| "auto_collector_installed"
+	| "auto_feeder_installed";
 export type UpgradeSceneBgTrack = "space_store" | "space_bg" | "area_default";
 export type UpgradeSceneEvent = {
 	id: string;

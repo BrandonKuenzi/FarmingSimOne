@@ -27,8 +27,8 @@ import { GLYPH } from "./glyphs";
 
 export const STARTER_CHEST_POS = { x: 7, y: 8 };
 export const TRACTOR_PARK_POS = { x: 14, y: 8 };
-export const TRACTOR_PRICE = 10000;
-export const TRACTOR_IRON_COST = 50;
+export const TRACTOR_PRICE = 5000;
+export const TRACTOR_IRON_COST = 25;
 export const HEADLAMP_PRICE = 1000;
 
 export const FARM_FOREST_BLOCKER_POSITIONS = [
@@ -243,7 +243,7 @@ export const initialPrices: PriceState = {
 	carrot: cropDefs.carrot.baseSell,
 	pumpkin: cropDefs.pumpkin.baseSell,
 	corn: cropDefs.corn.baseSell,
-	feed: 8,
+	feed: 4,
 	milk: 30,
 	wool: 28,
 	egg: 16,

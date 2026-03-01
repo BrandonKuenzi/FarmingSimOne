@@ -39,6 +39,29 @@ type QuantityPromptConfig = {
 	onConfirm: (quantity: number) => void;
 };
 
+const OUTFIT_COMPLIMENTS: string[] = [
+	"Looking snazzy",
+	"Excellent choice",
+	"You wear that well",
+	"Great fit",
+	"Sharp look",
+	"Style level up",
+	"Clean look",
+	"Very classy",
+	"Top tier fashion",
+	"That suit works",
+	"Perfect vibe",
+	"Fresh outfit",
+	"Nice color combo",
+	"That is a mood",
+	"Looking polished",
+	"Confident look",
+	"Iconic style",
+	"Great pick",
+	"You look fantastic",
+	"Absolutely on point",
+];
+
 export type PlayerInteractContext = {
 	modal: unknown;
 	beachBottlePos: Point | null;
@@ -201,6 +224,7 @@ export type PlayerInteractContext = {
 	playBath: () => void;
 	setIsBathing: Dispatch<SetStateAction<boolean>>;
 	clothingShopItems: readonly { look: string; price: number }[];
+	hasWardrobe: boolean;
 	ownedWardrobeLooks: string[];
 	starterWardrobeLooks: readonly string[];
 	purchasableFunnyLooks: readonly string[];
@@ -209,11 +233,15 @@ export type PlayerInteractContext = {
 	setFarmEggDrops: Dispatch<SetStateAction<Record<string, boolean>>>;
 	hasAutoCollector: boolean;
 	barnAutoCollectorPos: Point | null;
+	barnAutoCollectorMap: MapId;
+	hasAutoFeeder: boolean;
+	barnAutoFeederPos: Point | null;
+	barnAutoFeederMap: MapId;
 	isCowLikeAnimal: (type: AnimalType) => boolean;
 	rollLivestockYield: (toolLevel: number) => number;
 	setAnimals: Dispatch<SetStateAction<Animal[]>>;
 	generateOverfedAnimalLine: (animalName: string) => string;
-	interactBuilderVendor: () => void;
+	interactBuilderVendor: (target: Point) => void;
 	interactVendor: (key: VendorKey) => void;
 	vendorByShopMap: Partial<Record<MapId, VendorKey>>;
 	isShopMap: (map: MapId) => boolean;
@@ -411,6 +439,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		playBath,
 		setIsBathing,
 		clothingShopItems,
+		hasWardrobe,
 		ownedWardrobeLooks,
 		starterWardrobeLooks,
 		purchasableFunnyLooks,
@@ -419,6 +448,10 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		setFarmEggDrops,
 		hasAutoCollector,
 		barnAutoCollectorPos,
+		barnAutoCollectorMap,
+		hasAutoFeeder,
+		barnAutoFeederPos,
+		barnAutoFeederMap,
 		isCowLikeAnimal,
 		rollLivestockYield,
 		setAnimals,
@@ -531,6 +564,12 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 					(d: { x: number; y: number }) => d.x === tx && d.y === ty,
 				);
 	if (targetDoor) {
+		if (targetDoor.target.map === "clothing_shop" && !hasWardrobe) {
+			const line = "They arnt open yet...";
+			toastAtTarget(line);
+			speakNpcLine(line);
+			return;
+		}
 		if (targetDoor.target.map === "forest" && forestLockedToday) {
 			playBad();
 			addLog("You are too scared to go back in the forest today.");
@@ -1346,7 +1385,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 	}
 	if (player.map === "house" && targetBaseTile === "U") {
 		if (stamina >= staminaMax) {
-			addLog("You are not tired enough to take a bath right now.");
+			addLog("[full] You dont need a bath");
 			return;
 		}
 		setIsBathing(true);
@@ -1381,7 +1420,10 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 					],
 					onSelect: () => {
 						setPlayerEmoji(look);
-						addLog(`Changed outfit to ${look}.`);
+						const compliment =
+							OUTFIT_COMPLIMENTS[randomInt(0, OUTFIT_COMPLIMENTS.length - 1)]!;
+						toastAtTarget(compliment);
+						speakNpcLine(compliment);
 						closeMenu();
 					},
 				})),
@@ -1401,6 +1443,10 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			farmEggDrops,
 			hasAutoCollector,
 			barnAutoCollectorPos,
+			barnAutoCollectorMap,
+			hasAutoFeeder,
+			barnAutoFeederPos,
+			barnAutoFeederMap,
 			setFarmEggDrops,
 			animals,
 			animalTiles,

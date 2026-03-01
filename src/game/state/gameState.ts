@@ -97,8 +97,15 @@ export type GameState = {
 	tools: ToolLevels;
 	barnTier: BarnTier;
 	pendingBarnUpgrade: boolean;
+	hasBath: boolean;
+	pendingBathInstall: boolean;
+	hasWardrobe: boolean;
+	pendingWardrobeInstall: boolean;
+	clothingShopOpeningAnnounced: boolean;
 	hasAutoCollector: boolean;
 	pendingAutoCollectorInstall: boolean;
+	hasAutoFeeder: boolean;
+	pendingAutoFeederInstall: boolean;
 	hasTractor: boolean;
 	hasHeadlamp: boolean;
 	headlampLetterRead: boolean;
