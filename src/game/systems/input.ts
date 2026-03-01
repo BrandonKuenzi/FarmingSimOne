@@ -119,6 +119,8 @@ export type GameKeyDownContext = {
 	inputLocked: boolean;
 	directorDialogOpen: boolean;
 	confirmDirectorDialog: () => void;
+	isNewspaperOpen: boolean;
+	closeNewspaperPopup: () => void;
 };
 
 export const handleGameKeyDown = (
@@ -154,7 +156,6 @@ export const handleGameKeyDown = (
 		ctx.updateInventory("ruby", 10);
 		ctx.updateInventory("diamond", 10);
 		ctx.updateInventory("emerald", 10);
-		ctx.addLog("Debug boost: +$10,000, +100 Iron, +10 Ruby, +10 Diamond, +10 Emerald.");
 		return;
 	}
 
@@ -190,6 +191,14 @@ export const handleGameKeyDown = (
 	if (ctx.directorDialogOpen && (key === " " || key === "enter")) {
 		e.preventDefault();
 		ctx.confirmDirectorDialog();
+		return;
+	}
+
+	if (ctx.isNewspaperOpen) {
+		e.preventDefault();
+		if (key === " " || key === "enter" || key === "escape") {
+			ctx.closeNewspaperPopup();
+		}
 		return;
 	}
 
@@ -242,7 +251,6 @@ export const handleGameKeyDown = (
 		e.preventDefault();
 		if (ctx.fishing.phase === "waiting") {
 			ctx.playBad();
-			ctx.addLog("The fish got away.");
 			ctx.endFishing();
 			return;
 		}
@@ -253,14 +261,12 @@ export const handleGameKeyDown = (
 			ctx.setFishing((prev) => (prev ? { ...prev, phase: "success" } : prev));
 			ctx.playYaya();
 			ctx.updateInventory("fish", 1);
-			ctx.addLog("Nice catch! +1 Fish");
 			ctx.fishingResolveTimeoutRef.current = window.setTimeout(() => {
 				ctx.endFishing();
 			}, 2000);
 			return;
 		}
 		ctx.playBad();
-		ctx.addLog("You missed the bite.");
 		ctx.endFishing();
 		return;
 	}

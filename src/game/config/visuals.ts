@@ -193,4 +193,5 @@ export const spriteTilesNeedingGround = new Set([
 	"`",
 	"\\",
 	"|",
+	GLYPH.newspaper,
 ]);

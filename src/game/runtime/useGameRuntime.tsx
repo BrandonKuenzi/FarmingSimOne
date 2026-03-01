@@ -171,6 +171,7 @@ import {
 	rollDailyMarketState,
 	rollDailyVendorState,
 } from "../systems/day";
+import { generateNewspaperEmojiPicture } from "../systems/newspaperImageGenerator";
 import {
 	CORAL_FRUIT_SELL_PRICE,
 	generateSketchyMerchantStock,
@@ -380,6 +381,9 @@ const DIRECTOR_NAV_DURATION_MS = 1000;
 const DIRECTOR_RETURN_DURATION_MS = 1000;
 const DIRECTOR_RETURN_SETTLE_MS = 180;
 const HEADLAMP_LETTER_POS = { x: 7, y: 8 } as const;
+const FARM_NEWSPAPER_POS = { x: 6, y: 8 } as const;
+const DAY_ONE_NEWSPAPER_TEXT =
+	"Welcome to the farm! Press WASD to move. Press the Up Down Left Right arrows to interact with the world around you! Check your newspaper daily to learn whats happening in the world around you!";
 const savarioLines = [
 	"Oh. Good. You're back.",
 	"We restored your progress. Please misplace it less impressively.",
@@ -626,8 +630,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				animals: [],
 				prices: initialPrices,
 				priceTrends: initialPriceTrends,
-				newspaper:
-					"Sleep to start a new day and generate today's market newspaper.",
+				newspaper: DAY_ONE_NEWSPAPER_TEXT,
+				newspaperImage: generateNewspaperEmojiPicture(DAY_ONE_NEWSPAPER_TEXT),
+				newspaperRead: false,
 				log: ["Welcome to your farm."],
 				modal: null,
 				modalIndex: 0,
@@ -734,6 +739,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	} | null>(null);
 	const [directorInputLocked, setDirectorInputLocked] = useState(false);
 	const [cloudOverlayVisible, setCloudOverlayVisible] = useState(true);
+	const [isNewspaperPopupOpen, setIsNewspaperPopupOpen] = useState(false);
 	const {
 		player,
 		day,
@@ -775,6 +781,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		prices,
 		priceTrends,
 		newspaper,
+		newspaperImage,
+		newspaperRead,
 		log,
 		modal,
 		modalIndex,
@@ -934,6 +942,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setPrices = setForKey("prices");
 	const setPriceTrends = setForKey("priceTrends");
 	const setNewspaper = setForKey("newspaper");
+	const setNewspaperImage = setForKey("newspaperImage");
+	const setNewspaperRead = setForKey("newspaperRead");
 	const setLog = setForKey("log");
 	const setModal = setForKey("modal");
 	const setModalIndex = setForKey("modalIndex");
@@ -1024,6 +1034,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const canSaveGame = player.map === "farm" || player.map === "town";
 	const headlampLetterVisible =
 		unlockFlags.headlampVendorStock && !headlampLetterRead;
+	const farmNewspaperPos = FARM_NEWSPAPER_POS;
 	const saveDisabledMessage = canSaveGame
 		? null
 		: player.map === "bureaucracy_office"
@@ -1516,7 +1527,6 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			waterIntervalRef: fishingWaterIntervalRef,
 			onFishEscaped: () => {
 				playBad();
-				addLog("The fish got away.");
 				endFishing();
 			},
 		});
@@ -1612,6 +1622,21 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		prevPlayerBobbleRef.current = player;
 	}, [player]);
+
+	useEffect(() => {
+		const applyNewspaperFx = () => {
+			tileFxBusRef.current.api
+				.at({ map: "farm", x: farmNewspaperPos.x, y: farmNewspaperPos.y })
+				.bounceSquash(!newspaperRead, 1000);
+		};
+		applyNewspaperFx();
+		const frameId = window.requestAnimationFrame(applyNewspaperFx);
+		const timeoutId = window.setTimeout(applyNewspaperFx, 80);
+		return () => {
+			window.cancelAnimationFrame(frameId);
+			window.clearTimeout(timeoutId);
+		};
+	}, [day, newspaperRead, player.map, farmNewspaperPos.x, farmNewspaperPos.y]);
 
 	useEffect(() => {
 		const prev = prevTownNpcBobbleRef.current;
@@ -2181,6 +2206,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			y === STARTER_CHEST_POS.y
 		)
 			return false;
+		if (
+			map === "farm" &&
+			x === farmNewspaperPos.x &&
+			y === farmNewspaperPos.y
+		)
+			return false;
 		if (map === "farm" && farmForestBlockers[keyForPos(x, y)]) return false;
 		if (map === "farm" && farmCaveBlockers[keyForPos(x, y)]) return false;
 		if (map === "farm" && petGraveObstacles[keyForPos(x, y)]) return false;
@@ -2216,7 +2247,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const canEnterForest = () => stamina > 0;
 	const canEnterCave = () => stamina > 0;
 
-	const applyForestDamage = (amount: number, source: string) => {
+	const applyForestDamage = (amount: number, _source: string) => {
 		if (playerRef.current.map !== "forest" || amount <= 0) return;
 		playBad();
 		setShowForestHit(true);
@@ -2232,9 +2263,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			if (next <= 0) {
 				setForestLockedToday(true);
 				setPlayer({ map: "farm", x: FARM_WIDTH - 2, y: FOREST_GATE_Y });
-				addLog("You collapsed in the forest and woke up back on the farm.");
-			} else {
-				addLog(`${source} hit you for ${amount} stamina.`);
+				tileFxBusRef.current.api
+					.actor("player")
+					.toast("You got tired and woke up on your farm", 6000);
 			}
 			return next;
 		});
@@ -2706,16 +2737,84 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (next) nextBoatTiles[boatKey] = next;
 	};
 
+	const toToastPhrase = (line: string): string => {
+		const trimmed = line.trim();
+		if (!trimmed) return "Update";
+		const normalized = trimmed
+			.replace(/^Cave Level \d+:\s*/i, "")
+			.replace(/^Forest Level \d+:\s*/i, "")
+			.replace(/\s+/g, " ")
+			.replace(/[.!?]+$/g, "")
+			.trim();
+		const lower = normalized.toLowerCase();
+		if (lower === "nothing to interact with") return "Nothing here";
+		if (lower === "too tired") return "Too tired";
+		if (lower.startsWith("not enough money")) return "Need money";
+		if (lower.startsWith("not enough ")) {
+			const parts = normalized.split(" ");
+			return parts.length >= 3 ? `Need ${parts[2]}` : "Not enough";
+		}
+		if (lower.startsWith("entered ")) {
+			const dest = normalized.slice("Entered ".length);
+			return `Entered ${dest}`;
+		}
+		const words = normalized.split(" ").filter(Boolean);
+		if (words.length <= 3) return normalized;
+		return words.slice(0, 3).join(" ");
+	};
+	const toastAreaEntered = (target: { map: MapId; x: number; y: number }) => {
+		const rows = activeMapLayouts[target.map] ?? [];
+		const mapHeight = rows.length;
+		const mapWidth = rows[0]?.length ?? 0;
+		if (mapWidth <= 0 || mapHeight <= 0) return;
+		const sideDistances = [
+			{ side: "top" as const, dist: target.y },
+			{ side: "bottom" as const, dist: mapHeight - 1 - target.y },
+			{ side: "left" as const, dist: target.x },
+			{ side: "right" as const, dist: mapWidth - 1 - target.x },
+		];
+		sideDistances.sort((a, b) => a.dist - b.dist);
+		const nearestSide = sideDistances[0]?.side ?? "top";
+		let anchorX = target.x;
+		let anchorY = target.y;
+		if (nearestSide === "top") anchorY += 1;
+		else if (nearestSide === "bottom") anchorY -= 1;
+		else if (nearestSide === "left") anchorX += 1;
+		else anchorX -= 1;
+		anchorX = Math.max(0, Math.min(mapWidth - 1, anchorX));
+		anchorY = Math.max(0, Math.min(mapHeight - 1, anchorY));
+		tileFxBusRef.current.api
+			.at({ map: target.map, x: anchorX, y: anchorY })
+			.toast(`Entered ${target.map}`);
+	};
+	const stopTts = () => {
+		if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+		window.speechSynthesis.cancel();
+	};
+	const openNewspaperPopup = () => {
+		setIsNewspaperPopupOpen(true);
+		setNewspaperRead(true);
+		speakNpcLine(newspaper);
+	};
+	const closeNewspaperPopup = () => {
+		setIsNewspaperPopupOpen(false);
+		stopTts();
+	};
+	useEffect(() => {
+		if (!isNewspaperPopupOpen) return;
+		if (player.map !== "farm" || !!dayTransition) {
+			closeNewspaperPopup();
+		}
+	}, [isNewspaperPopupOpen, player.map, dayTransition]);
 	const addLog = (line: string) => {
-		if (playerRef.current.map === "cave") {
-			setLog([`Cave Level ${caveLevel}: ${line}`]);
-			return;
-		}
-		if (playerRef.current.map === "forest") {
-			setLog([`Forest Level ${forestLevel}: ${line}`]);
-			return;
-		}
-		setLog([line]);
+		const raw = line.trim();
+		if (!raw) return;
+		const forceFull = raw.startsWith("[full]");
+		const content = forceFull ? raw.replace(/^\[full\]\s*/i, "") : raw;
+		if (content.trim().toLowerCase() === "nothing to interact with") return;
+		const phrase = forceFull ? content : toToastPhrase(content);
+		if (phrase === "Nothing here") return;
+		tileFxBusRef.current.api.actor("player").toast(phrase);
 	};
 	const dispatchWholeGameState = (nextState: GameState) => {
 		const updates = nextState as Partial<{
@@ -2820,6 +2919,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				(rawState as Partial<GameState>).hasAutoCollector ?? false,
 			pendingAutoCollectorInstall:
 				(rawState as Partial<GameState>).pendingAutoCollectorInstall ?? false,
+			newspaperImage:
+				(rawState as Partial<GameState>).newspaperImage ??
+				generateNewspaperEmojiPicture(rawState.newspaper ?? ""),
+			newspaperRead:
+				(rawState as Partial<GameState>).newspaperRead ?? false,
 			unlockFlags: resolveUnlockFlags(
 				{
 					forestLevel: rawState.forestLevel,
@@ -2878,7 +2982,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		savarioLineIndexRef.current = 0;
 		dispatchWholeGameState(nextState);
 		switchAreaMusic(getAreaMusicForMap(nextState.player.map), true);
-		addLog("Loaded save. Intake assigned: Savario.");
+		addLog("Loaded save");
 		setSaveLoadStatus("Loaded. Report to Savario before returning to farm.");
 		setIsSaveLoadMenuOpen(false);
 	};
@@ -2934,7 +3038,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const loadedState = fromSaveGameData(parsedSave);
 		applyLoadedGameState(loadedState);
 	}, [bootSaveJson]);
-	const applyCaveDamage = (amount: number, source: string) => {
+	const applyCaveDamage = (amount: number, _source: string) => {
 		if (playerRef.current.map !== "cave" || amount <= 0) return;
 		playBad();
 		setShowForestHit(true);
@@ -2950,9 +3054,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			if (next <= 0) {
 				setCaveLockedToday(true);
 				setPlayer({ map: "farm", x: 1, y: CAVE_GATE_Y });
-				addLog("You collapsed in the cave and woke up back on the farm.");
-			} else {
-				addLog(`${source} hit you for ${amount} stamina.`);
+				tileFxBusRef.current.api
+					.actor("player")
+					.toast("You got tired and woke up on your farm", 6000);
 			}
 			return next;
 		});
@@ -3347,14 +3451,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				const lines: string[] = [];
 				if (gotFeed) {
 					updateInventory("feed", 1);
-					lines.push("Found Feed +1.");
 				}
 				if (gotMoney) {
 					const amount = randomInt(1, 5);
 					applyMoneyDelta(amount);
 					lines.push(`Found $${amount}.`);
 				}
-				addLog(lines.length > 0 ? lines.join(" ") : "You cleared some weeds.");
+				if (lines.length > 0) addLog(lines.join(" "));
 				return;
 			}
 			const plot = plots[key];
@@ -3499,6 +3602,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				caveLockedToday,
 				canEnterCave,
 				playNotification,
+				toastAreaEntered,
 			},
 			dir,
 		);
@@ -4054,6 +4158,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			setPetVendorActive,
 			itemNames,
 			setNewspaper,
+			setNewspaperImage,
+			setNewspaperRead,
 			queueUpgradeScene: (event) => {
 				setPendingUpgradeScenes((prev) => [...prev, event]);
 			},
@@ -4304,7 +4410,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				savarioResponseTimeoutRef.current = window.setTimeout(() => {
 					savarioResponseTimeoutRef.current = null;
 					speakNpcLine(line);
-					addLog(`Savario: ${line}`);
+					tileFxBusRef.current.api
+						.at({
+							map: "bureaucracy_office",
+							x: BUREAUCRACY_SAVARIO_POS.x,
+							y: BUREAUCRACY_SAVARIO_POS.y,
+						})
+						.toast(line, 6000);
 				}, 3000);
 				return;
 			}
@@ -4318,6 +4430,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			dirDelta,
 			player,
 			activeMapLayouts,
+			farmNewspaperPos,
+			openNewspaperPopup,
 			forestEntranceDoorPos,
 			openForestExitMenu,
 			forestForwardExitPos,
@@ -4334,6 +4448,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			playBad,
 			addLog,
 			playNotification,
+			toastAreaEntered,
 			setPlayer,
 			ownedPet,
 			petTile,
@@ -4613,6 +4728,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		inputLocked: directorInputLocked,
 		directorDialogOpen: !!directorPopup,
 		confirmDirectorDialog: confirmDirectorPopup,
+		isNewspaperOpen: isNewspaperPopupOpen,
+		closeNewspaperPopup,
 	};
 	const onKeyDown = useInputRouter(inputContext);
 	const keyToHeldDirection = (key: string): Dir | null => {
@@ -4632,6 +4749,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			modal ||
 			directorInputLocked ||
 			!!directorPopup ||
+			isNewspaperPopupOpen ||
 			isBathing ||
 			isOrdering ||
 			isDoctorCompounding ||
@@ -4694,6 +4812,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			STARTER_CHEST_POS,
 			headlampLetterVisible,
 			HEADLAMP_LETTER_POS,
+			farmNewspaperPos,
 			plots,
 			cropDefs,
 			farmForestBlockers,
@@ -4745,6 +4864,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		fishing,
 		starterChestOpened,
 		headlampLetterVisible,
+		farmNewspaperPos,
 		forestChest,
 		forestBonusChests,
 		forestObstacles,
@@ -4817,8 +4937,6 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		priceItems,
 		priceTrends,
 		tools,
-		log,
-		showLegacyLogStrip: true,
 		activeMapLayouts,
 		isWindSlashOn,
 		renderedMap,
@@ -4860,6 +4978,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		hasTractor,
 		hasHeadlamp,
 		newspaper,
+		newspaperImage,
+		isNewspaperPopupOpen,
+		closeNewspaperPopup,
 		isOrdering,
 		isDoctorCompounding,
 		doctorObservation,

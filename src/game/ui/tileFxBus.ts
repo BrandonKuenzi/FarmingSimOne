@@ -16,6 +16,8 @@ const createNoopHandle = (invoke: (method: TileFxMethod, args: unknown[]) => voi
 	squeeze: (scaleX = 0.5, durationMs = 1000) => invoke("squeeze", [scaleX, durationMs]),
 	stretch: (scaleY = 1.5, durationMs = 1000) => invoke("stretch", [scaleY, durationMs]),
 	streatch: (scaleY = 1.5, durationMs = 1000) => invoke("streatch", [scaleY, durationMs]),
+	bounceSquash: (enabled = true, durationMs = 2000) =>
+		invoke("bounceSquash", [enabled, durationMs]),
 	bobble: (durationMs = 320) => invoke("bobble", [durationMs]),
 	jump: (durationMs = 320) => invoke("jump", [durationMs]),
 	emote: (kind, durationMs = 1000) => invoke("emote", [kind, durationMs]),

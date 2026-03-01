@@ -19,6 +19,7 @@ import { rollBeachBottleSpawn, rollBeachShellDrops } from "../../world/beach";
 import { generateForestState, generateCaveState } from "../../world/generation";
 import { getFarmBarnOuterRect, mapLayouts } from "../../world/layout";
 import { generateDailyNewspaper } from "../../systems/news";
+import { generateNewspaperEmojiPicture } from "../../systems/newspaperImageGenerator";
 import { advancePlotsForNewDay, resetAnimalsForNewDay, rollDailyMarketState, rollDailyVendorState } from "../../systems/day";
 import { evolveFarmWeeds } from "../../systems/weeds";
 import { randomWeather } from "../../systems/weather";
@@ -122,6 +123,8 @@ type RunNextDayArgs = {
 	setPetVendorActive: Dispatch<SetStateAction<boolean>>;
 	itemNames: Record<ItemId, string>;
 	setNewspaper: Dispatch<SetStateAction<string>>;
+	setNewspaperImage: Dispatch<SetStateAction<string[]>>;
+	setNewspaperRead: Dispatch<SetStateAction<boolean>>;
 	queueUpgradeScene: (event: UpgradeSceneEvent) => void;
 };
 
@@ -213,6 +216,8 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 		setPetVendorActive,
 		itemNames,
 		setNewspaper,
+		setNewspaperImage,
+		setNewspaperRead,
 		queueUpgradeScene,
 	} = args;
 
@@ -430,16 +435,17 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 	setDoctorUsedToday(false);
 	setPetVendorActive(dailyVendorRolls.petVendorActive);
 
-	setNewspaper(
-		generateDailyNewspaper(
-			oldPrices,
-			newPrices,
-			changedItems,
-			nextWeather,
-			itemNames,
-			randomInt,
-		),
+	const nextNewspaper = generateDailyNewspaper(
+		oldPrices,
+		newPrices,
+		changedItems,
+		nextWeather,
+		itemNames,
+		randomInt,
 	);
+	setNewspaper(nextNewspaper);
+	setNewspaperImage(generateNewspaperEmojiPicture(nextNewspaper));
+	setNewspaperRead(false);
 	addLog(`Day ${day + 1} began.`);
 };
 

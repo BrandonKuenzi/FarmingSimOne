@@ -453,10 +453,10 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 							if (gemCost) updateInventory(gemCost.item, -gemCost.qty);
 							setTools((prev) => ({ ...prev, [toolId]: nextLevel }));
 							playChaChing();
+							const toolFullName =
+								`${getToolTierName(nextLevel)} ${toolNames[toolId]}`.toLowerCase();
 							addLog(
-								level <= 0
-									? `Bought ${getToolTierName(nextLevel)} ${toolNames[toolId]}.`
-									: `${toolNames[toolId]} upgraded to ${getToolTierName(nextLevel)}.`,
+								`[full] ${level <= 0 ? `Bought ${toolFullName}` : `Upgraded to ${toolFullName}`}`,
 							);
 							closeMenu();
 						},
@@ -509,7 +509,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 									applyMoneyDelta(-HEADLAMP_PRICE);
 									setHasHeadlamp(true);
 									playChaChing();
-									addLog("Bought Headlamp.");
+									addLog("[full] Bought headlamp");
 									closeMenu();
 								},
 							},

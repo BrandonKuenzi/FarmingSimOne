@@ -16,6 +16,7 @@ type RenderedMapContext = {
 	STARTER_CHEST_POS: { x: number; y: number };
 	headlampLetterVisible: boolean;
 	HEADLAMP_LETTER_POS: { x: number; y: number };
+	farmNewspaperPos: { x: number; y: number } | null;
 	plots: Record<string, Plot>;
 	cropDefs: Record<string, { growDays: number }>;
 	farmForestBlockers: Record<string, boolean>;
@@ -72,6 +73,7 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		STARTER_CHEST_POS,
 		headlampLetterVisible,
 		HEADLAMP_LETTER_POS,
+		farmNewspaperPos,
 		plots,
 		cropDefs,
 		farmForestBlockers,
@@ -127,6 +129,9 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		}
 		if (headlampLetterVisible) {
 			base[HEADLAMP_LETTER_POS.y]![HEADLAMP_LETTER_POS.x] = "\\";
+		}
+		if (farmNewspaperPos && base[farmNewspaperPos.y]?.[farmNewspaperPos.x]) {
+			base[farmNewspaperPos.y]![farmNewspaperPos.x] = GLYPH.newspaper;
 		}
 		Object.entries(plots).forEach(([key, p]) => {
 			const [xs, ys] = key.split(",");

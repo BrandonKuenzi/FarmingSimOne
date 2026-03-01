@@ -60,6 +60,7 @@ type PlayerMovementContext = {
 	caveLockedToday: boolean;
 	canEnterCave: () => boolean;
 	playNotification: () => void;
+	toastAreaEntered?: (target: { map: MapId; x: number; y: number }) => void;
 };
 
 export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
@@ -114,6 +115,7 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		caveLockedToday,
 		canEnterCave,
 		playNotification,
+		toastAreaEntered,
 	} = ctx;
 
 	if (modal || isOrdering || isDoctorCompounding) return;
@@ -275,6 +277,10 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		}
 		playNotification();
 		setPlayer({ map: door.target.map, x: door.target.x, y: door.target.y });
-		addLog(`Entered ${door.target.map}.`);
+		toastAreaEntered?.({
+			map: door.target.map,
+			x: door.target.x,
+			y: door.target.y,
+		});
 	}
 };

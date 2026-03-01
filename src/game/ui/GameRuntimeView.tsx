@@ -10,6 +10,7 @@ import type { GameRuntimeViewModel } from "./viewModel";
 import { BUREAUCRACY_EXIT_POS } from "../world/layout";
 import { GLYPH } from "../config/glyphs";
 import { AnimatedEmojiTile } from "./AnimatedEmojiTile";
+import { CurrentMarket } from "./CurrentMarket";
 import {
 	CAMERA_FOLLOW_ANIMATION_EASE,
 	CAMERA_FOLLOW_MS,
@@ -26,6 +27,25 @@ const CAMERA_EDGE_FOLLOW_RATIO_Y = 0.4;
 const CLOUD_ZOOM_WHOOSH_RATIO_X = 0.05;
 const CLOUD_ZOOM_WHOOSH_RATIO_Y = 0.05;
 const POSITION_ANIMATION_S = POSITION_ANIMATION_MS / 1000;
+const MODAL_TITLES_WITH_MARKET = new Set([
+	"Seed Vendor",
+	"Supermarket",
+	"Sketchy Merchant",
+	"Trader",
+]);
+const newspaperPictureScale = (
+	emoji: string,
+	index: number,
+	seed: number,
+): number => {
+	if (!emoji.trim()) return 1;
+	let hash = (seed * 131 + index * 977) >>> 0;
+	for (let i = 0; i < emoji.length; i += 1) {
+		hash = Math.imul(hash ^ emoji.charCodeAt(i), 16777619) >>> 0;
+	}
+	const normalized = (hash % 1000) / 999;
+	return 1 + normalized * 3;
+};
 const getBureaucracyStarGlyph = (star: {
 	id: number;
 	left: number;
@@ -512,9 +532,10 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 						};
 						const shouldWrapFxTile =
 							withGround.glyph.trim().length > 0 &&
-							withGround.className !== "tile-grass" &&
-							withGround.className !== "tile-water" &&
-							withGround.className !== "tile-forest-grass";
+							(withGround.glyph === GLYPH.newspaper ||
+								(withGround.className !== "tile-grass" &&
+									withGround.className !== "tile-water" &&
+									withGround.className !== "tile-forest-grass"));
 						return (
 							<span
 								key={`${x}-${y}`}
@@ -1097,8 +1118,6 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		staminaMax,
 		waterLevel,
 		inventoryRows,
-		log,
-		showLegacyLogStrip,
 		activeMapLayouts,
 		isWindSlashOn,
 		renderedMap,
@@ -1142,6 +1161,9 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		hasTractor,
 		hasHeadlamp,
 		newspaper,
+		newspaperImage,
+		isNewspaperPopupOpen,
+		closeNewspaperPopup,
 		isOrdering,
 		isDoctorCompounding,
 		doctorObservation,
@@ -1175,6 +1197,14 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		confirmDirectorPopup,
 		tileFxBus,
 	} = ctx;
+	const newspaperSections = newspaper
+		.split(/\n\s*\n/)
+		.map((section) => section.trim())
+		.filter(Boolean);
+	const newspaperTopSection = newspaperSections[0] ?? "";
+	const newspaperSecondSection = newspaperSections[1] ?? "";
+	const newspaperTailSections = newspaperSections.slice(2);
+	const newspaperPictureSeed = day + newspaper.length;
 	return (
 		<div
 			className='game-shell'
@@ -1250,37 +1280,70 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 			</div>
 
 			<div className='inventory inventory-strip'>
-				<div className='panel-title'>Inventory</div>
-				<ul className='inventory-row'>
-					<li
-						key='water-row'
-						className='inventory-item'
-					>
-						<span className='inventory-item-icon'>{GLYPH.pouringLiquid}</span>{" "}
-						{/* water can */}
-						<span>Water:</span>
-						<span>{waterLevel}</span>
-					</li>
-					{inventoryRows.map((r) => (
+				<div className='header-inline-list'>
+					<div className='panel-title'>Inventory</div>
+					<ul className='inventory-row'>
 						<li
-							key={r.id}
+							key='water-row'
 							className='inventory-item'
 						>
-							<span className='inventory-item-icon'>{r.icon}</span>
-							<span>{r.name}:</span>
-							<span>{r.amount}</span>
+							<span className='inventory-item-icon'>{GLYPH.pouringLiquid}</span>{" "}
+							{/* water can */}
+							<span>Water:</span>
+							<span>{waterLevel}</span>
 						</li>
-					))}
-				</ul>
-			</div>
-
-			{showLegacyLogStrip && (
-				<div className='legend log-strip'>
-					<div className='log-list'>
-						<div className='small'>{log[0] ?? ""}</div>
-					</div>
+						{inventoryRows.map((r) => (
+							<li
+								key={r.id}
+								className='inventory-item'
+							>
+								<span className='inventory-item-icon'>{r.icon}</span>
+								<span>{r.name}:</span>
+								<span>{r.amount}</span>
+							</li>
+						))}
+					</ul>
 				</div>
-			)}
+			</div>
+			<div className='tools tools-strip'>
+				<div className='header-inline-list'>
+					<div className='panel-title'>Tools</div>
+					<ul className='inventory-row'>
+						{toolRows.map((tool) => (
+							<li
+								key={tool.id}
+								className='inventory-item'
+							>
+								{getToolTierName(tool.level)} {tool.name}
+							</li>
+						))}
+						{pendingTractorDelivery && (
+							<li
+								key='tractor-pending'
+								className='inventory-item'
+							>
+								Tractor (arrives tomorrow)
+							</li>
+						)}
+						{hasTractor && (
+							<li
+								key='tractor-owned'
+								className='inventory-item'
+							>
+								Tractor
+							</li>
+						)}
+						{hasHeadlamp && (
+							<li
+								key='headlamp-owned'
+								className='inventory-item'
+							>
+								Headlamp
+							</li>
+						)}
+					</ul>
+				</div>
+			</div>
 
 			<MemoMapViewport
 				ctx={{
@@ -1332,71 +1395,78 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					tileFxBus,
 				}}
 			/>
-			<div className='info-grid'>
-				<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-					<div className='controls-market-row'>
-						<div className='controls'>
-							<div className='panel-title'>Controls</div>
-							<div>`WASD` move</div>
-							<div>`Arrow Keys` interact one tile</div>
-							<div>`Q/E` zoom out/in</div>
-							<div>`W/S` navigate menus</div>
-							<div>`Space` confirm menu option</div>
-						</div>
-						<div className='legend market-panel'>
-							<div className='panel-title'>Current Market</div>
-							<ul className='market-list'>
-								{marketRows.map((row) => (
-									<li key={`market-${row.id}`}>
-										<span>{row.name}:</span>{" "}
-										<span>
-											${row.price}{" "}
-											{row.trend > 0
-												? GLYPH.chartUp
-												: row.trend < 0
-													? GLYPH.chartDown
-													: ""}{" "}
-											{/* market trend */}
-										</span>
-									</li>
-								))}
-							</ul>
-						</div>
-					</div>
-
-					<div className='tips-tools-row'>
-						<div className='legend'>
-							<div className='panel-title'>Farm Tips</div>
-							<ul>
-								<li>Plant seeds on brown dirt plots.</li>
-								<li>Water crops daily so they grow overnight.</li>
-								<li>Feed animals daily in the farm barn.</li>
-								<li>Sleep in house bed to start next day.</li>
-								<li>Visit town vendors to buy/sell.</li>
-							</ul>
-						</div>
-						<div className='legend'>
-							<div className='panel-title'>Tools</div>
-							<ul>
-								{toolRows.map((tool) => (
-									<li key={tool.id}>
-										{getToolTierName(tool.level)} {tool.name}
-									</li>
-								))}
-								{pendingTractorDelivery && (
-									<li key='tractor-pending'>Tractor (arrives tomorrow)</li>
+			{isNewspaperPopupOpen && (
+				<div
+					className='newspaper-popup-backdrop'
+					onClick={closeNewspaperPopup}
+				>
+					<div
+						className='newspaper-popup'
+						onClick={(event) => event.stopPropagation()}
+					>
+						<div className='panel-title'>Daily Newspaper</div>
+						<div className='newspaper-body newspaper-body-article'>
+							<CurrentMarket
+								rows={marketRows}
+								compact
+								className='newspaper-market-float'
+							/>
+							<div className='newspaper-copy'>
+								{newspaperTopSection && (
+									<div className='newspaper-copy-section'>
+										{newspaperTopSection}
+									</div>
 								)}
-								{hasTractor && <li key='tractor-owned'>Tractor</li>}
-								{hasHeadlamp && <li key='headlamp-owned'>Headlamp</li>}
-							</ul>
+								<div className='newspaper-story-flex'>
+									<div className='newspaper-story-half newspaper-copy-section'>
+										{newspaperSecondSection}
+									</div>
+									<div className='newspaper-story-half newspaper-emoji-picture'>
+										{Array.from({ length: 9 }, (_, index) => {
+											const emoji = newspaperImage[index] ?? "";
+											const scale = newspaperPictureScale(
+												emoji,
+												index,
+												newspaperPictureSeed,
+											);
+											return (
+												<div
+													key={`newspaper-picture-cell-${index}`}
+													className='newspaper-emoji-cell'
+												>
+													<span
+														className='newspaper-emoji-glyph'
+														style={{ transform: `scale(${scale})` }}
+													>
+														{emoji}
+													</span>
+												</div>
+											);
+										})}
+									</div>
+								</div>
+								{newspaperTailSections.map((section, index) => (
+									<div
+										key={`newspaper-tail-${index}`}
+										className='newspaper-copy-section'
+									>
+										{section}
+									</div>
+								))}
+							</div>
+						</div>
+						<div className='newspaper-popup-actions'>
+							<button
+								type='button'
+								className='option active newspaper-popup-button'
+								onClick={closeNewspaperPopup}
+							>
+								OK
+							</button>
 						</div>
 					</div>
 				</div>
-				<div className='newspaper'>
-					<div className='panel-title'>Daily Newspaper</div>
-					<div className='newspaper-body'>{newspaper}</div>
-				</div>
-			</div>
+			)}
 
 			{(isOrdering || isDoctorCompounding) && (
 				<div className='order-wait-overlay'>
@@ -1428,6 +1498,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 						{(() => {
 							const selectedOption = modal.options[modalIndex];
 							const dealMeta = selectedOption?.dealMeta;
+							const showMarketInModal =
+								!quantityPrompt && MODAL_TITLES_WITH_MARKET.has(modal.title);
 							const dealBadge = dealMeta
 								? getDealBadge(
 										dealMeta.mode,
@@ -1522,6 +1594,13 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 												>
 													{dealBadge.label}
 												</motion.div>
+											)}
+											{showMarketInModal && (
+												<CurrentMarket
+													rows={marketRows}
+													compact
+													className='modal-market-panel'
+												/>
 											)}
 										</div>
 									</div>

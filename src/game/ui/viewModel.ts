@@ -44,8 +44,6 @@ export type GameRuntimeViewModel = {
 	staminaMax: number;
 	waterLevel: number;
 	inventoryRows: Array<{ id: string; icon: string; name: string; amount: number }>;
-	log: string[];
-	showLegacyLogStrip: boolean;
 	activeMapLayouts: Record<string, string[]>;
 	isWindSlashOn: (x: number, y: number) => boolean;
 	renderedMap: string[][];
@@ -103,6 +101,9 @@ export type GameRuntimeViewModel = {
 	hasTractor: boolean;
 	hasHeadlamp: boolean;
 	newspaper: string;
+	newspaperImage: string[];
+	isNewspaperPopupOpen: boolean;
+	closeNewspaperPopup: () => void;
 	isOrdering: boolean;
 	isDoctorCompounding: boolean;
 	doctorObservation: string;
