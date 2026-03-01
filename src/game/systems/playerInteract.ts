@@ -58,6 +58,8 @@ export type PlayerInteractContext = {
 	dirDelta: Record<Dir, { dx: number; dy: number }>;
 	player: Position;
 	activeMapLayouts: Record<MapId, string[]>;
+	farmNewspaperPos: Point | null;
+	openNewspaperPopup: () => void;
 	forestEntranceDoorPos: Point;
 	openForestExitMenu: () => void;
 	forestForwardExitPos: Point;
@@ -74,6 +76,7 @@ export type PlayerInteractContext = {
 	playBad: () => void;
 	addLog: (line: string) => void;
 	playNotification: () => void;
+	toastAreaEntered?: (target: { map: MapId; x: number; y: number }) => void;
 	setPlayer: Dispatch<SetStateAction<Position>>;
 	ownedPet: PetEmoji | null;
 	petTile: Point | null;
@@ -294,6 +297,8 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		dirDelta,
 		player,
 		activeMapLayouts,
+		farmNewspaperPos,
+		openNewspaperPopup,
 		forestEntranceDoorPos,
 		openForestExitMenu,
 		forestForwardExitPos,
@@ -310,6 +315,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		playBad,
 		addLog,
 		playNotification,
+		toastAreaEntered,
 		setPlayer,
 		ownedPet,
 		petTile,
@@ -472,6 +478,15 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 	const { dx, dy } = dirDelta[dir];
 	const tx = player.x + dx;
 	const ty = player.y + dy;
+	if (
+		player.map === "farm" &&
+		farmNewspaperPos &&
+		tx === farmNewspaperPos.x &&
+		ty === farmNewspaperPos.y
+	) {
+		openNewspaperPopup();
+		return;
+	}
 	const toastAtTarget = (text: string) => {
 		tileFx.at({ map: player.map, x: tx, y: ty }).toast(text);
 	};
@@ -542,7 +557,11 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			x: targetDoor.target.x,
 			y: targetDoor.target.y,
 		});
-		addLog(`Entered ${targetDoor.target.map}.`);
+		toastAreaEntered?.({
+			map: targetDoor.target.map,
+			x: targetDoor.target.x,
+			y: targetDoor.target.y,
+		});
 		return;
 	}
 	if (
@@ -697,7 +716,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		playPluck();
 		updateInventory("shell", 1);
 		toastAtTarget(`+1 ${GLYPH.shell}`);
-		addLog("Picked up a shell.");
 		return;
 	}
 
@@ -730,7 +748,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		if (gotFeed) {
 			updateInventory("feed", 1);
 			toastAtTarget(`+1 ${GLYPH.chicken}`);
-			lines.push("Found Feed +1.");
 		}
 		if (gotMoney) {
 			const amount = randomInt(1, 5);
@@ -738,7 +755,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			toastAtTarget(`+$${amount}`);
 			lines.push(`Found $${amount}.`);
 		}
-		addLog(lines.length > 0 ? lines.join(" ") : "You cleared some weeds.");
+		if (lines.length > 0) addLog(lines.join(" "));
 		return;
 	}
 	if (targetBaseTile === "~" || targetBaseTile === "[") {
@@ -836,21 +853,20 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			const lines: string[] = [];
 			if (gotFeed) {
 				updateInventory("feed", 1);
-				lines.push("Found Feed +1.");
 			}
 			if (gotMoney) {
 				const amount = randomInt(1, 5);
 				applyMoneyDelta(amount);
 				lines.push(`Found $${amount}.`);
 			}
-			addLog(lines.length > 0 ? lines.join(" ") : "You cleared some weeds.");
+			if (lines.length > 0) addLog(lines.join(" "));
 			return;
 		}
 		if (obstacle?.type === "wood") {
 			const smashAxeLevel = tools.smashAxe;
 			if (smashAxeLevel <= 0) {
 				playBad();
-				addLog("A Smash Axe is needed to break wood.");
+				addLog("Smash axe needed");
 				return;
 			}
 			if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
@@ -864,9 +880,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				const seedItem = cropDefs[cropId].seedItem;
 				updateInventory(seedItem, 1);
 				toastAtTarget(`+1 ${itemNames[seedItem]}`);
-				addLog(`You chopped wood and found ${itemNames[seedItem]} +1.`);
-			} else {
-				addLog("You broke the wood obstacle.");
 			}
 			return;
 		}
@@ -874,7 +887,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			const smashAxeLevel = tools.smashAxe;
 			if (smashAxeLevel <= 1) {
 				playBad();
-				addLog("Your Smash Axe tier is too low to break rocks.");
+				addLog("Upgrade smash axe");
 				return;
 			}
 			if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
@@ -949,7 +962,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			const smashAxeLevel = tools.smashAxe;
 			if (smashAxeLevel <= 1) {
 				playBad();
-				addLog("Your Smash Axe tier is too low to break cave rocks.");
+				addLog("Upgrade smash axe");
 				return;
 			}
 			if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
@@ -1019,7 +1032,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		const smashAxeLevel = tools.smashAxe;
 		if (smashAxeLevel <= 0) {
 			playBad();
-			addLog("A Smash Axe is needed to clear this path.");
+			addLog("Smash axe needed");
 			return;
 		}
 		if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
@@ -1034,9 +1047,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			const seedItem = cropDefs[cropId].seedItem;
 			updateInventory(seedItem, 1);
 			toastAtTarget(`+1 ${itemNames[seedItem]}`);
-			addLog(`You cleared the path and found ${itemNames[seedItem]} +1.`);
-		} else {
-			addLog("You chopped away the forest blockage.");
 		}
 		return;
 	}
@@ -1045,7 +1055,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		const smashAxeLevel = tools.smashAxe;
 		if (smashAxeLevel <= 1) {
 			playBad();
-			addLog("Your Smash Axe tier is too low to break these cave rocks.");
+			addLog("Upgrade smash axe");
 			return;
 		}
 		if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
@@ -1085,7 +1095,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		const smashAxeLevel = tools.smashAxe;
 		if (smashAxeLevel <= 1) {
 			playBad();
-			addLog("Your Smash Axe tier is too low to break this gravestone.");
+			addLog("Upgrade smash axe");
 			return;
 		}
 		if (!trySpendStamina(getSmashAxeActionCost(smashAxeLevel))) return;
@@ -1203,9 +1213,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			if (!tryUseToolAction(tools.hoe)) return;
 			setPlots(nextPlots);
 			playHoe();
-			addLog(`Hoed ${hoedCount} tile${hoedCount === 1 ? "" : "s"}.`);
-		} else {
-			addLog("No grass to hoe there.");
 		}
 		return;
 	}
@@ -1245,7 +1252,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 									},
 								}));
 								playPloop();
-								addLog(`Planted ${def.name}.`);
 								closeMenu();
 							},
 						}),
@@ -1260,7 +1266,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 								return next;
 							});
 							playHoe();
-							addLog("Reset soil to grass.");
 							closeMenu();
 						},
 					},
@@ -1283,7 +1288,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			}));
 			updateInventory(crop.harvestItem, 1);
 			playPluck();
-			addLog(`Harvested ${crop.name}.`);
 		} else if (!plot.watered) {
 			const targets = getHoeTargets(player.x, player.y, dir, tools.wateringCan);
 			const waterableKeys = targets
@@ -1314,7 +1318,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				),
 			}));
 			playWater();
-			addLog(`Watered ${wateredCount} plant${wateredCount === 1 ? "" : "s"}.`);
 		} else {
 			addLog(
 				`${crop.name} is growing (${plot.growthDays}/${crop.growDays} days). This plant is watered and will grow tonight.`,

@@ -81,6 +81,7 @@ export type TileFxHandle = {
 	squeeze: (scaleX?: number, durationMs?: number) => void;
 	stretch: (scaleY?: number, durationMs?: number) => void;
 	streatch: (scaleY?: number, durationMs?: number) => void;
+	bounceSquash: (enabled?: boolean, durationMs?: number) => void;
 	bobble: (durationMs?: number) => void;
 	jump: (durationMs?: number) => void;
 	emote: (kind: TileFxEmote, durationMs?: number) => void;

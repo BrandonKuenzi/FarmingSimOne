@@ -2,7 +2,6 @@ import {
 	generateDailyAssignmentsForNpcs,
 	generateNpcDialogLine,
 	generateNpcGreetingLine,
-	generateOverfedAnimalLine,
 	type NpcDailyAssignment,
 } from "../../npcDialogue";
 import {
@@ -177,6 +176,9 @@ export const handleLateInteractionBlocks = (
 		const kind = randomRoll() < (positive ? 0.75 : 0.25) ? "happy" : "sad";
 		tileFx.at({ map: "town", x, y }).emote(kind);
 	};
+	const toastTownSpeech = (x: number, y: number, line: string) => {
+		tileFx.at({ map: "town", x, y }).toast(line, 6000);
+	};
 
 	if (playerMap === "farm" || playerMap === "barn") {
 		if (
@@ -223,7 +225,6 @@ export const handleLateInteractionBlocks = (
 			});
 			playPluck();
 			updateInventory("egg", 1);
-			addLog("Picked up an egg.");
 			return true;
 		}
 		const nearAnimals = animals
@@ -257,15 +258,10 @@ export const handleLateInteractionBlocks = (
 					const line = lines[randomInt(0, lines.length - 1)]!;
 					speakNpcLine(line);
 				}
-				addLog(
-					`${isCowLikeAnimal(animal.type) ? "Milked" : "Sheared"} ${animalDefs[animal.type].name}: ${itemNames[product]} x${produced}.`,
-				);
 				return true;
 			}
 			if (animal.fedToday) {
-				const line = generateOverfedAnimalLine(animalDefs[animal.type].name);
-				speakNpcLine(line);
-				addLog(line);
+				addLog("Not hungry");
 				return true;
 			}
 			if (inventory.feed <= 0) {
@@ -279,7 +275,6 @@ export const handleLateInteractionBlocks = (
 			tileFx.actor(`animal-${animal.id}`).streatch(1.35, 220);
 			updateInventory("feed", -1);
 			playMunch();
-			addLog(`${animalDefs[animal.type].name} was fed.`);
 			return true;
 		}
 	}
@@ -318,7 +313,7 @@ export const handleLateInteractionBlocks = (
 			if (pendingPet) {
 				emoteTownTarget(tx, ty, true);
 				speakNpcLine(petVendorSoldLine);
-				addLog(petVendorSoldLine);
+				toastTownSpeech(tx, ty, petVendorSoldLine);
 				return true;
 			}
 			const intro = "Looking to adopt an animal? Pick one!";
@@ -344,7 +339,7 @@ export const handleLateInteractionBlocks = (
 							closeMenu();
 							emoteTownTarget(tx, ty, true);
 							speakNpcLine(petVendorSoldLine);
-							addLog(petVendorSoldLine);
+							toastTownSpeech(tx, ty, petVendorSoldLine);
 						},
 					})),
 					{ label: "Back", onSelect: closeMenu },
@@ -356,7 +351,7 @@ export const handleLateInteractionBlocks = (
 			if (doctorUsedToday) {
 				emoteTownTarget(tx, ty, false);
 				speakNpcLine(doctorFinishedTodayLine);
-				addLog(doctorFinishedTodayLine);
+				toastTownSpeech(tx, ty, doctorFinishedTodayLine);
 				return true;
 			}
 			const intro =
@@ -406,14 +401,14 @@ export const handleLateInteractionBlocks = (
 			emoteTownTarget(tx, ty, true);
 			const line = traderBoxLines[randomInt(0, traderBoxLines.length - 1)]!;
 			speakNpcLine(line);
-			addLog(line);
+			toastTownSpeech(tx, ty, line);
 			return true;
 		}
 		if (traderActive && tx === TRADER_HELI_POS.x && ty === TRADER_HELI_POS.y) {
 			emoteTownTarget(tx, ty, true);
 			const line = traderHeliLines[randomInt(0, traderHeliLines.length - 1)]!;
 			speakNpcLine(line);
-			addLog(line);
+			toastTownSpeech(tx, ty, line);
 			return true;
 		}
 		if (traderActive && tx === TRADER_POS.x && ty === TRADER_POS.y) {
@@ -422,7 +417,7 @@ export const handleLateInteractionBlocks = (
 				const line =
 					traderSoldOutLines[randomInt(0, traderSoldOutLines.length - 1)]!;
 				speakNpcLine(line);
-				addLog(line);
+				toastTownSpeech(tx, ty, line);
 				return true;
 			}
 			const intro =
@@ -474,7 +469,7 @@ export const handleLateInteractionBlocks = (
 												randomInt(0, traderAfterSaleLines.length - 1)
 											]!;
 										speakNpcLine(line);
-										addLog(line);
+										toastTownSpeech(tx, ty, line);
 									},
 								});
 							},
@@ -509,7 +504,7 @@ export const handleLateInteractionBlocks = (
 				emoteTownTarget(tx, ty, false);
 				const soldOutLine = "I aint got nothin more today";
 				speakNpcLine(soldOutLine);
-				addLog(soldOutLine);
+				toastTownSpeech(tx, ty, soldOutLine);
 				return true;
 			}
 			const intro =
@@ -566,7 +561,7 @@ export const handleLateInteractionBlocks = (
 												randomInt(0, sketchyVendorSales.length - 1)
 											]!;
 										speakNpcLine(salesLine);
-										addLog(salesLine);
+										toastTownSpeech(tx, ty, salesLine);
 									},
 								});
 							},
@@ -589,7 +584,7 @@ export const handleLateInteractionBlocks = (
 			emoteTownTarget(tx, ty, true);
 			const line = boatDialogArray[randomInt(0, boatDialogArray.length - 1)]!;
 			speakNpcLine(line);
-			addLog(line);
+			toastTownSpeech(tx, ty, line);
 			return true;
 		}
 
@@ -615,7 +610,9 @@ export const handleLateInteractionBlocks = (
 					: generateNpcDialogLine(assignment);
 			setNpcTalkedToday((prev) => ({ ...prev, [key]: true }));
 			emoteTownTarget(tx, ty, !isTip);
-			speakNpcLine(isTip ? `Heres a tip: ${tipText}` : line);
+			const spokenLine = isTip ? `Heres a tip: ${tipText}` : line;
+			speakNpcLine(spokenLine);
+			toastTownSpeech(tx, ty, spokenLine);
 			openMenu(
 				townNpcNames[key]!,
 				[line],

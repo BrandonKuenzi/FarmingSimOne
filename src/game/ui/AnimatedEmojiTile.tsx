@@ -29,6 +29,7 @@ const emoteGlyphByKind: Record<TileFxEmote, string> = {
 export const AnimatedEmojiTile = forwardRef<TileFxHandle, Props>(
 	({ glyph, glyphClassName, glyphStyle }, ref) => {
 		const controls = useAnimationControls();
+		const bounceSquashControls = useAnimationControls();
 		const [emote, setEmote] = useState<{
 			id: number;
 			kind: TileFxEmote;
@@ -56,6 +57,22 @@ export const AnimatedEmojiTile = forwardRef<TileFxHandle, Props>(
 				void controls.start({
 					scaleY: [1, scaleY, 1],
 					transition: { duration: durationMs / 1000, ease: "easeInOut" },
+				});
+			};
+			const bounceSquash = (enabled = true, durationMs = 2000) => {
+				if (!enabled) {
+					bounceSquashControls.stop();
+					bounceSquashControls.set({ scaleY: 1 });
+					return;
+				}
+				void bounceSquashControls.start({
+					scaleY: [0.9, 1.1],
+					transition: {
+						duration: durationMs / 1000,
+						ease: "easeInOut",
+						repeat: Infinity,
+						repeatType: "reverse",
+					},
 				});
 			};
 			const bobble = (durationMs = 320) => {
@@ -92,6 +109,7 @@ export const AnimatedEmojiTile = forwardRef<TileFxHandle, Props>(
 				squeeze,
 				stretch,
 				streatch: stretch,
+				bounceSquash,
 				bobble,
 				jump,
 				emote: emoteFn,
@@ -105,12 +123,17 @@ export const AnimatedEmojiTile = forwardRef<TileFxHandle, Props>(
 					className='tile-fx-glyph-motion'
 					animate={controls}
 				>
-					<span
-						className={glyphClassName}
-						style={glyphStyle}
+					<motion.div
+						animate={bounceSquashControls}
+						style={{ transformOrigin: "50% 100%" }}
 					>
-						{glyph}
-					</span>
+						<span
+							className={glyphClassName}
+							style={glyphStyle}
+						>
+							{glyph}
+						</span>
+					</motion.div>
 					{emote && (
 						<motion.div
 							key={`emote-${emote.id}`}

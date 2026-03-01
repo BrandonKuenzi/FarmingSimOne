@@ -73,6 +73,8 @@ export type GameState = {
 	prices: PriceState;
 	priceTrends: PriceTrendState;
 	newspaper: string;
+	newspaperImage: string[];
+	newspaperRead: boolean;
 	log: string[];
 	modal: ModalState | null;
 	modalIndex: number;

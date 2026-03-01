@@ -137,5 +137,8 @@ export const GLYPH = {
 	monkey: "\u{1F435}", // 🐵 U+1F435
 	panda: "\u{1F43C}", // 🐼 U+1F43C
 	tRex: "\u{1F996}", // 🦖 U+1F996
-	bulb: "\u{1F4A1}", // 💡 U+1F4A1
+	bulb: "\u{1F4A1}",
+	newspaper: "\u{1F4F0}",
 } as const;
+
+

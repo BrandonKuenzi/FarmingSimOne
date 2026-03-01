@@ -56,7 +56,7 @@ export const startFishingSequence = (ctx: {
 		phase: "waiting",
 		requiredKey: "",
 	});
-	ctx.addLog("You cast your line...");
+	ctx.addLog("[full] You cast your line...");
 	const waitMs = ctx.randomInt(2, ctx.maxWaitSeconds) * 1000;
 	ctx.waitTimeoutRef.current = window.setTimeout(() => {
 		const keys = "abcdefghijklmnopqrstuvwxyz";
