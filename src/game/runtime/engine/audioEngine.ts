@@ -44,6 +44,7 @@ type AudioSources = {
 	tractorSoundSrc: string;
 	sighSoundSrc: string;
 	whooshSoundSrc: string;
+	battleMusicSrc: string;
 };
 
 type AudioRefs = {
@@ -76,6 +77,7 @@ type AudioRefs = {
 	tractorSoundRef: AudioRef;
 	sighSoundRef: AudioRef;
 	whooshSoundRef: AudioRef;
+	battleMusicRef: AudioRef;
 	cafeOrderMusicRef: AudioRef;
 	currentAreaMusicRef: AudioRef;
 	ttsReadyRef: MutableRefObject<boolean>;
@@ -164,6 +166,9 @@ export const initializeAudioEngine = ({
 	refs.cafeOrderMusicRef.current = new Audio(sources.cafeOrderMusicSrc);
 	refs.cafeOrderMusicRef.current.preload = "auto";
 	refs.cafeOrderMusicRef.current.loop = true;
+	refs.battleMusicRef.current = new Audio(sources.battleMusicSrc);
+	refs.battleMusicRef.current.preload = "auto";
+	refs.battleMusicRef.current.loop = true;
 	initializeSharedAudioGraph([
 		refs.notificationRef.current,
 		refs.farmMusicRef.current,
@@ -195,6 +200,7 @@ export const initializeAudioEngine = ({
 		refs.sighSoundRef.current,
 		refs.whooshSoundRef.current,
 		refs.cafeOrderMusicRef.current,
+		refs.battleMusicRef.current,
 	]);
 	refs.ttsReadyRef.current =
 		typeof window !== "undefined" && "speechSynthesis" in window;
@@ -337,6 +343,14 @@ export const createAudioActions = ({
 		playOneShot(refs.whooshSoundRef.current);
 	};
 
+	const startBattleMusicLoop = () => {
+		startLoopSound(refs.battleMusicRef.current, 0.7);
+	};
+
+	const stopBattleMusicLoop = () => {
+		stopAndResetSound(refs.battleMusicRef.current);
+	};
+
 	const speakNpcLine = (line: string) => {
 		speakLine(line, refs.ttsReadyRef.current);
 	};
@@ -364,6 +378,8 @@ export const createAudioActions = ({
 		stopTractorLoop,
 		playSigh,
 		playWhoosh,
+		startBattleMusicLoop,
+		stopBattleMusicLoop,
 		speakNpcLine,
 	};
 };

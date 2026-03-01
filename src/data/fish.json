@@ -1,0 +1,598 @@
+[
+	{
+		"id": "river_fish_01",
+		"name": "River Feesh",
+		"glyph": "🐟",
+		"category": "freshwater",
+		"sellPrice": 100,
+		"spawnWeight": 80,
+		"stats": {
+			"maxHp": 10,
+			"attack": 3,
+			"defense": 1
+		},
+		"expGranted": 10,
+		"movePool": [
+			{
+				"moveId": "bite",
+				"weight": 70
+			},
+			{
+				"moveId": "go_along",
+				"weight": 30
+			}
+		]
+	},
+	{
+		"id": "pond_frog_01",
+		"name": "Pond Frog",
+		"glyph": "🐸",
+		"category": "freshwater",
+		"sellPrice": 180,
+		"spawnWeight": 55,
+		"stats": {
+			"maxHp": 16,
+			"attack": 5,
+			"defense": 3
+		},
+		"expGranted": 22,
+		"movePool": [
+			{
+				"moveId": "thrash",
+				"weight": 45
+			},
+			{
+				"moveId": "go_along",
+				"weight": 35
+			},
+			{
+				"moveId": "bite",
+				"weight": 20
+			}
+		]
+	},
+	{
+		"id": "pond_koi_01",
+		"name": "Pond Koi",
+		"glyph": "🐠",
+		"category": "freshwater",
+		"sellPrice": 350,
+		"spawnWeight": 35,
+		"stats": {
+			"maxHp": 28,
+			"attack": 9,
+			"defense": 7
+		},
+		"expGranted": 48,
+		"movePool": [
+			{
+				"moveId": "wrap_line",
+				"weight": 40
+			},
+			{
+				"moveId": "bite",
+				"weight": 35
+			},
+			{
+				"moveId": "go_along",
+				"weight": 25
+			}
+		]
+	},
+	{
+		"id": "shellback_turtle_01",
+		"name": "Shellback Turtle",
+		"glyph": "🐢",
+		"category": "freshwater",
+		"sellPrice": 650,
+		"spawnWeight": 20,
+		"stats": {
+			"maxHp": 40,
+			"attack": 7,
+			"defense": 14
+		},
+		"expGranted": 70,
+		"movePool": [
+			{
+				"moveId": "wrap_line",
+				"weight": 70
+			},
+			{
+				"moveId": "go_along",
+				"weight": 20
+			},
+			{
+				"moveId": "bite",
+				"weight": 10
+			}
+		]
+	},
+	{
+		"id": "lake_sprite_legend_01",
+		"name": "Legendary Lake Dragon",
+		"glyph": "🐉",
+		"category": "freshwater",
+		"sellPrice": 5000,
+		"spawnWeight": 1,
+		"stats": {
+			"maxHp": 120,
+			"attack": 34,
+			"defense": 30
+		},
+		"expGranted": 520,
+		"movePool": [
+			{
+				"moveId": "dive_deep",
+				"weight": 35
+			},
+			{
+				"moveId": "clear_water_focus",
+				"weight": 35
+			},
+			{
+				"moveId": "thrash",
+				"weight": 20
+			},
+			{
+				"moveId": "bite",
+				"weight": 10
+			}
+		]
+	},
+	{
+		"id": "shell_scholar_01",
+		"name": "Shell Scholar",
+		"glyph": "🐚",
+		"category": "saltwater",
+		"sellPrice": 120,
+		"spawnWeight": 75,
+		"stats": {
+			"maxHp": 14,
+			"attack": 3,
+			"defense": 6
+		},
+		"expGranted": 18,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 12
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 65
+			},
+			{
+				"moveId": "go_along",
+				"weight": 23
+			}
+		]
+	},
+	{
+		"id": "glitter_jelly_01",
+		"name": "Glitter Jelly",
+		"glyph": "🪼",
+		"category": "saltwater",
+		"sellPrice": 280,
+		"spawnWeight": 45,
+		"stats": {
+			"maxHp": 24,
+			"attack": 8,
+			"defense": 7
+		},
+		"expGranted": 52,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 35
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 20
+			},
+			{
+				"moveId": "go_along",
+				"weight": 45
+			}
+		]
+	},
+	{
+		"id": "union_crab_01",
+		"name": "Union Crab",
+		"glyph": "🦀",
+		"category": "saltwater",
+		"sellPrice": 420,
+		"spawnWeight": 40,
+		"stats": {
+			"maxHp": 30,
+			"attack": 9,
+			"defense": 12
+		},
+		"expGranted": 64,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 16
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 46
+			},
+			{
+				"moveId": "bite",
+				"weight": 25
+			},
+			{
+				"moveId": "go_along",
+				"weight": 13
+			}
+		]
+	},
+	{
+		"id": "puffer_do_not_hug_01",
+		"name": "Puffer (Do Not Hug)",
+		"glyph": "🐡",
+		"category": "saltwater",
+		"sellPrice": 650,
+		"spawnWeight": 28,
+		"stats": {
+			"maxHp": 34,
+			"attack": 12,
+			"defense": 10
+		},
+		"expGranted": 82,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 18
+			},
+			{
+				"moveId": "dive_deep",
+				"weight": 28
+			},
+			{
+				"moveId": "bite",
+				"weight": 28
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 16
+			},
+			{
+				"moveId": "go_along",
+				"weight": 10
+			}
+		]
+	},
+	{
+		"id": "squid_mailman_01",
+		"name": "Squid Mailman",
+		"glyph": "🦑",
+		"category": "saltwater",
+		"sellPrice": 950,
+		"spawnWeight": 20,
+		"stats": {
+			"maxHp": 42,
+			"attack": 14,
+			"defense": 12
+		},
+		"expGranted": 110,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 20
+			},
+			{
+				"moveId": "dive_deep",
+				"weight": 28
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 28
+			},
+			{
+				"moveId": "bite",
+				"weight": 14
+			},
+			{
+				"moveId": "go_along",
+				"weight": 10
+			}
+		]
+	},
+	{
+		"id": "octo_chef_01",
+		"name": "Octo Chef",
+		"glyph": "🐙",
+		"category": "saltwater",
+		"sellPrice": 1300,
+		"spawnWeight": 16,
+		"stats": {
+			"maxHp": 52,
+			"attack": 16,
+			"defense": 16
+		},
+		"expGranted": 140,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 20
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 36
+			},
+			{
+				"moveId": "thrash",
+				"weight": 20
+			},
+			{
+				"moveId": "bite",
+				"weight": 14
+			},
+			{
+				"moveId": "go_along",
+				"weight": 10
+			}
+		]
+	},
+	{
+		"id": "bitey_shark_01",
+		"name": "Bitey Shark",
+		"glyph": "🦈",
+		"category": "saltwater",
+		"sellPrice": 2000,
+		"spawnWeight": 12,
+		"stats": {
+			"maxHp": 64,
+			"attack": 22,
+			"defense": 10
+		},
+		"expGranted": 190,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 25
+			},
+			{
+				"moveId": "bite",
+				"weight": 75
+			}
+		]
+	},
+	{
+		"id": "coral_guardian_01",
+		"name": "Coral Guardian",
+		"glyph": "🪸",
+		"category": "saltwater",
+		"sellPrice": 3200,
+		"spawnWeight": 8,
+		"stats": {
+			"maxHp": 78,
+			"attack": 14,
+			"defense": 24
+		},
+		"expGranted": 230,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 25
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 75
+			}
+		]
+	},
+	{
+		"id": "robert_01",
+		"name": "Robert",
+		"glyph": "🧽",
+		"category": "saltwater",
+		"sellPrice": 260,
+		"spawnWeight": 6,
+		"stats": {
+			"maxHp": 16,
+			"attack": 5,
+			"defense": 6
+		},
+		"expGranted": 120,
+		"movePool": [
+			{
+				"moveId": "undertow_rip",
+				"weight": 15
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 25
+			},
+			{
+				"moveId": "go_along",
+				"weight": 50
+			},
+			{
+				"moveId": "thrash",
+				"weight": 10
+			}
+		]
+	},
+	{
+		"id": "mermaid_legend_01",
+		"name": "Legendary Mermaid of Questionable Intent",
+		"glyph": "🧜‍♀️",
+		"category": "saltwater",
+		"sellPrice": 5000,
+		"spawnWeight": 1,
+		"stats": {
+			"maxHp": 135,
+			"attack": 38,
+			"defense": 32
+		},
+		"expGranted": 580,
+		"movePool": [
+			{
+				"moveId": "thalassophobia",
+				"weight": 28
+			},
+			{
+				"moveId": "undertow_rip",
+				"weight": 18
+			},
+			{
+				"moveId": "dive_deep",
+				"weight": 24
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 18
+			},
+			{
+				"moveId": "thrash",
+				"weight": 8
+			},
+			{
+				"moveId": "go_along",
+				"weight": 4
+			}
+		]
+	},
+	{
+		"id": "cave_shrimp_01",
+		"name": "Cave Shrimp",
+		"glyph": "🍤",
+		"category": "cavewater",
+		"sellPrice": 1100,
+		"spawnWeight": 18,
+		"stats": {
+			"maxHp": 46,
+			"attack": 14,
+			"defense": 14
+		},
+		"expGranted": 160,
+		"movePool": [
+			{
+				"moveId": "cavernous_hunger",
+				"weight": 22
+			},
+			{
+				"moveId": "bite",
+				"weight": 28
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 24
+			},
+			{
+				"moveId": "dive_deep",
+				"weight": 16
+			},
+			{
+				"moveId": "go_along",
+				"weight": 10
+			}
+		]
+	},
+	{
+		"id": "cave_crock_01",
+		"name": "Cave Crock",
+		"glyph": "🐊",
+		"category": "cavewater",
+		"sellPrice": 1600,
+		"spawnWeight": 10,
+		"stats": {
+			"maxHp": 54,
+			"attack": 26,
+			"defense": 8
+		},
+		"expGranted": 220,
+		"movePool": [
+			{
+				"moveId": "cavernous_hunger",
+				"weight": 18
+			},
+			{
+				"moveId": "bite",
+				"weight": 52
+			},
+			{
+				"moveId": "thrash",
+				"weight": 20
+			},
+			{
+				"moveId": "dive_deep",
+				"weight": 10
+			}
+		]
+	},
+	{
+		"id": "giant_cave_snail_01",
+		"name": "Giant Cave Snail",
+		"glyph": "🐌",
+		"category": "cavewater",
+		"sellPrice": 1400,
+		"spawnWeight": 12,
+		"stats": {
+			"maxHp": 80,
+			"attack": 10,
+			"defense": 26
+		},
+		"expGranted": 240,
+		"movePool": [
+			{
+				"moveId": "cavernous_hunger",
+				"weight": 20
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 64
+			},
+			{
+				"moveId": "go_along",
+				"weight": 12
+			},
+			{
+				"moveId": "bite",
+				"weight": 4
+			}
+		]
+	},
+	{
+		"id": "ocean_man_dark_legend_01",
+		"name": "Legendary Ocean Man of the Dark",
+		"glyph": "🧜‍♂️",
+		"category": "saltwater",
+		"sellPrice": 5000,
+		"spawnWeight": 1,
+		"stats": {
+			"maxHp": 160,
+			"attack": 42,
+			"defense": 36
+		},
+		"expGranted": 700,
+		"movePool": [
+			{
+				"moveId": "thalassophobia",
+				"weight": 26
+			},
+			{
+				"moveId": "undertow_rip",
+				"weight": 18
+			},
+			{
+				"moveId": "dive_deep",
+				"weight": 22
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 18
+			},
+			{
+				"moveId": "thrash",
+				"weight": 10
+			},
+			{
+				"moveId": "bite",
+				"weight": 6
+			}
+		]
+	}
+]

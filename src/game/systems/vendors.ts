@@ -7,6 +7,7 @@ import {
 import {
 	animalDefs,
 	cropDefs,
+	fishItemIds,
 	itemIcons,
 	itemNames,
 	purchasableAnimalTypes,
@@ -420,6 +421,11 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 								: `Upgrade to ${getToolTierName(nextLevel)} ${toolNames[toolId]} ($${price}${inlineIronLabel}${inlineGemLabel})`,
 						info: [
 							getToolLevelDescription(toolId, nextLevel),
+							...(toolId === "fishingRod" && !atMax
+								? [
+										"This upgrade adds +1 damage to all attacks compared to your current rod.",
+									]
+								: []),
 							...(atMax ? ["Already at maximum level."] : []),
 						],
 						onSelect: () => {
@@ -577,7 +583,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 			"milk",
 			"wool",
 			"egg",
-			"fish",
+			...fishItemIds,
 			"shell",
 			"diamond",
 			"emerald",

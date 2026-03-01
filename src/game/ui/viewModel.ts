@@ -19,6 +19,8 @@ import type {
 	Position,
 	PriceState,
 	QuantityPromptState,
+	FishingPlayerMoveId,
+	FishingProgressState,
 	WeatherId,
 	TileFxApi,
 } from "../shared/types";
@@ -69,6 +71,15 @@ export type GameRuntimeViewModel = {
 	isFarmHouseDoorTile: (mapId: MapId, x: number, y: number) => boolean;
 	getDoorGroundClass: (mapId: MapId, x: number, y: number) => string | undefined;
 	fishing: FishingState | null;
+	fishingProgress: FishingProgressState;
+	moveFishingSelection: (delta: number) => void;
+	moveFishingBuffSelection: (delta: number) => void;
+	selectFishingMove: () => void;
+	selectFishingLevelUpBuffChoice: (choiceIndex?: number) => void;
+	selectFishingMoveById: (moveId: FishingPlayerMoveId) => void;
+	cutFishingLine: () => void;
+	fishingMoveOrder: FishingPlayerMoveId[];
+	fishingMoveInfo: Record<FishingPlayerMoveId, { label: string; description: string }>;
 	isDrivingTractor: boolean;
 	isBathing: boolean;
 	showTiredFace: boolean;

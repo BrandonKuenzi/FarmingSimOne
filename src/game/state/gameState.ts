@@ -7,6 +7,7 @@ import type {
 	CloudSprite,
 	DayTransitionState,
 	FishingState,
+	FishingProgressState,
 	ForestChest,
 	ForestEnemy,
 	ForestObstacle,
@@ -140,6 +141,7 @@ export type GameState = {
 	npcDailyAssignments: Record<string, NpcDailyAssignment>;
 	npcTalkedToday: Record<string, boolean>;
 	fishing: FishingState | null;
+	fishingProgress: FishingProgressState;
 	isOrdering: boolean;
 	cafeObservation: string;
 	isDoctorCompounding: boolean;

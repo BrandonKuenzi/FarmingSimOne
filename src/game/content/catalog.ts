@@ -4,10 +4,13 @@ import type {
 	AnimalType,
 	CropDef,
 	CropId,
+	FishItemId,
 	ItemId,
 	SnakePatrolState,
 } from "../shared/types";
 import { GLYPH } from "../config/glyphs";
+import { fishItemCatalog } from "./fishCatalog";
+export { fishItemIds } from "./fishCatalog";
 
 export const makeSnakeDirections = (enemies: Array<{ id: number; type: string }>) =>
 	Object.fromEntries(
@@ -85,6 +88,10 @@ export const rareCowVariantTypes: AnimalType[] = ["hippo", "unicorn", "mammoth",
 export const highValueChestAnimalTypes: AnimalType[] = [...purchasableAnimalTypes, ...rareCowVariantTypes];
 export const isCowLikeAnimal = (type: AnimalType) => type === "cow" || rareCowVariantTypes.includes(type);
 
+const fishItemNames = Object.fromEntries(
+	fishItemCatalog.map((fish) => [fish.itemId, fish.name]),
+) as Record<FishItemId, string>;
+
 export const itemNames: Record<ItemId, string> = {
 	turnip_seed: "Turnip Seed",
 	carrot_seed: "Carrot Seed",
@@ -98,14 +105,18 @@ export const itemNames: Record<ItemId, string> = {
 	milk: "Milk",
 	wool: "Wool",
 	egg: "Egg",
-	fish: "Fish",
 	iron: "Iron",
 	shell: "Shell",
 	diamond: "Diamond",
 	emerald: "Emerald",
 	ruby: "Ruby",
 	coral_fruit: "Coral Fruit",
-};
+	...fishItemNames,
+} as Record<ItemId, string>;
+
+const fishItemIcons = Object.fromEntries(
+	fishItemCatalog.map((fish) => [fish.itemId, fish.glyph]),
+) as Record<FishItemId, string>;
 
 export const itemIcons: Record<ItemId, string> = {
 	turnip_seed: GLYPH.seedling,
@@ -120,11 +131,11 @@ export const itemIcons: Record<ItemId, string> = {
 	milk: GLYPH.milk,
 	wool: GLYPH.yarn,
 	egg: GLYPH.egg,
-	fish: GLYPH.fish,
 	iron: GLYPH.rock,
 	shell: GLYPH.shell,
 	diamond: GLYPH.diamond,
 	emerald: GLYPH.greenCircle,
 	ruby: GLYPH.redCircle,
 	coral_fruit: GLYPH.coral,
-};
+	...fishItemIcons,
+} as Record<ItemId, string>;
