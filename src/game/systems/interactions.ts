@@ -46,6 +46,7 @@ import type {
 	PetEmoji,
 	Point,
 	SketchyStockEntry,
+	TileFxApi,
 	ToolLevels,
 	TraderTradeEntry,
 	VendorKey,
@@ -58,6 +59,8 @@ export type InteractionsContext = {
 	targetBaseTile?: string;
 	farmTargetKey: string;
 	farmEggDrops: Record<string, boolean>;
+	hasAutoCollector: boolean;
+	barnAutoCollectorPos: Point | null;
 	setFarmEggDrops: (
 		updater: (prev: Record<string, boolean>) => Record<string, boolean>,
 	) => void;
@@ -112,6 +115,7 @@ export type InteractionsContext = {
 		onConfirm: (quantity: number) => void;
 	}) => void;
 	randomInt: (min: number, max: number) => number;
+	tileFx: TileFxApi;
 };
 
 export const handleLateInteractionBlocks = (
@@ -124,6 +128,8 @@ export const handleLateInteractionBlocks = (
 		targetBaseTile,
 		farmTargetKey,
 		farmEggDrops,
+		hasAutoCollector,
+		barnAutoCollectorPos,
 		setFarmEggDrops,
 		animals,
 		animalTiles,
@@ -164,9 +170,51 @@ export const handleLateInteractionBlocks = (
 		openMenu,
 		openQuantityPrompt,
 		randomInt,
+		tileFx,
 	} = ctx;
 
+	const emoteTownTarget = (x: number, y: number, positive: boolean) => {
+		const kind = randomRoll() < (positive ? 0.75 : 0.25) ? "happy" : "sad";
+		tileFx.at({ map: "town", x, y }).emote(kind);
+	};
+
 	if (playerMap === "farm" || playerMap === "barn") {
+		if (
+			playerMap === "barn" &&
+			hasAutoCollector &&
+			barnAutoCollectorPos &&
+			tx === barnAutoCollectorPos.x &&
+			ty === barnAutoCollectorPos.y
+		) {
+			const milkCount = animals.filter(
+				(animal) => animal.type === "cow" && animal.hasProductReady,
+			).length;
+			const woolCount = animals.filter(
+				(animal) => animal.type === "sheep" && animal.hasProductReady,
+			).length;
+			const eggCount = Object.values(farmEggDrops).filter(Boolean).length;
+			if (milkCount > 0) updateInventory("milk", milkCount);
+			if (woolCount > 0) updateInventory("wool", woolCount);
+			if (eggCount > 0) updateInventory("egg", eggCount);
+			setFarmEggDrops(() => ({}));
+			setAnimals((prev) =>
+				prev.map((animal) =>
+					animal.hasProductReady ? { ...animal, hasProductReady: false } : animal,
+				),
+			);
+			if (milkCount + woolCount + eggCount <= 0) {
+				addLog("No animal products are ready.");
+				return true;
+			}
+			playPluck();
+			tileFx.at({ map: "barn", x: tx, y: ty }).streatch(1.35, 260);
+			const collectedParts: string[] = [];
+			if (milkCount > 0) collectedParts.push(`milk x${milkCount}`);
+			if (woolCount > 0) collectedParts.push(`wool x${woolCount}`);
+			if (eggCount > 0) collectedParts.push(`egg x${eggCount}`);
+			addLog(`Auto collector gathered ${collectedParts.join(", ")}.`);
+			return true;
+		}
 		if (farmEggDrops[farmTargetKey]) {
 			setFarmEggDrops((prev) => {
 				const next = { ...prev };
@@ -195,6 +243,7 @@ export const handleLateInteractionBlocks = (
 					: tools.shears;
 				const produced = rollLivestockYield(toolLevel);
 				updateInventory(product, produced);
+				tileFx.actor(`animal-${animal.id}`).streatch(1.35, 220);
 				setAnimals((prev) =>
 					prev.map((a) =>
 						a.id === animal.id ? { ...a, hasProductReady: false } : a,
@@ -227,6 +276,7 @@ export const handleLateInteractionBlocks = (
 			setAnimals((prev) =>
 				prev.map((a) => (a.id === animal.id ? { ...a, fedToday: true } : a)),
 			);
+			tileFx.actor(`animal-${animal.id}`).streatch(1.35, 220);
 			updateInventory("feed", -1);
 			playMunch();
 			addLog(`${animalDefs[animal.type].name} was fed.`);
@@ -266,6 +316,7 @@ export const handleLateInteractionBlocks = (
 			ty === PET_VENDOR_POS.y
 		) {
 			if (pendingPet) {
+				emoteTownTarget(tx, ty, true);
 				speakNpcLine(petVendorSoldLine);
 				addLog(petVendorSoldLine);
 				return true;
@@ -281,6 +332,7 @@ export const handleLateInteractionBlocks = (
 						info: ["A loyal buddy for your farm."],
 						onSelect: () => {
 							if (!canAfford(500)) {
+								emoteTownTarget(tx, ty, false);
 								playBad();
 								addLog("Not enough money to adopt that pet.");
 								closeMenu();
@@ -290,6 +342,7 @@ export const handleLateInteractionBlocks = (
 							playChaChing();
 							setPendingPet(pet);
 							closeMenu();
+							emoteTownTarget(tx, ty, true);
 							speakNpcLine(petVendorSoldLine);
 							addLog(petVendorSoldLine);
 						},
@@ -301,6 +354,7 @@ export const handleLateInteractionBlocks = (
 		}
 		if (doctorVendorActive && tx === DOCTOR_POS.x && ty === DOCTOR_POS.y) {
 			if (doctorUsedToday) {
+				emoteTownTarget(tx, ty, false);
 				speakNpcLine(doctorFinishedTodayLine);
 				addLog(doctorFinishedTodayLine);
 				return true;
@@ -317,6 +371,7 @@ export const handleLateInteractionBlocks = (
 						info: ["A custom treatment that increases max stamina by 20."],
 						onSelect: () => {
 							if (!canAfford(1000)) {
+								emoteTownTarget(tx, ty, false);
 								playBad();
 								addLog("Not enough money for treatment.");
 								closeMenu();
@@ -327,11 +382,13 @@ export const handleLateInteractionBlocks = (
 								inventory.emerald < 1 ||
 								inventory.ruby < 1
 							) {
+								emoteTownTarget(tx, ty, false);
 								playBad();
 								addLog("You need 1 Diamond, 1 Emerald, and 1 Ruby.");
 								closeMenu();
 								return;
 							}
+							emoteTownTarget(tx, ty, true);
 							applyMoneyDelta(-1000);
 							updateInventory("diamond", -1);
 							updateInventory("emerald", -1);
@@ -346,12 +403,14 @@ export const handleLateInteractionBlocks = (
 			return true;
 		}
 		if (traderActive && tx === TRADER_BOX_POS.x && ty === TRADER_BOX_POS.y) {
+			emoteTownTarget(tx, ty, true);
 			const line = traderBoxLines[randomInt(0, traderBoxLines.length - 1)]!;
 			speakNpcLine(line);
 			addLog(line);
 			return true;
 		}
 		if (traderActive && tx === TRADER_HELI_POS.x && ty === TRADER_HELI_POS.y) {
+			emoteTownTarget(tx, ty, true);
 			const line = traderHeliLines[randomInt(0, traderHeliLines.length - 1)]!;
 			speakNpcLine(line);
 			addLog(line);
@@ -359,6 +418,7 @@ export const handleLateInteractionBlocks = (
 		}
 		if (traderActive && tx === TRADER_POS.x && ty === TRADER_POS.y) {
 			if (traderTrades.length <= 0) {
+				emoteTownTarget(tx, ty, false);
 				const line =
 					traderSoldOutLines[randomInt(0, traderSoldOutLines.length - 1)]!;
 				speakNpcLine(line);
@@ -408,6 +468,7 @@ export const handleLateInteractionBlocks = (
 												.filter((t) => t.remaining > 0),
 										);
 										playChaChing();
+										emoteTownTarget(tx, ty, true);
 										const line =
 											traderAfterSaleLines[
 												randomInt(0, traderAfterSaleLines.length - 1)
@@ -434,6 +495,7 @@ export const handleLateInteractionBlocks = (
 			tx === SKETCHY_CRATE_POS.x &&
 			ty === SKETCHY_CRATE_POS.y
 		) {
+			emoteTownTarget(tx, ty, false);
 			const line = dontTouchSketchy[randomInt(0, dontTouchSketchy.length - 1)]!;
 			speakNpcLine(line);
 			return true;
@@ -444,6 +506,7 @@ export const handleLateInteractionBlocks = (
 			ty === SKETCHY_MERCHANT_POS.y
 		) {
 			if (sketchyMerchantStock.length <= 0) {
+				emoteTownTarget(tx, ty, false);
 				const soldOutLine = "I aint got nothin more today";
 				speakNpcLine(soldOutLine);
 				addLog(soldOutLine);
@@ -497,6 +560,7 @@ export const handleLateInteractionBlocks = (
 												.filter((stockEntry) => stockEntry.qty > 0),
 										);
 										playChaChing();
+										emoteTownTarget(tx, ty, true);
 										const salesLine =
 											sketchyVendorSales[
 												randomInt(0, sketchyVendorSales.length - 1)
@@ -522,6 +586,7 @@ export const handleLateInteractionBlocks = (
 			([, pos]) => pos.x === tx && pos.y === ty,
 		);
 		if (boat) {
+			emoteTownTarget(tx, ty, true);
 			const line = boatDialogArray[randomInt(0, boatDialogArray.length - 1)]!;
 			speakNpcLine(line);
 			addLog(line);
@@ -549,6 +614,7 @@ export const handleLateInteractionBlocks = (
 					? `TIP: ${tipText}`
 					: generateNpcDialogLine(assignment);
 			setNpcTalkedToday((prev) => ({ ...prev, [key]: true }));
+			emoteTownTarget(tx, ty, !isTip);
 			speakNpcLine(isTip ? `Heres a tip: ${tipText}` : line);
 			openMenu(
 				townNpcNames[key]!,

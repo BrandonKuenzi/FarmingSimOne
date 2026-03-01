@@ -75,6 +75,22 @@ export type VisualCell = {
 	overlayGlyph?: string;
 };
 
+export type TileFxEmote = "happy" | "sad";
+export type TileFxTarget = { map: MapId; x: number; y: number } | { actorId: string };
+export type TileFxHandle = {
+	squeeze: (scaleX?: number, durationMs?: number) => void;
+	stretch: (scaleY?: number, durationMs?: number) => void;
+	streatch: (scaleY?: number, durationMs?: number) => void;
+	bobble: (durationMs?: number) => void;
+	jump: (durationMs?: number) => void;
+	emote: (kind: TileFxEmote, durationMs?: number) => void;
+	toast: (text: string, durationMs?: number) => void;
+};
+export type TileFxApi = {
+	at: (pos: { map: MapId; x: number; y: number }) => TileFxHandle;
+	actor: (actorId: string) => TileFxHandle;
+};
+
 export type CropDef = {
 	name: string;
 	growDays: number;
@@ -181,7 +197,11 @@ export type ToolLevels = Record<ToolId, number>;
 export type UnlockFlagId = "headlampVendorStock";
 export type UnlockFlags = Record<UnlockFlagId, boolean>;
 
-export type UpgradeSceneEventKind = "pet_arrived" | "barn_upgraded" | "tractor_delivered";
+export type UpgradeSceneEventKind =
+	| "pet_arrived"
+	| "barn_upgraded"
+	| "tractor_delivered"
+	| "auto_collector_installed";
 export type UpgradeSceneBgTrack = "space_store" | "space_bg" | "area_default";
 export type UpgradeSceneEvent = {
 	id: string;

@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { randomRoll } from "../shared/random";
+import { GLYPH } from "../config/glyphs";
 import type { NpcDailyAssignment } from "../../npcDialogue";
 import type { InteractionsContext } from "./interactions";
 import type {
@@ -27,6 +28,7 @@ import type {
 	TraderTradeEntry,
 	VendorKey,
 	WeatherId,
+	TileFxApi,
 } from "../shared/types";
 
 type QuantityPromptConfig = {
@@ -202,6 +204,8 @@ export type PlayerInteractContext = {
 	setPlayerEmoji: Dispatch<SetStateAction<string>>;
 	farmEggDrops: Record<string, boolean>;
 	setFarmEggDrops: Dispatch<SetStateAction<Record<string, boolean>>>;
+	hasAutoCollector: boolean;
+	barnAutoCollectorPos: Point | null;
 	isCowLikeAnimal: (type: AnimalType) => boolean;
 	rollLivestockYield: (toolLevel: number) => number;
 	setAnimals: Dispatch<SetStateAction<Animal[]>>;
@@ -267,6 +271,7 @@ export type PlayerInteractContext = {
 	setNpcTalkedToday: Dispatch<SetStateAction<Record<string, boolean>>>;
 	DOCTOR_POS: Point;
 	PET_VENDOR_POS: Point;
+	tileFx: TileFxApi;
 };
 
 export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
@@ -406,6 +411,8 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		setPlayerEmoji,
 		farmEggDrops,
 		setFarmEggDrops,
+		hasAutoCollector,
+		barnAutoCollectorPos,
 		isCowLikeAnimal,
 		rollLivestockYield,
 		setAnimals,
@@ -458,13 +465,16 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		setNpcTalkedToday,
 		DOCTOR_POS,
 		PET_VENDOR_POS,
+		tileFx,
 	} = ctx;
-	console.log("map is " + player.map);
 	if (modal || fishing || isOrdering || isDoctorCompounding || isDrivingTractor)
 		return;
 	const { dx, dy } = dirDelta[dir];
 	const tx = player.x + dx;
 	const ty = player.y + dy;
+	const toastAtTarget = (text: string) => {
+		tileFx.at({ map: player.map, x: tx, y: ty }).toast(text);
+	};
 	const targetBaseTile = activeMapLayouts[player.map]?.[ty]?.[tx];
 	if (
 		player.map === "forest" &&
@@ -686,6 +696,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		});
 		playPluck();
 		updateInventory("shell", 1);
+		toastAtTarget(`+1 ${GLYPH.shell}`);
 		addLog("Picked up a shell.");
 		return;
 	}
@@ -700,6 +711,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		setStarterChestOpened(true);
 		applyMoneyDelta(1200);
 		updateInventory("turnip_seed", 5);
+		toastAtTarget(`+$1200 +5 ${GLYPH.seedling}`);
 		openRewardPopup("Starter chest reward: $1200 and Turnip Seeds x5.");
 		return;
 	}
@@ -717,11 +729,13 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		const lines: string[] = [];
 		if (gotFeed) {
 			updateInventory("feed", 1);
+			toastAtTarget(`+1 ${GLYPH.chicken}`);
 			lines.push("Found Feed +1.");
 		}
 		if (gotMoney) {
 			const amount = randomInt(1, 5);
 			applyMoneyDelta(amount);
+			toastAtTarget(`+$${amount}`);
 			lines.push(`Found $${amount}.`);
 		}
 		addLog(lines.length > 0 ? lines.join(" ") : "You cleared some weeds.");
@@ -849,6 +863,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				const cropId = getRandomCropId(standardCropIds, randomInt);
 				const seedItem = cropDefs[cropId].seedItem;
 				updateInventory(seedItem, 1);
+				toastAtTarget(`+1 ${itemNames[seedItem]}`);
 				addLog(`You chopped wood and found ${itemNames[seedItem]} +1.`);
 			} else {
 				addLog("You broke the wood obstacle.");
@@ -883,6 +898,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			} else {
 				if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 					updateInventory("iron", 1);
+					toastAtTarget(`+1 ${GLYPH.rock}`);
 					playYaya();
 					addLog("You broke the rock and found Iron +1.");
 				} else {
@@ -923,6 +939,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			}, 250);
 			if (randomRoll() < 0.5) {
 				updateInventory("turnip", 1);
+				toastAtTarget(`+1 ${GLYPH.carrot}`);
 				addLog("You found a turnip. (+1)");
 			}
 			addLog("You extinguished it.");
@@ -957,22 +974,26 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				let foundGem = false;
 				if (caveLevel >= 10 && randomRoll() < 1 / 40) {
 					updateInventory("diamond", 1);
+					toastAtTarget(`+1 ${GLYPH.diamond}`);
 					playYaya();
 					addLog("You found a Diamond! (+1)");
 					foundGem = true;
 				} else if (caveLevel >= 5 && randomRoll() < 1 / 30) {
 					updateInventory("emerald", 1);
+					toastAtTarget(`+1 ${GLYPH.greenCircle}`);
 					playYaya();
 					addLog("You found an Emerald! (+1)");
 					foundGem = true;
 				} else if (randomRoll() < 1 / 10) {
 					updateInventory("ruby", 1);
+					toastAtTarget(`+1 ${GLYPH.redCircle}`);
 					playYaya();
 					addLog("You found a Ruby! (+1)");
 					foundGem = true;
 				}
 				if (!foundGem && randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 					updateInventory("iron", 1);
+					toastAtTarget(`+1 ${GLYPH.rock}`);
 					playYaya();
 					addLog("You broke the cave rock and found Iron +1.");
 				} else if (!foundGem) {
@@ -1012,6 +1033,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			const cropId = getRandomCropId(standardCropIds, randomInt);
 			const seedItem = cropDefs[cropId].seedItem;
 			updateInventory(seedItem, 1);
+			toastAtTarget(`+1 ${itemNames[seedItem]}`);
 			addLog(`You cleared the path and found ${itemNames[seedItem]} +1.`);
 		} else {
 			addLog("You chopped away the forest blockage.");
@@ -1049,6 +1071,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		} else {
 			if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 				updateInventory("iron", 1);
+				toastAtTarget(`+1 ${GLYPH.rock}`);
 				playYaya();
 				addLog("You smashed the rock and found Iron +1.");
 			} else {
@@ -1373,6 +1396,8 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			targetBaseTile,
 			farmTargetKey,
 			farmEggDrops,
+			hasAutoCollector,
+			barnAutoCollectorPos,
 			setFarmEggDrops,
 			animals,
 			animalTiles,
@@ -1413,6 +1438,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			openMenu,
 			openQuantityPrompt,
 			randomInt,
+			tileFx,
 		})
 	)
 		return;

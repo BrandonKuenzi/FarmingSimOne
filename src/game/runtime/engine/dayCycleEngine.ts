@@ -80,6 +80,10 @@ type RunNextDayArgs = {
 	BARN_TIER_NAMES: Record<BarnTier, string>;
 	setBarnTier: Dispatch<SetStateAction<BarnTier>>;
 	setPendingBarnUpgrade: Dispatch<SetStateAction<boolean>>;
+	hasAutoCollector: boolean;
+	pendingAutoCollectorInstall: boolean;
+	setHasAutoCollector: Dispatch<SetStateAction<boolean>>;
+	setPendingAutoCollectorInstall: Dispatch<SetStateAction<boolean>>;
 	isBarnExternal: (tier: BarnTier) => boolean;
 	buildBarnLayout: (tier: BarnTier) => string[];
 	getBarnAnimalCap: (tier: BarnTier) => number;
@@ -174,6 +178,10 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 		BARN_TIER_NAMES,
 		setBarnTier,
 		setPendingBarnUpgrade,
+		hasAutoCollector,
+		pendingAutoCollectorInstall,
+		setHasAutoCollector,
+		setPendingAutoCollectorInstall,
 		isBarnExternal,
 		buildBarnLayout,
 		getBarnAnimalCap,
@@ -355,6 +363,20 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 			setAnimalAnchors(relocation.occupied);
 			setFarmEggDrops({});
 		}
+	}
+
+	if (pendingAutoCollectorInstall) {
+		if (!hasAutoCollector) {
+			setHasAutoCollector(true);
+			queueUpgradeScene({
+				id: `${upcomingDay}-auto_collector_installed-${randomInt(1000, 9999)}`,
+				kind: "auto_collector_installed",
+				day: upcomingDay,
+				bgTrack: "space_store",
+			});
+			addLog("Your auto milker/shearer/egg collector was installed overnight.");
+		}
+		setPendingAutoCollectorInstall(false);
 	}
 
 	if (pendingTractorDelivery) {

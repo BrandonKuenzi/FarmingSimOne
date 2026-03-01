@@ -95,6 +95,8 @@ export type GameState = {
 	tools: ToolLevels;
 	barnTier: BarnTier;
 	pendingBarnUpgrade: boolean;
+	hasAutoCollector: boolean;
+	pendingAutoCollectorInstall: boolean;
 	hasTractor: boolean;
 	hasHeadlamp: boolean;
 	headlampLetterRead: boolean;

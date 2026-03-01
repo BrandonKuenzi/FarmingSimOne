@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import type { GameRuntimeViewModel } from "./viewModel";
 import { BUREAUCRACY_EXIT_POS } from "../world/layout";
 import { GLYPH } from "../config/glyphs";
+import { AnimatedEmojiTile } from "./AnimatedEmojiTile";
 import {
 	CAMERA_FOLLOW_ANIMATION_EASE,
 	CAMERA_FOLLOW_MS,
@@ -97,6 +98,7 @@ type MapViewportCtx = Pick<
 	| "unfedAnimalMap"
 	| "unfedAnimalTileKeys"
 	| "dayTransitionStarsState"
+	| "tileFxBus"
 >;
 
 const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
@@ -146,6 +148,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		unfedAnimalMap,
 		unfedAnimalTileKeys,
 		dayTransitionStarsState,
+		tileFxBus,
 	} = ctx;
 	const mapRef = useRef<HTMLDivElement | null>(null);
 	const scrollAnimRef = useRef<number | null>(null);
@@ -486,43 +489,66 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 							effectiveCell === "&" ||
 							effectiveCell === "?";
 						const shouldFlipGlyph = isPetGlyphCell && petFacing < 0;
+						const glyphClassName = [
+							"emoji-glyph",
+							player.map === "forest" ? "forest-emoji-glyph" : "",
+							player.map === "cave" ? "cave-emoji-glyph" : "",
+							withGround.className === "tile-cave-next-ladder"
+								? "cave-ladder-hole-glyph"
+								: "",
+							player.map === unfedAnimalMap && unfedAnimalTileKeys[tileKey]
+								? "animal-unfed-emoji-glyph"
+								: "",
+							player.map === "forest" &&
+							(effectiveCell === "T" || effectiveCell === "G")
+								? "forest-tree-emoji-glyph"
+								: "",
+						]
+							.filter(Boolean)
+							.join(" ");
+						const glyphStyle = {
+							transform: shouldFlipGlyph ? "scaleX(-1)" : undefined,
+							transformOrigin: shouldFlipGlyph ? "center center" : undefined,
+						};
+						const shouldWrapFxTile =
+							withGround.glyph.trim().length > 0 &&
+							withGround.className !== "tile-grass" &&
+							withGround.className !== "tile-water" &&
+							withGround.className !== "tile-forest-grass";
 						return (
 							<span
 								key={`${x}-${y}`}
-								className={["tile", withGround.className ?? ""]
+								className={[
+									"tile",
+									withGround.className ?? "",
+									shouldWrapFxTile ? "tile-fx-host" : "",
+								]
 									.filter(Boolean)
 									.join(" ")}
 								title={`${x},${y}`}
 								data-overlay={withGround.overlayGlyph ?? ""}
 							>
-								<span
-									className={[
-										"emoji-glyph",
-										player.map === "forest" ? "forest-emoji-glyph" : "",
-										player.map === "cave" ? "cave-emoji-glyph" : "",
-										withGround.className === "tile-cave-next-ladder"
-											? "cave-ladder-hole-glyph"
-											: "",
-										player.map === unfedAnimalMap &&
-										unfedAnimalTileKeys[tileKey]
-											? "animal-unfed-emoji-glyph"
-											: "",
-										player.map === "forest" &&
-										(effectiveCell === "T" || effectiveCell === "G")
-											? "forest-tree-emoji-glyph"
-											: "",
-									]
-										.filter(Boolean)
-										.join(" ")}
-									style={{
-										transform: shouldFlipGlyph ? "scaleX(-1)" : undefined,
-										transformOrigin: shouldFlipGlyph
-											? "center center"
-											: undefined,
-									}}
-								>
-									{withGround.glyph}
-								</span>
+								{shouldWrapFxTile ? (
+									<AnimatedEmojiTile
+										ref={(handle) => {
+											if (handle) {
+												tileFxBus.registerMapTile(player.map, x, y, handle);
+												return;
+											}
+											tileFxBus.unregisterMapTile(player.map, x, y);
+										}}
+										glyph={withGround.glyph}
+										glyphClassName={glyphClassName}
+										glyphStyle={glyphStyle}
+									/>
+								) : (
+									<span
+										className={glyphClassName}
+										style={glyphStyle}
+									>
+										{withGround.glyph}
+									</span>
+								)}
 							</span>
 						);
 					})}
@@ -553,6 +579,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 			petFacing,
 			unfedAnimalMap,
 			unfedAnimalTileKeys,
+			tileFxBus,
 		],
 	);
 
@@ -867,6 +894,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 									className={[
 										"tile",
 										"tile-entity",
+										"tile-fx-host",
 										entity.className ?? "",
 										entity.isPlayer &&
 										(player.map === "forest" || player.map === "cave") &&
@@ -882,6 +910,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 										top: 0,
 										width: "1em",
 										height: "1em",
+										zIndex: entity.isPlayer ? 4 : 2,
 										transform: `translate(${entity.x}em, ${entity.y}em)`,
 										transition:
 											isZoomAnchoring ||
@@ -890,8 +919,16 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 												: `transform ${POSITION_ANIMATION_S}s ${POSITION_ANIMATION_EASE}`,
 									}}
 								>
-									<span
-										className={[
+									<AnimatedEmojiTile
+										ref={(handle) => {
+											if (handle) {
+												tileFxBus.registerActor(entity.id, handle);
+												return;
+											}
+											tileFxBus.unregisterActor(entity.id);
+										}}
+										glyph={entity.glyph}
+										glyphClassName={[
 											"emoji-glyph",
 											isUnfed ? "animal-unfed-emoji-glyph" : "",
 											player.map === "forest" ? "forest-emoji-glyph" : "",
@@ -899,15 +936,13 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 										]
 											.filter(Boolean)
 											.join(" ")}
-										style={{
+										glyphStyle={{
 											transform: entity.flip ? "scaleX(-1)" : undefined,
 											transformOrigin: entity.flip
 												? "center center"
 												: undefined,
 										}}
-									>
-										{entity.glyph}
-									</span>
+									/>
 								</span>
 							);
 						})}
@@ -1038,7 +1073,8 @@ const MemoMapViewport = React.memo(
 		prev.ctx.cloudOverlayVisible === next.ctx.cloudOverlayVisible &&
 		prev.ctx.unfedAnimalMap === next.ctx.unfedAnimalMap &&
 		prev.ctx.unfedAnimalTileKeys === next.ctx.unfedAnimalTileKeys &&
-		prev.ctx.dayTransitionStarsState === next.ctx.dayTransitionStarsState,
+		prev.ctx.dayTransitionStarsState === next.ctx.dayTransitionStarsState &&
+		prev.ctx.tileFxBus === next.ctx.tileFxBus,
 );
 export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 	const {
@@ -1062,6 +1098,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		waterLevel,
 		inventoryRows,
 		log,
+		showLegacyLogStrip,
 		activeMapLayouts,
 		isWindSlashOn,
 		renderedMap,
@@ -1136,6 +1173,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		loadGameFromFilePicker,
 		directorPopup,
 		confirmDirectorPopup,
+		tileFxBus,
 	} = ctx;
 	return (
 		<div
@@ -1236,11 +1274,13 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 				</ul>
 			</div>
 
-			<div className='legend log-strip'>
-				<div className='log-list'>
-					<div className='small'>{log[0] ?? ""}</div>
+			{showLegacyLogStrip && (
+				<div className='legend log-strip'>
+					<div className='log-list'>
+						<div className='small'>{log[0] ?? ""}</div>
+					</div>
 				</div>
-			</div>
+			)}
 
 			<MemoMapViewport
 				ctx={{
@@ -1289,6 +1329,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					unfedAnimalMap,
 					unfedAnimalTileKeys,
 					dayTransitionStarsState,
+					tileFxBus,
 				}}
 			/>
 			<div className='info-grid'>

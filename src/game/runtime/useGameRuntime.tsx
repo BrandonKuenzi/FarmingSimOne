@@ -214,6 +214,7 @@ import { buildRenderedMapGrid } from "../systems/renderedMap";
 import { createServiceOrderActions } from "../systems/serviceOrders";
 import { renderGameRuntimeView } from "../ui/GameRuntimeView";
 import type { GameRuntimeViewModel } from "../ui/viewModel";
+import { createTileFxBus } from "../ui/tileFxBus";
 import { createAreaMusicController } from "./areaMusic";
 import type {
 	BoatTileMap,
@@ -649,6 +650,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				tools: initialToolLevels,
 				barnTier: 1,
 				pendingBarnUpgrade: false,
+				hasAutoCollector: false,
+				pendingAutoCollectorInstall: false,
 				hasTractor: false,
 				hasHeadlamp: false,
 				headlampLetterRead: false,
@@ -794,6 +797,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		tools,
 		barnTier,
 		pendingBarnUpgrade,
+		hasAutoCollector,
+		pendingAutoCollectorInstall,
 		hasTractor,
 		hasHeadlamp,
 		headlampLetterRead,
@@ -863,6 +868,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const heldMoveDirRef = useRef<Dir | null>(null);
 	const heldMoveKeyRef = useRef<string | null>(null);
 	const heldMoveTimerRef = useRef<number | null>(null);
+	const tileFxBusRef = useRef(createTileFxBus());
+	const prevPlayerBobbleRef = useRef(player);
+	const prevTownNpcBobbleRef = useRef(townNpcTiles);
+	const prevForestEnemyBobbleRef = useRef(forestEnemies);
+	const prevCaveEnemyBobbleRef = useRef(caveEnemies);
+	const prevAnimalBobbleRef = useRef(animalTiles);
 	const animalsRef = useRef(animals);
 	const animalTilesRef = useRef(animalTiles);
 	const animalAnchorsRef = useRef(animalAnchors);
@@ -945,6 +956,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setTools = setForKey("tools");
 	const setBarnTier = setForKey("barnTier");
 	const setPendingBarnUpgrade = setForKey("pendingBarnUpgrade");
+	const setHasAutoCollector = setForKey("hasAutoCollector");
+	const setPendingAutoCollectorInstall = setForKey("pendingAutoCollectorInstall");
 	const setHasTractor = setForKey("hasTractor");
 	const setHasHeadlamp = setForKey("hasHeadlamp");
 	const setHeadlampLetterRead = setForKey("headlampLetterRead");
@@ -1031,6 +1044,47 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		};
 	}, [animalsMap, barnTier, activeMapLayouts.barn]);
 	const barnAnimalCap = useMemo(() => getBarnAnimalCap(barnTier), [barnTier]);
+	const barnAutoCollectorPos = useMemo(() => {
+		const rows = activeMapLayouts.barn;
+		const isWalkableTile = (x: number, y: number) => {
+			if (x < 0 || y < 0) return false;
+			if (y >= rows.length || x >= (rows[0]?.length ?? 0)) return false;
+			const tile = rows[y]?.[x] ?? "#";
+			return isPassableChar(tile);
+		};
+		const isInBounds = (x: number, y: number) =>
+			x >= 0 &&
+			y >= 0 &&
+			y < rows.length &&
+			x < (rows[0]?.length ?? 0);
+		const hasWalkableNeighbor = (x: number, y: number) =>
+			isWalkableTile(x + 1, y) ||
+			isWalkableTile(x - 1, y) ||
+			isWalkableTile(x, y + 1) ||
+			isWalkableTile(x, y - 1);
+		for (let y = rows.length - 1; y >= 0; y -= 1) {
+			const row = rows[y];
+			if (!row) continue;
+			for (let x = row.length - 1; x >= 0; x -= 1) {
+				const tile = row[x] ?? "#";
+				if ((tile === "#" || tile === "B") && hasWalkableNeighbor(x, y)) {
+					const shifted = { x: x - 1, y: y - 1 };
+					if (isInBounds(shifted.x, shifted.y)) return shifted;
+					return { x, y };
+				}
+			}
+		}
+		for (let y = rows.length - 1; y >= 0; y -= 1) {
+			const row = rows[y];
+			if (!row) continue;
+			for (let x = row.length - 1; x >= 0; x -= 1) {
+				const tile = row[x] ?? "#";
+				if (tile === "+" || !hasWalkableNeighbor(x, y)) continue;
+				if (isPassableChar(tile)) return { x, y };
+			}
+		}
+		return null;
+	}, [activeMapLayouts.barn]);
 	const barnSpawnPoint = useMemo(() => {
 		const rows = activeMapLayouts.barn;
 		const bw = rows[0]?.length ?? 0;
@@ -1548,6 +1602,92 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	}, [player]);
 
 	useEffect(() => {
+		const prev = prevPlayerBobbleRef.current;
+		if (prev.map === player.map) {
+			const dx = Math.abs(player.x - prev.x);
+			const dy = Math.abs(player.y - prev.y);
+			if (dx + dy === 1) {
+				tileFxBusRef.current.api.actor("player").bobble(POSITION_ANIMATION_MS);
+			}
+		}
+		prevPlayerBobbleRef.current = player;
+	}, [player]);
+
+	useEffect(() => {
+		const prev = prevTownNpcBobbleRef.current;
+		Object.entries(townNpcTiles).forEach(([npcKey, nextPos]) => {
+			const prevPos = prev[npcKey];
+			if (!prevPos) return;
+			const dx = Math.abs(nextPos.x - prevPos.x);
+			const dy = Math.abs(nextPos.y - prevPos.y);
+			const movedOneTile = Math.max(dx, dy) === 1 && dx + dy > 0;
+			if (movedOneTile) {
+				tileFxBusRef.current.api
+					.actor(`town-npc-${npcKey}`)
+					.bobble(POSITION_ANIMATION_MS);
+			}
+		});
+		prevTownNpcBobbleRef.current = townNpcTiles;
+	}, [townNpcTiles]);
+
+	useEffect(() => {
+		const prevById = new Map(
+			prevForestEnemyBobbleRef.current.map((enemy) => [enemy.id, enemy] as const),
+		);
+		forestEnemies.forEach((enemy) => {
+			if (!(enemy.type === "bear" || enemy.type === "poop")) return;
+			const prev = prevById.get(enemy.id);
+			if (!prev) return;
+			const dx = Math.abs(enemy.x - prev.x);
+			const dy = Math.abs(enemy.y - prev.y);
+			const movedOneTile = Math.max(dx, dy) === 1 && dx + dy > 0;
+			if (movedOneTile) {
+				tileFxBusRef.current.api
+					.actor(`forest-enemy-${enemy.id}`)
+					.bobble(POSITION_ANIMATION_MS);
+			}
+		});
+		prevForestEnemyBobbleRef.current = forestEnemies;
+	}, [forestEnemies]);
+
+	useEffect(() => {
+		const prevById = new Map(
+			prevCaveEnemyBobbleRef.current.map((enemy) => [enemy.id, enemy] as const),
+		);
+		caveEnemies.forEach((enemy) => {
+			if (!(enemy.type === "bear" || enemy.type === "poop")) return;
+			const prev = prevById.get(enemy.id);
+			if (!prev) return;
+			const dx = Math.abs(enemy.x - prev.x);
+			const dy = Math.abs(enemy.y - prev.y);
+			const movedOneTile = Math.max(dx, dy) === 1 && dx + dy > 0;
+			if (movedOneTile) {
+				tileFxBusRef.current.api
+					.actor(`cave-enemy-${enemy.id}`)
+					.bobble(POSITION_ANIMATION_MS);
+			}
+		});
+		prevCaveEnemyBobbleRef.current = caveEnemies;
+	}, [caveEnemies]);
+
+	useEffect(() => {
+		const prev = prevAnimalBobbleRef.current;
+		Object.entries(animalTiles).forEach(([animalIdKey, nextPos]) => {
+			const prevPos = prev[Number(animalIdKey)];
+			if (!prevPos) return;
+			const dx = Math.abs(nextPos.x - prevPos.x);
+			const dy = Math.abs(nextPos.y - prevPos.y);
+			const movedOneTile = Math.max(dx, dy) === 1 && dx + dy > 0;
+			if (movedOneTile) {
+				tileFxBusRef.current.api
+					.actor(`animal-${animalIdKey}`)
+					.bobble(POSITION_ANIMATION_MS);
+			}
+		});
+		prevAnimalBobbleRef.current = animalTiles;
+	}, [animalTiles]);
+
+	useEffect(() => {
 		animalsRef.current = animals;
 	}, [animals]);
 
@@ -2000,7 +2140,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		caveObstacles.some((o) => o.x === x && o.y === y) ||
 		caveEnemies.some((e) => e.id !== ignoreEnemyId && e.x === x && e.y === y);
 
-	const isPassableAt = (map: MapId, x: number, y: number) => {
+	const isPassableAt = (
+		map: MapId,
+		x: number,
+		y: number,
+		options?: { ignoreEnemyId?: number },
+	) => {
 		if (x < 0 || y < 0) return false;
 		const rows = activeMapLayouts[map];
 		if (!rows || y >= rows.length || x >= (rows[0]?.length ?? 0)) return false;
@@ -2016,7 +2161,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				)
 			)
 				return false;
-			if (isForestOccupied(x, y)) return false;
+			if (isForestOccupied(x, y, options?.ignoreEnemyId)) return false;
 			return true;
 		}
 		if (map === "cave") {
@@ -2025,7 +2170,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			if (caveLadderPos && x === caveLadderPos.x && y === caveLadderPos.y) {
 				return true;
 			}
-			if (isCaveOccupied(x, y)) return false;
+			if (isCaveOccupied(x, y, options?.ignoreEnemyId)) return false;
 			return true;
 		}
 		if (
@@ -2141,7 +2286,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				return false;
 			};
 			const canStep = (nx: number, ny: number) =>
-				isPassableAt("forest", nx, ny) && !isForestOccupied(nx, ny, enemy.id);
+				isPassableAt("forest", nx, ny, { ignoreEnemyId: enemy.id });
 			const tryHorizontal = (dir: -1 | 1): ForestEnemy | null => {
 				const nx = enemy.x + dir;
 				const ny = enemy.y;
@@ -2227,8 +2372,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						applyForestDamage(10, "A hostile poop");
 						return enemy;
 					}
-					if (!isPassableAt("forest", nx, ny)) continue;
-					if (isForestOccupied(nx, ny, enemy.id)) continue;
+					if (!isPassableAt("forest", nx, ny, { ignoreEnemyId: enemy.id }))
+						continue;
 					return { ...enemy, x: nx, y: ny };
 				}
 				return enemy;
@@ -2246,8 +2391,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				) {
 					continue;
 				}
-				if (!isPassableAt("forest", nx, ny)) continue;
-				if (isForestOccupied(nx, ny, enemy.id)) continue;
+				if (!isPassableAt("forest", nx, ny, { ignoreEnemyId: enemy.id }))
+					continue;
 				return { ...enemy, x: nx, y: ny };
 			}
 			return enemy;
@@ -2281,8 +2426,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				applyForestDamage(30, "A bear");
 				return enemy;
 			}
-			if (!isPassableAt("forest", nx, ny)) continue;
-			if (isForestOccupied(nx, ny, enemy.id)) continue;
+			if (!isPassableAt("forest", nx, ny, { ignoreEnemyId: enemy.id })) continue;
 			return { ...enemy, x: nx, y: ny };
 		}
 		return enemy;
@@ -2315,20 +2459,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				}
 				return false;
 			};
-			const canStep = (nx: number, ny: number) => {
-				if (nx < 0 || ny < 0) return false;
-				const rows = activeMapLayouts.cave;
-				if (!rows || ny >= rows.length || nx >= (rows[0]?.length ?? 0))
-					return false;
-				const tile = rows[ny]?.[nx] ?? "<";
-				if (!isCaveWalkableTile(tile) || isCaveBlockedTile(tile)) return false;
-				if (caveObstacleAt(nx, ny)) return false;
-				if (
-					caveEnemies.some((e) => e.id !== enemy.id && e.x === nx && e.y === ny)
-				)
-					return false;
-				return true;
-			};
+			const canStep = (nx: number, ny: number) =>
+				isPassableAt("cave", nx, ny, { ignoreEnemyId: enemy.id });
 			const tryHorizontal = (dir: -1 | 1): ForestEnemy | null => {
 				const nx = enemy.x + dir;
 				const ny = enemy.y;
@@ -2408,8 +2540,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						applyCaveDamage(10, "A hostile poop");
 						return enemy;
 					}
-					if (!isPassableAt("cave", nx, ny)) continue;
-					if (isCaveOccupied(nx, ny, enemy.id)) continue;
+					if (!isPassableAt("cave", nx, ny, { ignoreEnemyId: enemy.id }))
+						continue;
 					return { ...enemy, x: nx, y: ny };
 				}
 				return enemy;
@@ -2426,8 +2558,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					3
 				)
 					continue;
-				if (!isPassableAt("cave", nx, ny)) continue;
-				if (isCaveOccupied(nx, ny, enemy.id)) continue;
+				if (!isPassableAt("cave", nx, ny, { ignoreEnemyId: enemy.id })) continue;
 				return { ...enemy, x: nx, y: ny };
 			}
 			return enemy;
@@ -2459,8 +2590,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				applyCaveDamage(30, "A bear");
 				return enemy;
 			}
-			if (!isPassableAt("cave", nx, ny)) continue;
-			if (isCaveOccupied(nx, ny, enemy.id)) continue;
+			if (!isPassableAt("cave", nx, ny, { ignoreEnemyId: enemy.id })) continue;
 			return { ...enemy, x: nx, y: ny };
 		}
 		return enemy;
@@ -2480,7 +2610,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const currentTile = current
 			? (townRows[current.y]?.[current.x] ?? "#")
 			: "#";
-		if (!current || current.y !== TOWN_NPC_GRASS_ROW_Y || currentTile !== ",") {
+		const currentTileWalkable =
+			currentTile !== "~" && currentTile !== "+" && isPassableChar(currentTile);
+		if (!current || !currentTileWalkable) {
 			nextNpcTiles[npcKey] = { ...anchor };
 			return;
 		}
@@ -2491,7 +2623,6 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			nextNpcTiles,
 			activeTownRows: activeMapLayouts.town,
 			isPassableChar,
-			requiredRowY: TOWN_NPC_GRASS_ROW_Y,
 			petVendorActive,
 			ownedPet,
 			petVendorPos: PET_VENDOR_POS,
@@ -2511,9 +2642,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const hasInvalidTownNpcTile = Object.keys(townNpcAnchors).some((npcKey) => {
 			const pos = townNpcTiles[npcKey];
 			if (!pos) return true;
-			if (pos.y !== TOWN_NPC_GRASS_ROW_Y) return true;
 			const tile = townRows[pos.y]?.[pos.x] ?? "#";
-			if (tile !== ",") return true;
+			if (tile === "~" || tile === "+") return true;
+			if (!isPassableChar(tile)) return true;
 			const key = keyForPos(pos.x, pos.y);
 			if (occupied.has(key)) return true;
 			occupied.add(key);
@@ -2685,6 +2816,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			...rawState,
 			headlampLetterRead:
 				(rawState as Partial<GameState>).headlampLetterRead ?? false,
+			hasAutoCollector:
+				(rawState as Partial<GameState>).hasAutoCollector ?? false,
+			pendingAutoCollectorInstall:
+				(rawState as Partial<GameState>).pendingAutoCollectorInstall ?? false,
 			unlockFlags: resolveUnlockFlags(
 				{
 					forestLevel: rawState.forestLevel,
@@ -3113,7 +3248,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (map === "barn") {
 			return (
 				animalsMap === "barn" &&
-				Object.values(animalTiles).some((pos) => pos.x === x && pos.y === y)
+				(Object.values(animalTiles).some((pos) => pos.x === x && pos.y === y) ||
+					(hasAutoCollector &&
+						!!barnAutoCollectorPos &&
+						barnAutoCollectorPos.x === x &&
+						barnAutoCollectorPos.y === y))
 			);
 		}
 		if (map === "forest") {
@@ -3302,6 +3441,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				tractorImplement,
 				tractorImplementOn,
 				isPassableAt,
+				canLeapfrogBarnAnimalAt: (map, x, y) => {
+					if (map !== animalsMap) return false;
+					const tileEntry = Object.entries(animalTiles).find(
+						([, pos]) => pos.x === x && pos.y === y,
+					);
+					if (!tileEntry) return false;
+					const animalId = Number(tileEntry[0]);
+					const animal = animals.find((a) => a.id === animalId);
+					if (!animal) return false;
+					return (
+						animal.type === "cow" ||
+						animal.type === "chicken" ||
+						animal.type === "sheep"
+					);
+				},
+				onLeapfrog: () => {
+					playNotification();
+					tileFxBusRef.current.api.actor("player").jump(POSITION_ANIMATION_MS);
+				},
 				handleBlockedStep: (map, x, y) => {
 					if (map !== "cave") return false;
 					const obstacle = caveObstacleAt(x, y);
@@ -3374,10 +3532,17 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const updateInventory = (item: ItemId, amount: number) => {
 		updateInventoryState(setInventory, item, amount);
+		if (amount > 0) {
+			const icon = itemIcons[item] ?? "";
+			tileFxBusRef.current.api.actor("player").toast(`+${amount} ${icon}`.trim());
+		}
 	};
 
 	const applyMoneyDelta = (delta: number) => {
 		applyMoneyDeltaState(setMoney, setCurrentDayEarned, setTotalEarned, delta);
+		if (delta > 0) {
+			tileFxBusRef.current.api.actor("player").toast(`+$${delta}`);
+		}
 	};
 
 	const canAfford = (value: number) => money >= value;
@@ -3441,6 +3606,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		interactBuilderVendorMenu({
 			barnTier,
 			pendingBarnUpgrade,
+			hasAutoCollector,
+			pendingAutoCollectorInstall,
 			inventory,
 			canAfford,
 			playBad,
@@ -3451,6 +3618,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			applyMoneyDelta,
 			updateInventory,
 			setPendingBarnUpgrade,
+			setPendingAutoCollectorInstall,
 		});
 	};
 
@@ -3718,6 +3886,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const resolveUpgradeSceneMessage = (kind: UpgradeSceneEventKind): string => {
 		if (kind === "pet_arrived") return "You got a new pet!";
 		if (kind === "barn_upgraded") return "Your barn was upgraded!";
+		if (kind === "auto_collector_installed")
+			return "The auto milker/shearer/egg collector has been installed in your barn!";
 		return "Your tractor was delivered!";
 	};
 
@@ -3725,6 +3895,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		kind: UpgradeSceneEventKind,
 	): { x: number; y: number } => {
 		if (kind === "barn_upgraded") {
+			const barnRect = getFarmBarnOuterRect(barnTier);
+			return {
+				x: Math.floor(barnRect.x + barnRect.w / 2),
+				y: Math.floor(barnRect.y + barnRect.h / 2),
+			};
+		}
+		if (kind === "auto_collector_installed") {
 			const barnRect = getFarmBarnOuterRect(barnTier);
 			return {
 				x: Math.floor(barnRect.x + barnRect.w / 2),
@@ -3842,6 +4019,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			BARN_TIER_NAMES,
 			setBarnTier,
 			setPendingBarnUpgrade,
+			hasAutoCollector,
+			pendingAutoCollectorInstall,
+			setHasAutoCollector,
+			setPendingAutoCollectorInstall,
 			isBarnExternal,
 			buildBarnLayout,
 			getBarnAnimalCap,
@@ -4261,6 +4442,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			setPlayerEmoji,
 			farmEggDrops,
 			setFarmEggDrops,
+			hasAutoCollector,
+			barnAutoCollectorPos,
 			isCowLikeAnimal,
 			rollLivestockYield,
 			setAnimals,
@@ -4320,6 +4503,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			PET_VENDOR_POS,
 			playMunch,
 			speakNpcLine,
+			tileFx: tileFxBusRef.current.api,
 		};
 		runInteract(interactCtx, dir);
 	};
@@ -4497,6 +4681,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		return () => {
 			clearHeldMove();
+			tileFxBusRef.current.clear();
 		};
 	}, []);
 
@@ -4539,6 +4724,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			hasTractor,
 			tractorParked,
 			TRACTOR_PARK_POS,
+			hasAutoCollector,
+			barnAutoCollectorPos,
 			forestObstacles,
 			forestChest,
 			forestBonusChests,
@@ -4584,6 +4771,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		petHeartTile,
 		hasTractor,
 		tractorParked,
+		hasAutoCollector,
+		barnAutoCollectorPos,
 		shopDecorByMap,
 		cafeShopkeeperX,
 		isOrdering,
@@ -4629,6 +4818,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		priceTrends,
 		tools,
 		log,
+		showLegacyLogStrip: true,
 		activeMapLayouts,
 		isWindSlashOn,
 		renderedMap,
@@ -4701,6 +4891,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		loadGameFromFilePicker,
 		directorPopup,
 		confirmDirectorPopup,
+		tileFx: tileFxBusRef.current.api,
+		tileFxBus: tileFxBusRef.current,
 	});
 
 	return renderGameRuntimeView(viewCtx);
