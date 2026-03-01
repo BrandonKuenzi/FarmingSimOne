@@ -1,4 +1,10 @@
-import type { Dispatch, KeyboardEvent, MutableRefObject, SetStateAction } from "react";
+import type {
+	Dispatch,
+	KeyboardEvent,
+	MutableRefObject,
+	SetStateAction,
+	TouchEvent,
+} from "react";
 import type { DayTransitionStar } from "../content/dayTransition";
 import type {
 	CloudSprite,
@@ -121,6 +127,8 @@ export type GameRuntimeViewModel = {
 	initialPrices: PriceState;
 	cancelQuantityPrompt: () => void;
 	moveQuantity: (delta: number) => void;
+	setQuantityToMax: () => void;
+	setQuantityToMin: () => void;
 	moveModal: (dir: Dir) => void;
 	moonPhases: readonly string[];
 	dayTransition: DayTransitionState | null;
@@ -130,13 +138,25 @@ export type GameRuntimeViewModel = {
 	continueAfterSleep: () => void;
 	dayTransitionPrompt: string;
 	isSaveLoadMenuOpen: boolean;
+	controlMode: "pc" | "mobile";
 	canSaveGame: boolean;
 	saveDisabledMessage: string | null;
 	saveLoadStatus: string | null;
 	toggleSaveLoadMenu: () => void;
+	toggleControlMode: () => void;
 	closeSaveLoadMenu: () => void;
 	saveGameToFile: () => void;
 	loadGameFromFilePicker: () => void;
+	mobileMoveJoystickAnchor: { x: number; y: number } | null;
+	mobileMoveJoystickThumb: { x: number; y: number } | null;
+	mobileInteractJoystickAnchor: { x: number; y: number } | null;
+	mobileInteractJoystickThumb: { x: number; y: number } | null;
+	onMobileMoveJoystickTouchStart: (e: TouchEvent<HTMLDivElement>) => void;
+	onMobileMoveJoystickTouchMove: (e: TouchEvent<HTMLDivElement>) => void;
+	onMobileMoveJoystickTouchEnd: (e: TouchEvent<HTMLDivElement>) => void;
+	onMobileInteractJoystickTouchStart: (e: TouchEvent<HTMLDivElement>) => void;
+	onMobileInteractJoystickTouchMove: (e: TouchEvent<HTMLDivElement>) => void;
+	onMobileInteractJoystickTouchEnd: (e: TouchEvent<HTMLDivElement>) => void;
 	directorPopup: { message: string } | null;
 	confirmDirectorPopup: () => void;
 	tileFx: TileFxApi;

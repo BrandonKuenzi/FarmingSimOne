@@ -6,6 +6,7 @@ import {
 	useState,
 	type KeyboardEvent,
 	type SetStateAction,
+	type TouchEvent,
 } from "react";
 import bgMusicSrc from "../../assets/bgMusic.mp3";
 import bgFarmSrc from "../../assets/bgFarm.ogg";
@@ -241,6 +242,10 @@ import {
 } from "./engine/rewardEngine";
 import { buildGameRuntimeViewModel } from "./engine/viewModelBuilder";
 import { useInputRouter } from "./useInputRouter";
+import {
+	MOBILE_KEYBOARD_PRESET,
+	PC_KEYBOARD_PRESET,
+} from "../systems/inputCommands";
 import { useWorldSimulation } from "./worldSimulation";
 import {
 	STAMINA_MAX,
@@ -380,6 +385,18 @@ const DIRECTOR_DEFAULT_FOCUS_ZOOM = MANUAL_ZOOM_MAX + 0.25;
 const DIRECTOR_NAV_DURATION_MS = 1000;
 const DIRECTOR_RETURN_DURATION_MS = 1000;
 const DIRECTOR_RETURN_SETTLE_MS = 180;
+const MOBILE_JOYSTICK_DEADZONE_PX = 14;
+const MOBILE_JOYSTICK_MAX_RADIUS_PX = 42;
+const MOBILE_INPUT_REPEAT_MS = POSITION_ANIMATION_MS;
+
+const detectDefaultControlMode = (): "pc" | "mobile" => {
+	if (typeof window === "undefined" || typeof navigator === "undefined") {
+		return "pc";
+	}
+	const hasCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+	const hasTouchPoints = navigator.maxTouchPoints > 0;
+	return hasCoarsePointer || hasTouchPoints ? "mobile" : "pc";
+};
 const HEADLAMP_LETTER_POS = { x: 7, y: 8 } as const;
 const FARM_NEWSPAPER_POS = { x: 6, y: 8 } as const;
 const DAY_ONE_NEWSPAPER_TEXT =
@@ -725,7 +742,27 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		},
 	);
 	const [isSaveLoadMenuOpen, setIsSaveLoadMenuOpen] = useState(false);
+	const [controlMode, setControlMode] = useState<"pc" | "mobile">(() =>
+		detectDefaultControlMode(),
+	);
 	const [saveLoadStatus, setSaveLoadStatus] = useState<string | null>(null);
+	const [mobileMoveJoystickAnchor, setMobileMoveJoystickAnchor] = useState<{
+		x: number;
+		y: number;
+	} | null>(null);
+	const [mobileMoveJoystickThumb, setMobileMoveJoystickThumb] = useState<{
+		x: number;
+		y: number;
+	} | null>(null);
+	const [mobileInteractJoystickAnchor, setMobileInteractJoystickAnchor] =
+		useState<{
+			x: number;
+			y: number;
+		} | null>(null);
+	const [mobileInteractJoystickThumb, setMobileInteractJoystickThumb] = useState<{
+		x: number;
+		y: number;
+	} | null>(null);
 	const [mapZoom, setMapZoom] = useState(DEFAULT_MAP_ZOOM);
 	const [cameraTarget, setCameraTarget] = useState<{
 		map: MapId;
@@ -876,6 +913,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const heldMoveDirRef = useRef<Dir | null>(null);
 	const heldMoveKeyRef = useRef<string | null>(null);
 	const heldMoveTimerRef = useRef<number | null>(null);
+	const dispatchHeldMoveCommandRef = useRef<(dir: Dir) => void>(() => {});
+	const dispatchMobileMoveCommandRef = useRef<(dir: Dir) => void>(() => {});
+	const dispatchMobileInteractCommandRef = useRef<(dir: Dir) => void>(() => {});
+	const mobileMoveJoystickTouchIdRef = useRef<number | null>(null);
+	const mobileMoveCadenceDirRef = useRef<Dir | null>(null);
+	const mobileMoveCadenceTimerRef = useRef<number | null>(null);
+	const mobileInteractJoystickTouchIdRef = useRef<number | null>(null);
+	const mobileInteractSwipeUsedRef = useRef(false);
+	const mobileInteractCommandSentRef = useRef(false);
 	const tileFxBusRef = useRef(createTileFxBus());
 	const prevPlayerBobbleRef = useRef(player);
 	const prevTownNpcBobbleRef = useRef(townNpcTiles);
@@ -1314,6 +1360,85 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			currentAreaMusicRef.current = initialTrack;
 		}
 	}, [bootSaveJson]);
+
+	useEffect(() => {
+		const stopAllAudioPlayback = () => {
+			if (musicFadeIntervalRef.current !== null) {
+				window.clearInterval(musicFadeIntervalRef.current);
+				musicFadeIntervalRef.current = null;
+			}
+			if (townBeachFadeIntervalRef.current !== null) {
+				window.clearInterval(townBeachFadeIntervalRef.current);
+				townBeachFadeIntervalRef.current = null;
+			}
+			if (seagullsFadeIntervalRef.current !== null) {
+				window.clearInterval(seagullsFadeIntervalRef.current);
+				seagullsFadeIntervalRef.current = null;
+			}
+
+			const audioRefs = [
+				notificationRef,
+				farmMusicRef,
+				townMusicRef,
+				beachAmbienceRef,
+				houseMusicRef,
+				forestMusicRef,
+				caveMusicRef,
+				bureaucracyMusicRef,
+				chaChingRef,
+				endOfDayRef,
+				hoeSoundRef,
+				munchSoundRef,
+				badSoundRef,
+				waterSoundRef,
+				yayaSoundRef,
+				tooTiredRef,
+				gotRewardRef,
+				snakeSoundRef,
+				bearSoundRef,
+				pooSoundRef,
+				bathSoundRef,
+				pluckSoundRef,
+				ploopSoundRef,
+				seagullsSoundRef,
+				meowSoundRef,
+				woofSoundRef,
+				tractorSoundRef,
+				sighSoundRef,
+				whooshSoundRef,
+				cafeOrderMusicRef,
+				currentAreaMusicRef,
+				musicFadeFromRef,
+				musicFadeToRef,
+			] as const;
+
+			audioRefs.forEach((ref) => {
+				const track = ref.current;
+				if (!track) return;
+				track.pause();
+				track.currentTime = 0;
+			});
+			if (seagullsSoundRef.current) {
+				seagullsSoundRef.current.volume = 1;
+			}
+		};
+
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === "hidden") {
+				stopAllAudioPlayback();
+			}
+		};
+
+		window.addEventListener("pagehide", stopAllAudioPlayback);
+		window.addEventListener("beforeunload", stopAllAudioPlayback);
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+
+		return () => {
+			window.removeEventListener("pagehide", stopAllAudioPlayback);
+			window.removeEventListener("beforeunload", stopAllAudioPlayback);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
+		};
+	}, []);
 
 	useEffect(
 		() => () => {
@@ -3021,6 +3146,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return next;
 		});
 	};
+	const toggleControlMode = () => {
+		setControlMode((prev) => (prev === "pc" ? "mobile" : "pc"));
+	};
 	const closeSaveLoadMenu = () => {
 		setIsSaveLoadMenuOpen(false);
 	};
@@ -3610,9 +3738,6 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			playerMoveUnlockAtRef.current = now + POSITION_ANIMATION_MS;
 		}
 	};
-	const movePlayerRef = useRef(movePlayer);
-	movePlayerRef.current = movePlayer;
-
 	const clearHeldMove = () => {
 		heldMoveDirRef.current = null;
 		heldMoveKeyRef.current = null;
@@ -3628,10 +3753,33 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			heldMoveTimerRef.current = null;
 			const dir = heldMoveDirRef.current;
 			if (!dir) return;
-			movePlayerRef.current(dir);
+			dispatchHeldMoveCommandRef.current(dir);
 			heldMoveTimerRef.current = window.setTimeout(tick, POSITION_ANIMATION_MS);
 		};
 		heldMoveTimerRef.current = window.setTimeout(tick, POSITION_ANIMATION_MS);
+	};
+
+	const clearMobileMoveCadence = () => {
+		mobileMoveCadenceDirRef.current = null;
+		if (mobileMoveCadenceTimerRef.current !== null) {
+			window.clearTimeout(mobileMoveCadenceTimerRef.current);
+			mobileMoveCadenceTimerRef.current = null;
+		}
+	};
+
+	const clearMobileMoveJoystick = () => {
+		mobileMoveJoystickTouchIdRef.current = null;
+		setMobileMoveJoystickAnchor(null);
+		setMobileMoveJoystickThumb(null);
+		clearMobileMoveCadence();
+	};
+
+	const clearMobileInteractJoystick = () => {
+		mobileInteractJoystickTouchIdRef.current = null;
+		setMobileInteractJoystickAnchor(null);
+		setMobileInteractJoystickThumb(null);
+		mobileInteractSwipeUsedRef.current = false;
+		mobileInteractCommandSentRef.current = false;
 	};
 
 	const updateInventory = (item: ItemId, amount: number) => {
@@ -4731,19 +4879,30 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		isNewspaperOpen: isNewspaperPopupOpen,
 		closeNewspaperPopup,
 	};
-	const onKeyDown = useInputRouter(inputContext);
-	const keyToHeldDirection = (key: string): Dir | null => {
-		if (key === "w") return "up";
-		if (key === "s") return "down";
-		if (key === "a") return "left";
-		if (key === "d") return "right";
-		return null;
+	const inputPreset =
+		controlMode === "mobile" ? MOBILE_KEYBOARD_PRESET : PC_KEYBOARD_PRESET;
+	const inputRouter = useInputRouter(inputContext, inputPreset);
+	const onKeyDown = inputRouter.onKeyDown;
+	dispatchHeldMoveCommandRef.current = (dir: Dir) => {
+		if (dir === "up") {
+			inputRouter.dispatchCommand("MOVE_UP", { sourceKey: "__held_move__" });
+			return;
+		}
+		if (dir === "down") {
+			inputRouter.dispatchCommand("MOVE_DOWN", { sourceKey: "__held_move__" });
+			return;
+		}
+		if (dir === "left") {
+			inputRouter.dispatchCommand("MOVE_LEFT", { sourceKey: "__held_move__" });
+			return;
+		}
+		inputRouter.dispatchCommand("MOVE_RIGHT", { sourceKey: "__held_move__" });
 	};
 	const onKeyDownWithHold = (e: KeyboardEvent<HTMLDivElement>) => {
 		onKeyDown(e);
 		const key = e.key.toLowerCase();
 		if (e.repeat) return;
-		const dir = keyToHeldDirection(key);
+		const dir = inputRouter.resolveHeldMoveDirectionForKey(key);
 		if (!dir) return;
 		if (
 			modal ||
@@ -4772,6 +4931,195 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		clearHeldMove();
 	};
 
+	const dispatchMobileMoveCommand = (dir: Dir) => {
+		if (dir === "up") {
+			inputRouter.dispatchCommand("MOVE_UP", { sourceKey: "__mobile_move__" });
+			return;
+		}
+		if (dir === "down") {
+			inputRouter.dispatchCommand("MOVE_DOWN", { sourceKey: "__mobile_move__" });
+			return;
+		}
+		if (dir === "left") {
+			inputRouter.dispatchCommand("MOVE_LEFT", { sourceKey: "__mobile_move__" });
+			return;
+		}
+		inputRouter.dispatchCommand("MOVE_RIGHT", { sourceKey: "__mobile_move__" });
+	};
+	dispatchMobileMoveCommandRef.current = dispatchMobileMoveCommand;
+
+	const dispatchMobileInteractCommand = (dir: Dir) => {
+		if (dir === "up") {
+			inputRouter.dispatchCommand("INTERACT_UP", {
+				sourceKey: "__mobile_interact__",
+			});
+			return;
+		}
+		if (dir === "down") {
+			inputRouter.dispatchCommand("INTERACT_DOWN", {
+				sourceKey: "__mobile_interact__",
+			});
+			return;
+		}
+		if (dir === "left") {
+			inputRouter.dispatchCommand("INTERACT_LEFT", {
+				sourceKey: "__mobile_interact__",
+			});
+			return;
+		}
+		inputRouter.dispatchCommand("INTERACT_RIGHT", {
+			sourceKey: "__mobile_interact__",
+		});
+	};
+	dispatchMobileInteractCommandRef.current = dispatchMobileInteractCommand;
+	const setMobileMoveCadenceDirection = (nextDir: Dir | null) => {
+		if (nextDir === null) {
+			clearMobileMoveCadence();
+			return;
+		}
+		if (
+			mobileMoveCadenceDirRef.current === nextDir &&
+			mobileMoveCadenceTimerRef.current !== null
+		) {
+			return;
+		}
+		clearMobileMoveCadence();
+		mobileMoveCadenceDirRef.current = nextDir;
+		dispatchMobileMoveCommandRef.current(nextDir);
+		const tick = () => {
+			mobileMoveCadenceTimerRef.current = null;
+			const activeDir = mobileMoveCadenceDirRef.current;
+			if (!activeDir) return;
+			dispatchMobileMoveCommandRef.current(activeDir);
+			mobileMoveCadenceTimerRef.current = window.setTimeout(
+				tick,
+				MOBILE_INPUT_REPEAT_MS,
+			);
+		};
+		mobileMoveCadenceTimerRef.current = window.setTimeout(tick, MOBILE_INPUT_REPEAT_MS);
+	};
+
+	const resolveTouchDirection = (
+		dx: number,
+		dy: number,
+		fallbackDir: Dir | null,
+	): Dir | null => {
+		const absX = Math.abs(dx);
+		const absY = Math.abs(dy);
+		const strongest = Math.max(absX, absY);
+		if (strongest < MOBILE_JOYSTICK_DEADZONE_PX) {
+			// Keep cadence active while the finger is still down to mimic key hold.
+			return fallbackDir;
+		}
+		if (absX > absY) return dx > 0 ? "right" : "left";
+		return dy > 0 ? "down" : "up";
+	};
+
+	const updateMobileMoveJoystickFromTouch = (x: number, y: number) => {
+		const anchor = mobileMoveJoystickAnchor;
+		if (!anchor) return;
+		const dx = x - anchor.x;
+		const dy = y - anchor.y;
+		const magnitude = Math.hypot(dx, dy);
+		const clampedMagnitude = Math.min(magnitude, MOBILE_JOYSTICK_MAX_RADIUS_PX);
+		const scale = magnitude > 0 ? clampedMagnitude / magnitude : 0;
+		const thumbX = anchor.x + dx * scale;
+		const thumbY = anchor.y + dy * scale;
+		setMobileMoveJoystickThumb({ x: thumbX, y: thumbY });
+		setMobileMoveCadenceDirection(
+			resolveTouchDirection(dx, dy, mobileMoveCadenceDirRef.current),
+		);
+	};
+
+	const updateMobileInteractJoystickFromTouch = (x: number, y: number) => {
+		const anchor = mobileInteractJoystickAnchor;
+		if (!anchor) return;
+		const dx = x - anchor.x;
+		const dy = y - anchor.y;
+		const magnitude = Math.hypot(dx, dy);
+		const clampedMagnitude = Math.min(magnitude, MOBILE_JOYSTICK_MAX_RADIUS_PX);
+		const scale = magnitude > 0 ? clampedMagnitude / magnitude : 0;
+		const thumbX = anchor.x + dx * scale;
+		const thumbY = anchor.y + dy * scale;
+		setMobileInteractJoystickThumb({ x: thumbX, y: thumbY });
+		const dir = resolveTouchDirection(dx, dy, null);
+		if (!dir || mobileInteractCommandSentRef.current) return;
+		mobileInteractSwipeUsedRef.current = true;
+		mobileInteractCommandSentRef.current = true;
+		dispatchMobileInteractCommandRef.current(dir);
+	};
+
+	const onMobileMoveJoystickTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+		if (controlMode !== "mobile") return;
+		if (mobileMoveJoystickTouchIdRef.current !== null) return;
+		const touch = e.changedTouches[0];
+		if (!touch) return;
+		e.preventDefault();
+		const anchor = { x: touch.clientX, y: touch.clientY };
+		mobileMoveJoystickTouchIdRef.current = touch.identifier;
+		setMobileMoveJoystickAnchor(anchor);
+		setMobileMoveJoystickThumb(anchor);
+		setMobileMoveCadenceDirection(null);
+	};
+
+	const onMobileMoveJoystickTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+		const touchId = mobileMoveJoystickTouchIdRef.current;
+		if (touchId === null) return;
+		const touch = Array.from(e.touches).find((candidate) => candidate.identifier === touchId);
+		if (!touch) return;
+		e.preventDefault();
+		updateMobileMoveJoystickFromTouch(touch.clientX, touch.clientY);
+	};
+
+	const onMobileMoveJoystickTouchEnd = (e: TouchEvent<HTMLDivElement>) => {
+		const touchId = mobileMoveJoystickTouchIdRef.current;
+		if (touchId === null) return;
+		const released = Array.from(e.changedTouches).some(
+			(candidate) => candidate.identifier === touchId,
+		);
+		if (!released) return;
+		e.preventDefault();
+		clearMobileMoveJoystick();
+	};
+
+	const onMobileInteractJoystickTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+		if (controlMode !== "mobile") return;
+		if (mobileInteractJoystickTouchIdRef.current !== null) return;
+		const touch = e.changedTouches[0];
+		if (!touch) return;
+		e.preventDefault();
+		const anchor = { x: touch.clientX, y: touch.clientY };
+		mobileInteractJoystickTouchIdRef.current = touch.identifier;
+		mobileInteractSwipeUsedRef.current = false;
+		mobileInteractCommandSentRef.current = false;
+		setMobileInteractJoystickAnchor(anchor);
+		setMobileInteractJoystickThumb(anchor);
+	};
+
+	const onMobileInteractJoystickTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+		const touchId = mobileInteractJoystickTouchIdRef.current;
+		if (touchId === null) return;
+		const touch = Array.from(e.touches).find((candidate) => candidate.identifier === touchId);
+		if (!touch) return;
+		e.preventDefault();
+		updateMobileInteractJoystickFromTouch(touch.clientX, touch.clientY);
+	};
+
+	const onMobileInteractJoystickTouchEnd = (e: TouchEvent<HTMLDivElement>) => {
+		const touchId = mobileInteractJoystickTouchIdRef.current;
+		if (touchId === null) return;
+		const released = Array.from(e.changedTouches).some(
+			(candidate) => candidate.identifier === touchId,
+		);
+		if (!released) return;
+		e.preventDefault();
+		const usedSwipe = mobileInteractSwipeUsedRef.current;
+		clearMobileInteractJoystick();
+		if (!usedSwipe) {
+			inputRouter.dispatchCommand("OK", { sourceKey: "__mobile_interact_tap__" });
+		}
+	};
+
 	useEffect(() => {
 		if (
 			modal ||
@@ -4797,8 +5145,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	]);
 
 	useEffect(() => {
+		if (controlMode === "mobile") return;
+		clearMobileMoveJoystick();
+		clearMobileInteractJoystick();
+	}, [controlMode]);
+
+	useEffect(() => {
 		return () => {
 			clearHeldMove();
+			clearMobileMoveJoystick();
+			clearMobileInteractJoystick();
 			tileFxBusRef.current.clear();
 		};
 	}, []);
@@ -4994,6 +5350,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		initialPrices,
 		cancelQuantityPrompt,
 		moveQuantity,
+		setQuantityToMax,
+		setQuantityToMin,
 		moveModal,
 		moonPhases,
 		dayTransition,
@@ -5003,13 +5361,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		continueAfterSleep,
 		dayTransitionPrompt,
 		isSaveLoadMenuOpen,
+		controlMode,
 		canSaveGame,
 		saveDisabledMessage,
 		saveLoadStatus,
 		toggleSaveLoadMenu,
+		toggleControlMode,
 		closeSaveLoadMenu,
 		saveGameToFile,
 		loadGameFromFilePicker,
+		mobileMoveJoystickAnchor,
+		mobileMoveJoystickThumb,
+		mobileInteractJoystickAnchor,
+		mobileInteractJoystickThumb,
+		onMobileMoveJoystickTouchStart,
+		onMobileMoveJoystickTouchMove,
+		onMobileMoveJoystickTouchEnd,
+		onMobileInteractJoystickTouchStart,
+		onMobileInteractJoystickTouchMove,
+		onMobileInteractJoystickTouchEnd,
 		directorPopup,
 		confirmDirectorPopup,
 		tileFx: tileFxBusRef.current.api,
