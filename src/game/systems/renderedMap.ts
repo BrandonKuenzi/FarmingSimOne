@@ -49,6 +49,10 @@ type RenderedMapContext = {
 	TRACTOR_PARK_POS: { x: number; y: number };
 	hasAutoCollector: boolean;
 	barnAutoCollectorPos: { x: number; y: number } | null;
+	barnAutoCollectorMap: MapId;
+	hasAutoFeeder: boolean;
+	barnAutoFeederPos: { x: number; y: number } | null;
+	barnAutoFeederMap: MapId;
 	forestObstacles: ForestObstacle[];
 	forestChest: ForestChest;
 	forestBonusChests: ForestChest[];
@@ -106,6 +110,10 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		TRACTOR_PARK_POS,
 		hasAutoCollector,
 		barnAutoCollectorPos,
+		barnAutoCollectorMap,
+		hasAutoFeeder,
+		barnAutoFeederPos,
+		barnAutoFeederMap,
 		forestObstacles,
 		forestChest,
 		forestBonusChests,
@@ -187,9 +195,14 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		});
 	}
 
-	if (playerMap === "barn" && hasAutoCollector && barnAutoCollectorPos) {
+	if (playerMap === barnAutoCollectorMap && hasAutoCollector && barnAutoCollectorPos) {
 		if (base[barnAutoCollectorPos.y]?.[barnAutoCollectorPos.x]) {
 			base[barnAutoCollectorPos.y]![barnAutoCollectorPos.x] = "P";
+		}
+	}
+	if (playerMap === barnAutoFeederMap && hasAutoFeeder && barnAutoFeederPos) {
+		if (base[barnAutoFeederPos.y]?.[barnAutoFeederPos.x]) {
+			base[barnAutoFeederPos.y]![barnAutoFeederPos.x] = GLYPH.plateWithCutlery;
 		}
 	}
 

@@ -74,6 +74,8 @@ export const GLYPH = {
 	envelope: "\u{2709}\u{FE0F}", // ✉️ U+2709 U+FE0F
 	fire: "\u{1F525}", // 🔥 U+1F525
 	satelliteAntenna: "\u{1F4E1}", // 📡 U+1F4E1
+	plateWithCutlery: "\u{1F37D}\u{FE0F}", // 🍽️ U+1F37D U+FE0F
+	magnifierLeft: "\u{1F50E}", // 🔎 U+1F50E
 	turnip: "\u{1F96C}", // 🥬 U+1F96C
 	carrot: "\u{1F955}", // 🥕 U+1F955
 	pumpkin: "\u{1F383}", // 🎃 U+1F383

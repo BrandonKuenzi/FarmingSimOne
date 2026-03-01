@@ -157,6 +157,10 @@ export type GameRuntimeViewModel = {
 	onMobileInteractJoystickTouchStart: (e: TouchEvent<HTMLDivElement>) => void;
 	onMobileInteractJoystickTouchMove: (e: TouchEvent<HTMLDivElement>) => void;
 	onMobileInteractJoystickTouchEnd: (e: TouchEvent<HTMLDivElement>) => void;
+	canZoomOut: boolean;
+	canZoomIn: boolean;
+	zoomOut: () => void;
+	zoomIn: () => void;
 	directorPopup: { message: string } | null;
 	confirmDirectorPopup: () => void;
 	tileFx: TileFxApi;

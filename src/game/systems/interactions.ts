@@ -60,6 +60,10 @@ export type InteractionsContext = {
 	farmEggDrops: Record<string, boolean>;
 	hasAutoCollector: boolean;
 	barnAutoCollectorPos: Point | null;
+	barnAutoCollectorMap: MapId;
+	hasAutoFeeder: boolean;
+	barnAutoFeederPos: Point | null;
+	barnAutoFeederMap: MapId;
 	setFarmEggDrops: (
 		updater: (prev: Record<string, boolean>) => Record<string, boolean>,
 	) => void;
@@ -102,7 +106,7 @@ export type InteractionsContext = {
 		updater: (prev: Record<string, boolean>) => Record<string, boolean>,
 	) => void;
 	interactVendor: (key: VendorKey) => void;
-	interactBuilderVendor: () => void;
+	interactBuilderVendor: (target: Point) => void;
 	startDoctorMedicine: () => void;
 	closeMenu: () => void;
 	openMenu: (title: string, body: string[], options: ModalOption[]) => void;
@@ -129,6 +133,10 @@ export const handleLateInteractionBlocks = (
 		farmEggDrops,
 		hasAutoCollector,
 		barnAutoCollectorPos,
+		barnAutoCollectorMap,
+		hasAutoFeeder,
+		barnAutoFeederPos,
+		barnAutoFeederMap,
 		setFarmEggDrops,
 		animals,
 		animalTiles,
@@ -182,7 +190,7 @@ export const handleLateInteractionBlocks = (
 
 	if (playerMap === "farm" || playerMap === "barn") {
 		if (
-			playerMap === "barn" &&
+			playerMap === barnAutoCollectorMap &&
 			hasAutoCollector &&
 			barnAutoCollectorPos &&
 			tx === barnAutoCollectorPos.x &&
@@ -209,12 +217,64 @@ export const handleLateInteractionBlocks = (
 				return true;
 			}
 			playPluck();
-			tileFx.at({ map: "barn", x: tx, y: ty }).streatch(1.35, 260);
+			tileFx.at({ map: playerMap, x: tx, y: ty }).streatch(1.35, 260);
 			const collectedParts: string[] = [];
 			if (milkCount > 0) collectedParts.push(`milk x${milkCount}`);
 			if (woolCount > 0) collectedParts.push(`wool x${woolCount}`);
 			if (eggCount > 0) collectedParts.push(`egg x${eggCount}`);
 			addLog(`Auto collector gathered ${collectedParts.join(", ")}.`);
+			return true;
+		}
+		if (
+			playerMap === barnAutoFeederMap &&
+			hasAutoFeeder &&
+			barnAutoFeederPos &&
+			tx === barnAutoFeederPos.x &&
+			ty === barnAutoFeederPos.y
+		) {
+			const hungryAnimals = animals.filter((animal) => !animal.fedToday);
+			const showBarnToast = (text: string, delayMs = 0) => {
+				if (delayMs <= 0) {
+					tileFx.at({ map: playerMap, x: tx, y: ty }).toast(text);
+					return;
+				}
+				window.setTimeout(() => {
+					tileFx.at({ map: playerMap, x: tx, y: ty }).toast(text);
+				}, delayMs);
+			};
+			if (hungryAnimals.length <= 0) {
+				const line = "No hungry animals";
+				showBarnToast(line);
+				return true;
+			}
+			if (inventory.feed <= 0) {
+				const line = "No food";
+				showBarnToast(line);
+				playBad();
+				return true;
+			}
+			const feedCount = Math.min(hungryAnimals.length, inventory.feed);
+			if (feedCount <= 0) {
+				const line = "No food";
+				showBarnToast(line);
+				playBad();
+				return true;
+			}
+			const fedIds = new Set(hungryAnimals.slice(0, feedCount).map((animal) => animal.id));
+			setAnimals((prev) =>
+				prev.map((animal) =>
+					fedIds.has(animal.id) ? { ...animal, fedToday: true } : animal,
+				),
+			);
+			updateInventory("feed", -feedCount);
+			playMunch();
+			tileFx.at({ map: playerMap, x: tx, y: ty }).streatch(1.35, 260);
+			const fedLine = `Feed ${feedCount} animals`;
+			showBarnToast(fedLine);
+			if (feedCount < hungryAnimals.length) {
+				const shortLine = "Not enough food";
+				showBarnToast(shortLine, 300);
+			}
 			return true;
 		}
 		if (farmEggDrops[farmTargetKey]) {
@@ -283,7 +343,7 @@ export const handleLateInteractionBlocks = (
 		playerMap === "tool_shop" &&
 		((targetBaseTile === "x" && tx >= 8) || targetBaseTile === "b")
 	) {
-		interactBuilderVendor();
+		interactBuilderVendor({ x: tx, y: ty });
 		return true;
 	}
 	if (playerMap === "tool_shop") {

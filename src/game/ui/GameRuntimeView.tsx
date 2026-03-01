@@ -1207,6 +1207,10 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		onMobileInteractJoystickTouchStart,
 		onMobileInteractJoystickTouchMove,
 		onMobileInteractJoystickTouchEnd,
+		canZoomOut,
+		canZoomIn,
+		zoomOut,
+		zoomIn,
 		directorPopup,
 		confirmDirectorPopup,
 		tileFxBus,
@@ -1369,6 +1373,36 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 				</div>
 
 				<div className='gameplay-map-slot'>
+					{controlMode === "mobile" && (
+						<div className='mobile-zoom-overlay'>
+							{canZoomOut && (
+								<button
+									type='button'
+									className='mobile-zoom-button mobile-zoom-button-out'
+									onClick={zoomOut}
+									aria-label='Zoom out'
+								>
+									<div className='mobile-zoom-icon'>
+										<span className='mobile-zoom-base'>{GLYPH.magnifierLeft}</span>
+										<span className='mobile-zoom-mark'>-</span>
+									</div>
+								</button>
+							)}
+							{canZoomIn && (
+								<button
+									type='button'
+									className='mobile-zoom-button mobile-zoom-button-in'
+									onClick={zoomIn}
+									aria-label='Zoom in'
+								>
+									<div className='mobile-zoom-icon'>
+										<span className='mobile-zoom-base'>{GLYPH.magnifierLeft}</span>
+										<span className='mobile-zoom-mark'>+</span>
+									</div>
+								</button>
+							)}
+						</div>
+					)}
 					<MemoMapViewport
 						ctx={{
 							activeMapLayouts,

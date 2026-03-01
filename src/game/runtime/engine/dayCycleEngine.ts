@@ -81,10 +81,22 @@ type RunNextDayArgs = {
 	BARN_TIER_NAMES: Record<BarnTier, string>;
 	setBarnTier: Dispatch<SetStateAction<BarnTier>>;
 	setPendingBarnUpgrade: Dispatch<SetStateAction<boolean>>;
+	hasBath: boolean;
+	pendingBathInstall: boolean;
+	setHasBath: Dispatch<SetStateAction<boolean>>;
+	setPendingBathInstall: Dispatch<SetStateAction<boolean>>;
+	hasWardrobe: boolean;
+	pendingWardrobeInstall: boolean;
+	setHasWardrobe: Dispatch<SetStateAction<boolean>>;
+	setPendingWardrobeInstall: Dispatch<SetStateAction<boolean>>;
 	hasAutoCollector: boolean;
 	pendingAutoCollectorInstall: boolean;
 	setHasAutoCollector: Dispatch<SetStateAction<boolean>>;
 	setPendingAutoCollectorInstall: Dispatch<SetStateAction<boolean>>;
+	hasAutoFeeder: boolean;
+	pendingAutoFeederInstall: boolean;
+	setHasAutoFeeder: Dispatch<SetStateAction<boolean>>;
+	setPendingAutoFeederInstall: Dispatch<SetStateAction<boolean>>;
 	isBarnExternal: (tier: BarnTier) => boolean;
 	buildBarnLayout: (tier: BarnTier) => string[];
 	getBarnAnimalCap: (tier: BarnTier) => number;
@@ -95,6 +107,7 @@ type RunNextDayArgs = {
 		rows?: string[];
 		allowedTiles?: string[];
 		scanFromBottom?: boolean;
+		doorBufferDistance?: number;
 	}) => { keptAnimals: Animal[]; occupied: Record<number, Point> };
 	setAnimalTiles: Dispatch<SetStateAction<Record<number, Point>>>;
 	setAnimalAnchors: Dispatch<SetStateAction<Record<number, Point>>>;
@@ -181,10 +194,22 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 		BARN_TIER_NAMES,
 		setBarnTier,
 		setPendingBarnUpgrade,
+		hasBath,
+		pendingBathInstall,
+		setHasBath,
+		setPendingBathInstall,
+		hasWardrobe,
+		pendingWardrobeInstall,
+		setHasWardrobe,
+		setPendingWardrobeInstall,
 		hasAutoCollector,
 		pendingAutoCollectorInstall,
 		setHasAutoCollector,
 		setPendingAutoCollectorInstall,
+		hasAutoFeeder,
+		pendingAutoFeederInstall,
+		setHasAutoFeeder,
+		setPendingAutoFeederInstall,
 		isBarnExternal,
 		buildBarnLayout,
 		getBarnAnimalCap,
@@ -362,6 +387,7 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 				rows: nextLayout,
 				allowedTiles: ["."],
 				scanFromBottom: true,
+				doorBufferDistance: isBarnExternal(nextBarnTier) ? 5 : 0,
 			});
 			setAnimals(relocation.keptAnimals);
 			setAnimalTiles(relocation.occupied);
@@ -382,6 +408,33 @@ export const runNextDay = (args: RunNextDayArgs): void => {
 			addLog("Your auto milker/shearer/egg collector was installed overnight.");
 		}
 		setPendingAutoCollectorInstall(false);
+	}
+	if (pendingBathInstall) {
+		if (!hasBath) {
+			setHasBath(true);
+			addLog("Your house bath was installed overnight.");
+		}
+		setPendingBathInstall(false);
+	}
+	if (pendingWardrobeInstall) {
+		if (!hasWardrobe) {
+			setHasWardrobe(true);
+			addLog("Your house wardrobe was installed overnight.");
+		}
+		setPendingWardrobeInstall(false);
+	}
+	if (pendingAutoFeederInstall) {
+		if (!hasAutoFeeder) {
+			setHasAutoFeeder(true);
+			queueUpgradeScene({
+				id: `${upcomingDay}-auto_feeder_installed-${randomInt(1000, 9999)}`,
+				kind: "auto_feeder_installed",
+				day: upcomingDay,
+				bgTrack: "space_store",
+			});
+			addLog("Your auto feeder was installed overnight.");
+		}
+		setPendingAutoFeederInstall(false);
 	}
 
 	if (pendingTractorDelivery) {

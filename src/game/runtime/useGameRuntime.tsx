@@ -673,8 +673,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				tools: initialToolLevels,
 				barnTier: 1,
 				pendingBarnUpgrade: false,
+				hasBath: false,
+				pendingBathInstall: false,
+				hasWardrobe: false,
+				pendingWardrobeInstall: false,
+				clothingShopOpeningAnnounced: false,
 				hasAutoCollector: false,
 				pendingAutoCollectorInstall: false,
+				hasAutoFeeder: false,
+				pendingAutoFeederInstall: false,
 				hasTractor: false,
 				hasHeadlamp: false,
 				headlampLetterRead: false,
@@ -843,8 +850,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		tools,
 		barnTier,
 		pendingBarnUpgrade,
+		hasBath,
+		pendingBathInstall,
+		hasWardrobe,
+		pendingWardrobeInstall,
+		clothingShopOpeningAnnounced,
 		hasAutoCollector,
 		pendingAutoCollectorInstall,
+		hasAutoFeeder,
+		pendingAutoFeederInstall,
 		hasTractor,
 		hasHeadlamp,
 		headlampLetterRead,
@@ -1013,8 +1027,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setTools = setForKey("tools");
 	const setBarnTier = setForKey("barnTier");
 	const setPendingBarnUpgrade = setForKey("pendingBarnUpgrade");
+	const setHasBath = setForKey("hasBath");
+	const setPendingBathInstall = setForKey("pendingBathInstall");
+	const setHasWardrobe = setForKey("hasWardrobe");
+	const setPendingWardrobeInstall = setForKey("pendingWardrobeInstall");
+	const setClothingShopOpeningAnnounced = setForKey("clothingShopOpeningAnnounced");
 	const setHasAutoCollector = setForKey("hasAutoCollector");
 	const setPendingAutoCollectorInstall = setForKey("pendingAutoCollectorInstall");
+	const setHasAutoFeeder = setForKey("hasAutoFeeder");
+	const setPendingAutoFeederInstall = setForKey("pendingAutoFeederInstall");
 	const setHasTractor = setForKey("hasTractor");
 	const setHasHeadlamp = setForKey("hasHeadlamp");
 	const setHeadlampLetterRead = setForKey("headlampLetterRead");
@@ -1068,11 +1089,20 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		() => ({
 			...mapLayouts,
 			farm: buildFarmLayout(barnTier),
+			town: !hasWardrobe
+				? mapLayouts.town.map((row) => row.split("c").join("H"))
+				: mapLayouts.town,
+			house: mapLayouts.house.map((row) => {
+				let nextRow = row;
+				if (!hasBath) nextRow = nextRow.split("U").join(".");
+				if (!hasWardrobe) nextRow = nextRow.split("w").join(".");
+				return nextRow;
+			}),
 			barn: buildBarnLayout(barnTier),
 			forest: forestLayout,
 			cave: caveLayout,
 		}),
-		[barnTier, forestLayout, caveLayout],
+		[barnTier, hasBath, hasWardrobe, forestLayout, caveLayout],
 	);
 
 	const activeMapRows = activeMapLayouts[player.map];
@@ -1103,6 +1133,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	}, [animalsMap, barnTier, activeMapLayouts.barn]);
 	const barnAnimalCap = useMemo(() => getBarnAnimalCap(barnTier), [barnTier]);
 	const barnAutoCollectorPos = useMemo(() => {
+		if (barnTier <= 3) {
+			const rect = getFarmBarnOuterRect(barnTier);
+			return { x: rect.x + rect.w - 2, y: rect.y + rect.h - 2 };
+		}
 		const rows = activeMapLayouts.barn;
 		const isWalkableTile = (x: number, y: number) => {
 			if (x < 0 || y < 0) return false;
@@ -1142,7 +1176,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			}
 		}
 		return null;
-	}, [activeMapLayouts.barn]);
+	}, [activeMapLayouts.barn, barnTier]);
+	const barnAutoCollectorMap: MapId = barnTier <= 3 ? "farm" : "barn";
+	const barnAutoFeederPos = useMemo(() => {
+		const rows = activeMapLayouts.barn;
+		const isInBounds = (x: number, y: number) =>
+			x >= 0 &&
+			y >= 0 &&
+			y < rows.length &&
+			x < (rows[0]?.length ?? 0);
+		if (barnTier <= 3) {
+			return { x: 16, y: 7 };
+		}
+		if (!barnAutoCollectorPos) return null;
+		const x = barnAutoCollectorPos.x - 1;
+		const y = barnAutoCollectorPos.y;
+		if (!isInBounds(x, y)) return null;
+		return { x, y };
+	}, [activeMapLayouts.barn, barnAutoCollectorPos, barnTier]);
+	const barnAutoFeederMap: MapId = barnTier <= 3 ? "farm" : "barn";
 	const barnSpawnPoint = useMemo(() => {
 		const rows = activeMapLayouts.barn;
 		const bw = rows[0]?.length ?? 0;
@@ -3042,10 +3094,24 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			...rawState,
 			headlampLetterRead:
 				(rawState as Partial<GameState>).headlampLetterRead ?? false,
+			hasBath:
+				(rawState as Partial<GameState>).hasBath ?? false,
+			pendingBathInstall:
+				(rawState as Partial<GameState>).pendingBathInstall ?? false,
+			hasWardrobe:
+				(rawState as Partial<GameState>).hasWardrobe ?? false,
+			pendingWardrobeInstall:
+				(rawState as Partial<GameState>).pendingWardrobeInstall ?? false,
+			clothingShopOpeningAnnounced:
+				(rawState as Partial<GameState>).clothingShopOpeningAnnounced ?? false,
 			hasAutoCollector:
 				(rawState as Partial<GameState>).hasAutoCollector ?? false,
 			pendingAutoCollectorInstall:
 				(rawState as Partial<GameState>).pendingAutoCollectorInstall ?? false,
+			hasAutoFeeder:
+				(rawState as Partial<GameState>).hasAutoFeeder ?? false,
+			pendingAutoFeederInstall:
+				(rawState as Partial<GameState>).pendingAutoFeederInstall ?? false,
 			newspaperImage:
 				(rawState as Partial<GameState>).newspaperImage ??
 				generateNewspaperEmojiPicture(rawState.newspaper ?? ""),
@@ -3472,6 +3538,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					Object.values(animalTiles).some(
 						(pos) => pos.x === x && pos.y === y,
 					)) ||
+				(hasAutoCollector &&
+					barnAutoCollectorMap === "farm" &&
+					!!barnAutoCollectorPos &&
+					barnAutoCollectorPos.x === x &&
+					barnAutoCollectorPos.y === y) ||
+				(hasAutoFeeder &&
+					barnAutoFeederMap === "farm" &&
+					!!barnAutoFeederPos &&
+					barnAutoFeederPos.x === x &&
+					barnAutoFeederPos.y === y) ||
 				(!!petTile && petTile.x === x && petTile.y === y) ||
 				(hasTractor &&
 					tractorParked &&
@@ -3484,9 +3560,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				animalsMap === "barn" &&
 				(Object.values(animalTiles).some((pos) => pos.x === x && pos.y === y) ||
 					(hasAutoCollector &&
+						barnAutoCollectorMap === "barn" &&
 						!!barnAutoCollectorPos &&
 						barnAutoCollectorPos.x === x &&
-						barnAutoCollectorPos.y === y))
+						barnAutoCollectorPos.y === y) ||
+					(hasAutoFeeder &&
+						barnAutoFeederMap === "barn" &&
+						!!barnAutoFeederPos &&
+						barnAutoFeederPos.x === x &&
+						barnAutoFeederPos.y === y))
 			);
 		}
 		if (map === "forest") {
@@ -3733,6 +3815,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				canEnterCave,
 				playNotification,
 				toastAreaEntered,
+				handleDoorEntry: (door) => {
+					if (door.target.map !== "clothing_shop" || hasWardrobe) return false;
+					const line = "They arnt open yet...";
+					tileFxBusRef.current.api
+						.at({ map: player.map, x: door.x, y: door.y })
+						.toast(line);
+					speakNpcLine(line);
+					return true;
+				},
 			},
 			dir,
 		);
@@ -3856,23 +3947,37 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 	};
 
-	const interactBuilderVendor = () => {
+	const interactBuilderVendor = (target: Point) => {
 		interactBuilderVendorMenu({
 			barnTier,
 			pendingBarnUpgrade,
+			hasBath,
+			pendingBathInstall,
+			hasWardrobe,
+			pendingWardrobeInstall,
 			hasAutoCollector,
 			pendingAutoCollectorInstall,
+			hasAutoFeeder,
+			pendingAutoFeederInstall,
 			inventory,
 			canAfford,
 			playBad,
 			addLog,
 			speakNpcLine,
+			toastBuilderLine: (line, durationMs = 8000) => {
+				tileFxBusRef.current.api
+					.at({ map: "tool_shop", x: target.x, y: target.y })
+					.toast(line, durationMs);
+			},
 			closeMenu,
 			openMenu,
 			applyMoneyDelta,
 			updateInventory,
 			setPendingBarnUpgrade,
+			setPendingBathInstall,
+			setPendingWardrobeInstall,
 			setPendingAutoCollectorInstall,
+			setPendingAutoFeederInstall,
 		});
 	};
 
@@ -3966,11 +4071,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		occupied: Record<number, { x: number; y: number }>,
 	) => {
 		const rows = activeMapLayouts[animalsMap];
+		const doorBufferDistance = isBarnExternal(barnTier) ? 5 : 0;
 		return countOpenBarnTilesInBounds({
 			occupied,
 			rows,
 			bounds: barnInteriorBounds,
 			isPassableChar,
+			doorBufferDistance,
 		});
 	};
 
@@ -3979,12 +4086,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	) => {
 		const rows = activeMapLayouts[animalsMap];
 		const scanFromBottom = isBarnExternal(barnTier);
+		const doorBufferDistance = isBarnExternal(barnTier) ? 5 : 0;
 		return nextOpenBarnTileInBounds({
 			occupied,
 			rows,
 			bounds: barnInteriorBounds,
 			isPassableChar,
 			scanFromBottom,
+			doorBufferDistance,
 		});
 	};
 
@@ -4056,12 +4165,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			}
 			if (!chosen) {
 				const scanFromBottom = isBarnExternal(barnTier);
+				const doorBufferDistance = isBarnExternal(barnTier) ? 5 : 0;
 				chosen = nextOpenBarnTileInBounds({
 					occupied: nextTiles,
 					rows,
 					bounds: barnInteriorBounds,
 					isPassableChar,
 					scanFromBottom,
+					doorBufferDistance,
 				});
 			}
 			if (!chosen && preferred) chosen = preferred;
@@ -4142,6 +4253,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (kind === "barn_upgraded") return "Your barn was upgraded!";
 		if (kind === "auto_collector_installed")
 			return "The auto milker/shearer/egg collector has been installed in your barn!";
+		if (kind === "auto_feeder_installed")
+			return "The auto feeder has been installed in your barn!";
 		return "Your tractor was delivered!";
 	};
 
@@ -4156,6 +4269,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			};
 		}
 		if (kind === "auto_collector_installed") {
+			const barnRect = getFarmBarnOuterRect(barnTier);
+			return {
+				x: Math.floor(barnRect.x + barnRect.w / 2),
+				y: Math.floor(barnRect.y + barnRect.h / 2),
+			};
+		}
+		if (kind === "auto_feeder_installed") {
 			const barnRect = getFarmBarnOuterRect(barnTier);
 			return {
 				x: Math.floor(barnRect.x + barnRect.w / 2),
@@ -4273,10 +4393,22 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			BARN_TIER_NAMES,
 			setBarnTier,
 			setPendingBarnUpgrade,
+			hasBath,
+			pendingBathInstall,
+			setHasBath,
+			setPendingBathInstall,
+			hasWardrobe,
+			pendingWardrobeInstall,
+			setHasWardrobe,
+			setPendingWardrobeInstall,
 			hasAutoCollector,
 			pendingAutoCollectorInstall,
 			setHasAutoCollector,
 			setPendingAutoCollectorInstall,
+			hasAutoFeeder,
+			pendingAutoFeederInstall,
+			setHasAutoFeeder,
+			setPendingAutoFeederInstall,
 			isBarnExternal,
 			buildBarnLayout,
 			getBarnAnimalCap,
@@ -4448,6 +4580,79 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		modal,
 		isSaveLoadMenuOpen,
 		barnTier,
+	]);
+
+	useEffect(() => {
+		if (!hasWardrobe) return;
+		if (clothingShopOpeningAnnounced) return;
+		if (player.map !== "town") return;
+		if (dayTransition || modal || isSaveLoadMenuOpen) return;
+		if (directorRunningRef.current) return;
+		const clothingDoor = mapDoors.town.find(
+			(door) => door.target.map === "clothing_shop",
+		);
+		if (!clothingDoor) return;
+
+		directorRunningRef.current = true;
+		let cancelled = false;
+		void (async () => {
+			setPauseGame(true);
+			setDirectorInputLocked(true);
+			setCloudOverlayVisible(false);
+			setMapZoom(clampDirectorZoom(DIRECTOR_DEFAULT_FOCUS_ZOOM));
+			setCameraTarget({
+				map: "town",
+				x: clothingDoor.x,
+				y: clothingDoor.y,
+				smooth: true,
+				durationMs: DIRECTOR_NAV_DURATION_MS,
+			});
+			await waitDirector(DIRECTOR_NAV_DURATION_MS);
+			if (cancelled) return;
+			await awaitDirectorPopupConfirm("A new store is open now!");
+			if (cancelled) return;
+			const playerNow = playerRef.current;
+			setMapZoom(DEFAULT_MAP_ZOOM);
+			setCameraTarget({
+				map: playerNow.map,
+				x: playerNow.x,
+				y: playerNow.y,
+				smooth: true,
+				durationMs: DIRECTOR_RETURN_DURATION_MS,
+			});
+			await waitDirector(DIRECTOR_RETURN_DURATION_MS);
+			if (cancelled) return;
+			await waitDirector(DIRECTOR_RETURN_SETTLE_MS);
+			if (cancelled) return;
+			setCameraTarget(null);
+			setDirectorPopup(null);
+			setDirectorInputLocked(false);
+			setCloudOverlayVisible(true);
+			setPauseGame(false);
+			setClothingShopOpeningAnnounced(true);
+			directorRunningRef.current = false;
+		})().catch(() => {
+			setDirectorPopup(null);
+			setDirectorInputLocked(false);
+			setCloudOverlayVisible(true);
+			setCameraTarget(null);
+			setMapZoom(DEFAULT_MAP_ZOOM);
+			setPauseGame(false);
+			directorRunningRef.current = false;
+		});
+
+		return () => {
+			cancelled = true;
+			setCloudOverlayVisible(true);
+		};
+	}, [
+		hasWardrobe,
+		clothingShopOpeningAnnounced,
+		player.map,
+		dayTransition,
+		modal,
+		isSaveLoadMenuOpen,
+		mapDoors,
 	]);
 
 	const stopBathing = (line?: string) => {
@@ -4701,6 +4906,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			playBath,
 			setIsBathing,
 			clothingShopItems,
+			hasWardrobe,
 			ownedWardrobeLooks,
 			starterWardrobeLooks,
 			purchasableFunnyLooks,
@@ -4709,6 +4915,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			setFarmEggDrops,
 			hasAutoCollector,
 			barnAutoCollectorPos,
+			barnAutoCollectorMap,
+			hasAutoFeeder,
+			barnAutoFeederPos,
+			barnAutoFeederMap,
 			isCowLikeAnimal,
 			rollLivestockYield,
 			setAnimals,
@@ -5203,6 +5413,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			TRACTOR_PARK_POS,
 			hasAutoCollector,
 			barnAutoCollectorPos,
+			barnAutoCollectorMap,
+			hasAutoFeeder,
+			barnAutoFeederPos,
+			barnAutoFeederMap,
 			forestObstacles,
 			forestChest,
 			forestBonusChests,
@@ -5251,6 +5465,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		tractorParked,
 		hasAutoCollector,
 		barnAutoCollectorPos,
+		barnAutoCollectorMap,
+		hasAutoFeeder,
+		barnAutoFeederPos,
+		barnAutoFeederMap,
 		shopDecorByMap,
 		cafeShopkeeperX,
 		isOrdering,
@@ -5382,6 +5600,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		onMobileInteractJoystickTouchStart,
 		onMobileInteractJoystickTouchMove,
 		onMobileInteractJoystickTouchEnd,
+		canZoomOut: mapZoom > MANUAL_ZOOM_MIN + 0.001,
+		canZoomIn: mapZoom < MANUAL_ZOOM_MAX - 0.001,
+		zoomOut,
+		zoomIn,
 		directorPopup,
 		confirmDirectorPopup,
 		tileFx: tileFxBusRef.current.api,

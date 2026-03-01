@@ -61,6 +61,7 @@ type PlayerMovementContext = {
 	canEnterCave: () => boolean;
 	playNotification: () => void;
 	toastAreaEntered?: (target: { map: MapId; x: number; y: number }) => void;
+	handleDoorEntry?: (door: Door) => boolean;
 };
 
 export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
@@ -116,6 +117,7 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 		canEnterCave,
 		playNotification,
 		toastAreaEntered,
+		handleDoorEntry,
 	} = ctx;
 
 	if (modal || isOrdering || isDoctorCompounding) return;
@@ -255,6 +257,7 @@ export const runMovePlayer = (ctx: PlayerMovementContext, dir: Dir): void => {
 
 	const door = mapDoors[player.map].find((d) => d.x === moveX && d.y === moveY);
 	if (door) {
+		if (handleDoorEntry?.(door)) return;
 		if (door.target.map === "forest" && forestLockedToday) {
 			playBad();
 			addLog("You are too scared to go back in the forest today.");

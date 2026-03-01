@@ -1,7 +1,12 @@
-﻿:root {
+:root {
 	font-family: "Consolas", "Cascadia Mono", monospace;
-	color: #1f1812;
-	background: #e9dfc9;
+	color: #fff;
+	background: #181818;
+	--app-bg: #181818;
+	--app-fg: #fff;
+	--app-surface: #202020;
+	--app-surface-alt: #252525;
+	--app-border: #3a3a3a;
 	--ui-edge-pad: 8px;
 }
 
@@ -19,7 +24,8 @@ body,
 }
 
 body {
-	background: linear-gradient(180deg, #f3ead7 0%, #d8c69c 100%);
+	background: var(--app-bg);
+	color: var(--app-fg);
 }
 
 .title-screen {
@@ -84,10 +90,14 @@ body {
 	max-width: 100%;
 	margin: 0;
 	overflow: hidden;
+	background: var(--app-bg);
+	color: var(--app-fg);
 }
 
 .game-shell.mobile-controls-enabled {
-	padding-bottom: calc(var(--mobile-controls-height, 180px) + var(--ui-edge-pad));
+	padding-bottom: calc(
+		var(--mobile-controls-height, 180px) + var(--ui-edge-pad)
+	);
 }
 
 .save-load-menu-button {
@@ -96,8 +106,9 @@ body {
 	align-items: center;
 	justify-content: center;
 	padding: 0 10px;
-	border: 1px solid #5f4f2b;
-	background: #efe6d5;
+	border: 1px solid var(--app-border);
+	background: var(--app-surface-alt);
+	color: var(--app-fg);
 	font-size: 20px;
 	line-height: 1;
 	cursor: pointer;
@@ -117,8 +128,9 @@ body {
 
 .save-load-panel {
 	width: min(280px, calc(100vw - 16px));
-	border: 2px solid #5f4f2b;
-	background: #f7f0df;
+	border: 2px solid var(--app-border);
+	background: var(--app-surface);
+	color: var(--app-fg);
 	padding: 8px;
 	display: flex;
 	flex-direction: column;
@@ -126,8 +138,9 @@ body {
 }
 
 .save-load-action {
-	border: 1px solid #5f4f2b;
-	background: #efe6d5;
+	border: 1px solid var(--app-border);
+	background: var(--app-surface-alt);
+	color: var(--app-fg);
 	padding: 6px 8px;
 	text-align: left;
 	cursor: pointer;
@@ -143,8 +156,9 @@ body {
 	flex-wrap: wrap;
 	gap: 10px;
 	justify-content: space-between;
-	border: 2px solid #5f4f2b;
-	background: #f7f0df;
+	border: 2px solid var(--app-border);
+	background: var(--app-surface);
+	color: var(--app-fg);
 	padding: 6px;
 }
 
@@ -158,8 +172,9 @@ body {
 .stamina-bar {
 	width: 120px;
 	height: 12px;
-	border: 1px solid #5f4f2b;
-	background: #efe6d5;
+	border: 1px solid var(--app-border);
+	background: var(--app-surface-alt);
+	color: var(--app-fg);
 	overflow: hidden;
 }
 
@@ -181,7 +196,7 @@ body {
 
 .map {
 	border: 3px solid #5f4f2b;
-	background: #d8edc2;
+	background: #000;
 	color: #271d14;
 	padding: 6px;
 	line-height: 1;
@@ -271,19 +286,19 @@ body {
 }
 
 .grass-wind-overlay {
-  position: absolute;
-  left: 6px;
-  top: 6px;
-  z-index: 5;
-  pointer-events: none;
+	position: absolute;
+	left: 6px;
+	top: 6px;
+	z-index: 5;
+	pointer-events: none;
 }
 
 .fog-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  pointer-events: none;
-  line-height: 1;
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	pointer-events: none;
+	line-height: 1;
 }
 
 .entity-overlay {
@@ -300,7 +315,7 @@ body {
 }
 
 .fog-tile {
-  background: #000;
+	background: #000;
 }
 
 .grass-wind-tile {
@@ -409,6 +424,9 @@ body {
 	font-size: 0.42em;
 	line-height: 1;
 	color: #fff;
+	background: rgba(0, 0, 0, 0.3);
+	border-radius: 0.16em;
+	padding: 0 0.18em;
 	text-shadow: 0 0 2px rgba(0, 0, 0, 0.85);
 }
 
@@ -652,8 +670,9 @@ body {
 .tools,
 .newspaper,
 .controls {
-	border: 2px solid #5f4f2b;
-	background: #f7f0df;
+	border: 2px solid var(--app-border);
+	background: var(--app-surface);
+	color: var(--app-fg);
 	padding: 6px;
 }
 
@@ -769,6 +788,7 @@ body {
 	width: 100%;
 	max-width: 100%;
 	overflow: hidden;
+	position: relative;
 }
 
 .gameplay-main > * {
@@ -851,13 +871,13 @@ li {
 }
 
 .modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: grid;
-  place-items: center;
-  padding: 8px;
-  z-index: 120;
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	display: grid;
+	place-items: center;
+	padding: 8px;
+	z-index: 120;
 }
 
 .day-transition-backdrop {
@@ -894,7 +914,7 @@ li {
 
 .order-wait-banner {
 	width: 100vw;
-	background: rgba(255, 255, 255, 0.92);
+	background: #181818;
 	padding: 12px 16px;
 	display: flex;
 	justify-content: center;
@@ -903,8 +923,8 @@ li {
 .order-wait-text {
 	font-size: clamp(34px, 6vw, 72px);
 	font-weight: 800;
-	color: #111;
-	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+	color: #fff;
+	text-shadow: none;
 }
 
 .order-wait-content {
@@ -919,14 +939,15 @@ li {
 .order-wait-subtext {
 	font-size: clamp(14px, 1.6vw, 22px);
 	font-weight: 600;
-	color: #111;
-	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+	color: #fff;
+	text-shadow: none;
 }
 
 .day-transition-card {
 	width: min(520px, 92vw);
-	border: 3px solid #433317;
-	background: #f9f2e1;
+	border: 3px solid #1f1f1f;
+	background: #181818;
+	color: #fff;
 	padding: 22px 42px;
 	min-height: 260px;
 	text-align: center;
@@ -959,8 +980,8 @@ li {
 }
 
 .option.day-ok-button {
-	background: #333;
-	border: 1px solid #333;
+	background: #1f1f1f;
+	border: 1px solid #1f1f1f;
 	color: #fff;
 	font-weight: 700;
 	font-size: 1.08rem;
@@ -969,8 +990,8 @@ li {
 }
 
 .option.active.day-ok-button {
-	background: #333;
-	border-color: #333;
+	background: #1f1f1f;
+	border-color: #fff;
 }
 
 .day-ok-wrap {
@@ -989,8 +1010,9 @@ li {
 .director-popup {
 	pointer-events: auto;
 	width: min(420px, 88vw);
-	border: 2px solid #433317;
-	background: #f9f2e1;
+	border: 2px solid #1f1f1f;
+	background: #181818;
+	color: #fff;
 	padding: 14px;
 	display: flex;
 	flex-direction: column;
@@ -1016,8 +1038,9 @@ li {
 .newspaper-popup {
 	width: min(760px, 95vw);
 	max-height: 80vh;
-	border: 3px solid #433317;
-	background: #f9f2e1;
+	border: 3px solid #1f1f1f;
+	background: #181818;
+	color: #fff;
 	padding: 12px;
 	display: flex;
 	flex-direction: column;
@@ -1064,7 +1087,7 @@ li {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 4px;
-	background: #fff;
+	background: #1f1f1f;
 	padding: 6px;
 }
 
@@ -1092,6 +1115,7 @@ li {
 
 .newspaper-popup-button {
 	padding: 8px 28px;
+	color: #fff;
 }
 
 @keyframes day-pop {
@@ -1107,8 +1131,9 @@ li {
 
 .modal {
 	width: min(820px, 95vw);
-	border: 3px solid #433317;
-	background: #f9f2e1;
+	border: 3px solid #1f1f1f;
+	background: #181818;
+	color: #fff;
 	padding: 10px;
 }
 
@@ -1141,8 +1166,9 @@ li {
 
 .modal-info {
 	margin-top: 8px;
-	border: 1px solid #5f4f2b;
-	background: #efe3cc;
+	border: 1px solid #1f1f1f;
+	background: #1f1f1f;
+	color: #fff;
 	padding: 8px;
 	height: 100%;
 	display: flex;
@@ -1197,7 +1223,9 @@ li {
 .quantity-touch-button {
 	margin-top: 0;
 	min-height: 34px;
-	background: #f7f0df;
+	background: #1f1f1f;
+	color: #fff;
+	border: 1px solid #1f1f1f;
 	cursor: pointer;
 }
 
@@ -1205,6 +1233,7 @@ li {
 	width: 100%;
 	text-align: left;
 	background: transparent;
+	color: #fff;
 	cursor: pointer;
 }
 
@@ -1217,11 +1246,12 @@ li {
 	padding: 4px;
 	margin-top: 3px;
 	border: 1px solid transparent;
+	color: #fff;
 }
 
 .option.active {
-	border-color: #3f6e17;
-	background: #dfefc7;
+	border-color: #fff;
+	background: #1f1f1f;
 }
 
 .wardrobe-option-label {
@@ -1245,6 +1275,61 @@ li {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	pointer-events: none;
+}
+
+.mobile-zoom-overlay {
+	position: absolute;
+	top: 6px;
+	left: 0;
+	right: 0;
+	z-index: 1005;
+	pointer-events: none;
+}
+
+.mobile-zoom-button {
+	position: absolute;
+	top: 0;
+	border: none;
+	background: transparent;
+	padding: 0;
+	margin: 0;
+	cursor: pointer;
+	pointer-events: auto;
+	opacity: 0.5;
+}
+
+.mobile-zoom-button-out {
+	left: 25px;
+	top: 25px;
+}
+
+.mobile-zoom-button-in {
+	right: 25px;
+	top: 25px;
+}
+
+.mobile-zoom-icon {
+	position: relative;
+	width: 1.8em;
+	height: 1.8em;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+}
+
+.mobile-zoom-base {
+	font-size: 2.2rem;
+	line-height: 1;
+}
+
+.mobile-zoom-mark {
+	position: absolute;
+	font-size: 1.25rem;
+	padding-bottom: 0.5em;
+	padding-left: 0.4em;
+	font-weight: 800;
+	line-height: 1;
 }
 
 .mobile-joystick-zone,

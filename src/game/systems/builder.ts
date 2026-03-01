@@ -6,45 +6,72 @@ import { GLYPH } from "../config/glyphs";
 export const interactBuilderVendorMenu = (ctx: {
 	barnTier: BarnTier;
 	pendingBarnUpgrade: boolean;
+	hasBath: boolean;
+	pendingBathInstall: boolean;
+	hasWardrobe: boolean;
+	pendingWardrobeInstall: boolean;
 	hasAutoCollector: boolean;
 	pendingAutoCollectorInstall: boolean;
+	hasAutoFeeder: boolean;
+	pendingAutoFeederInstall: boolean;
 	inventory: Inventory;
 	canAfford: (value: number) => boolean;
 	playBad: () => void;
 	addLog: (line: string) => void;
 	speakNpcLine: (line: string) => void;
+	toastBuilderLine: (line: string, durationMs?: number) => void;
 	closeMenu: () => void;
 	openMenu: (title: string, body: string[], options: Array<{ label: string; onSelect: () => void; info?: string[] }>) => void;
 	applyMoneyDelta: (delta: number) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	setPendingBarnUpgrade: (value: boolean) => void;
+	setPendingBathInstall: (value: boolean) => void;
+	setPendingWardrobeInstall: (value: boolean) => void;
 	setPendingAutoCollectorInstall: (value: boolean) => void;
+	setPendingAutoFeederInstall: (value: boolean) => void;
 }): void => {
 	const {
 		barnTier,
 		pendingBarnUpgrade,
+		hasBath,
+		pendingBathInstall,
+		hasWardrobe,
+		pendingWardrobeInstall,
 		hasAutoCollector,
 		pendingAutoCollectorInstall,
+		hasAutoFeeder,
+		pendingAutoFeederInstall,
 		inventory,
 		canAfford,
 		playBad,
 		addLog,
 		speakNpcLine,
+		toastBuilderLine,
 		closeMenu,
 		openMenu,
 		applyMoneyDelta,
 		updateInventory,
 		setPendingBarnUpgrade,
+		setPendingBathInstall,
+		setPendingWardrobeInstall,
 		setPendingAutoCollectorInstall,
+		setPendingAutoFeederInstall,
 	} = ctx;
 
 	if (pendingBarnUpgrade) {
 		const line = "I will build your barn tonight. Check on it tomorrow morning.";
 		speakNpcLine(line);
-		addLog(line);
+		toastBuilderLine(line, 8000);
 		return;
 	}
-	if (pendingAutoCollectorInstall) {
+	if (pendingBathInstall || pendingWardrobeInstall) {
+		const line =
+			"I will get that installed tonight. It will be ready in the morning. I hope I dont keep you awake.";
+		speakNpcLine(line);
+		toastBuilderLine(line, 8000);
+		return;
+	}
+	if (pendingAutoCollectorInstall || pendingAutoFeederInstall) {
 		const line = "ill install this tomorrow";
 		speakNpcLine(line);
 		addLog(line);
@@ -139,7 +166,7 @@ export const interactBuilderVendorMenu = (ctx: {
 							const line =
 								"I will build your barn tonight. Check on it tomorrow morning.";
 							speakNpcLine(line);
-							addLog(line);
+							toastBuilderLine(line, 8000);
 						};
 						if (isBarnExternal(nextTier)) {
 							finalizeBarnUpgradePurchase();
@@ -166,46 +193,115 @@ export const interactBuilderVendorMenu = (ctx: {
 	};
 
 	const autoCollectorCost = 3000;
+	const autoFeederCost = autoCollectorCost;
+	const bathCost = 500;
+	const wardrobeCost = 500;
 	openMenu(
 		"Constrution",
 		["What do you need built?"],
 		[
-			{
-				label: "Barn Upgrade",
-				info:
-					barnTier >= BARN_MAX_TIER
-						? ["Your barn is already at max tier."]
-						: [
+			...(barnTier >= BARN_MAX_TIER
+				? []
+				: [
+						{
+							label: "Barn Upgrade",
+							info: [
 								`Next: ${getToolTierName(nextTier)} for ${costParts.join(" + ")}`,
 								`Capacity: ${nextCapacity}`,
 							],
-				onSelect: openBarnUpgradePrompt,
-			},
-			{
-				label: "Auto Milker/Shearer/Egg Collector",
-				info: [`${GLYPH.satelliteAntenna} $${autoCollectorCost}`, "Installs tomorrow."],
-				onSelect: () => {
-					if (hasAutoCollector) {
-						const line = "That auto collector is already installed.";
-						speakNpcLine(line);
-						addLog(line);
-						closeMenu();
-						return;
-					}
-					if (!canAfford(autoCollectorCost)) {
-						playBad();
-						addLog("Not enough money for that build.");
-						closeMenu();
-						return;
-					}
-					applyMoneyDelta(-autoCollectorCost);
-					setPendingAutoCollectorInstall(true);
-					closeMenu();
-					const line = "ill install this tomorrow";
-					speakNpcLine(line);
-					addLog(line);
-				},
-			},
+							onSelect: openBarnUpgradePrompt,
+						},
+					]),
+			...(hasAutoCollector
+				? []
+				: [
+						{
+							label: "Auto Milker/Shearer/Egg Collector",
+							info: [`${GLYPH.satelliteAntenna} $${autoCollectorCost}`, "Installs tomorrow."],
+							onSelect: () => {
+								if (!canAfford(autoCollectorCost)) {
+									playBad();
+									addLog("Not enough money for that build.");
+									closeMenu();
+									return;
+								}
+								applyMoneyDelta(-autoCollectorCost);
+								setPendingAutoCollectorInstall(true);
+								closeMenu();
+								const line = "ill install this tomorrow";
+								speakNpcLine(line);
+								addLog(line);
+							},
+						},
+					]),
+			...(hasBath
+				? []
+				: [
+						{
+							label: "House Bath",
+							info: [`${GLYPH.bath} $${bathCost}`, "Installs tomorrow."],
+							onSelect: () => {
+								if (!canAfford(bathCost)) {
+									playBad();
+									addLog("Not enough money for that build.");
+									closeMenu();
+									return;
+								}
+								applyMoneyDelta(-bathCost);
+								setPendingBathInstall(true);
+								closeMenu();
+								const line =
+									"I will get that installed tonight. It will be ready in the morning. I hope I dont keep you awake.";
+								speakNpcLine(line);
+								toastBuilderLine(line, 8000);
+							},
+						},
+					]),
+			...(hasWardrobe
+				? []
+				: [
+						{
+							label: "House Wardrobe",
+							info: [`${GLYPH.tshirt} $${wardrobeCost}`, "Installs tomorrow."],
+							onSelect: () => {
+								if (!canAfford(wardrobeCost)) {
+									playBad();
+									addLog("Not enough money for that build.");
+									closeMenu();
+									return;
+								}
+								applyMoneyDelta(-wardrobeCost);
+								setPendingWardrobeInstall(true);
+								closeMenu();
+								const line =
+									"I will get that installed tonight. It will be ready in the morning. I hope I dont keep you awake.";
+								speakNpcLine(line);
+								toastBuilderLine(line, 8000);
+							},
+						},
+					]),
+			...(hasAutoFeeder
+				? []
+				: [
+						{
+							label: "Auto Animal Feeder",
+							info: [`${GLYPH.plateWithCutlery} $${autoFeederCost}`, "Installs tomorrow."],
+							onSelect: () => {
+								if (!canAfford(autoFeederCost)) {
+									playBad();
+									addLog("Not enough money for that build.");
+									closeMenu();
+									return;
+								}
+								applyMoneyDelta(-autoFeederCost);
+								setPendingAutoFeederInstall(true);
+								closeMenu();
+								const line = "ill install this tomorrow";
+								speakNpcLine(line);
+								addLog(line);
+							},
+						},
+					]),
 			{ label: "Back", onSelect: closeMenu },
 		],
 	);
