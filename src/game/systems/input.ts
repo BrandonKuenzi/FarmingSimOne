@@ -1,4 +1,4 @@
-import type { Dispatch, KeyboardEvent, MutableRefObject, SetStateAction } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type {
 	AnimalType,
 	DayTransitionState,
@@ -11,6 +11,11 @@ import type {
 	QuantityPromptState,
 	TractorImplement,
 } from "../shared/types";
+import type {
+	GameInputCommand,
+	GameInputMeta,
+	InputCommandResult,
+} from "./inputContracts";
 
 export const moveModalCursor = (
 	modal: ModalState | null,
@@ -123,11 +128,20 @@ export type GameKeyDownContext = {
 	closeNewspaperPopup: () => void;
 };
 
-export const handleGameKeyDown = (
+export const handleGameInputCommand = (
 	ctx: GameKeyDownContext,
-	e: KeyboardEvent<HTMLDivElement>,
-): void => {
-	const key = e.key.toLowerCase();
+	command: GameInputCommand,
+	meta: GameInputMeta,
+): InputCommandResult => {
+	const key = meta.sourceKey.toLowerCase();
+	const consume = (): InputCommandResult => ({
+		handled: true,
+		preventDefault: true,
+	});
+	const passthrough = (): InputCommandResult => ({
+		handled: false,
+		preventDefault: false,
+	});
 	const isDirectionalKey =
 		key === "w" ||
 		key === "a" ||
@@ -140,27 +154,23 @@ export const handleGameKeyDown = (
 	const isQuantityRepeatKey =
 		key === "a" || key === "d" || key === "arrowleft" || key === "arrowright";
 	const allowQuantityRepeat = !!ctx.modal && !!ctx.quantityPrompt && isQuantityRepeatKey;
-	if (e.repeat && isDirectionalKey && !allowQuantityRepeat) {
-		e.preventDefault();
-		return;
+	if (meta.repeat && isDirectionalKey && !allowQuantityRepeat) {
+		return consume();
 	}
-	if (e.repeat && (key === " " || key === "enter") && !!ctx.modal) {
-		e.preventDefault();
-		return;
+	if (meta.repeat && command === "OK" && !!ctx.modal) {
+		return consume();
 	}
 
-	if (key === "p") {
-		e.preventDefault();
+	if (command === "DEBUG_GRANT_RESOURCES") {
 		ctx.applyMoneyDelta(10000);
 		ctx.updateInventory("iron", 100);
 		ctx.updateInventory("ruby", 10);
 		ctx.updateInventory("diamond", 10);
 		ctx.updateInventory("emerald", 10);
-		return;
+		return consume();
 	}
 
-	if (key === "o") {
-		e.preventDefault();
+	if (command === "DEBUG_SPAWN_BARN_ANIMALS") {
 		const animalsToSpawn: AnimalType[] = ["cow", "chicken", "sheep"];
 		let spawned = 0;
 		animalsToSpawn.forEach((type) => {
@@ -173,89 +183,80 @@ export const handleGameKeyDown = (
 		} else {
 			ctx.addLog("Debug barn boost failed: no room in the barn.");
 		}
-		return;
+		return consume();
 	}
 
-	if (key === "q") {
-		e.preventDefault();
+	if (command === "ZOOM_OUT") {
 		ctx.zoomOut();
-		return;
+		return consume();
 	}
 
-	if (key === "e") {
-		e.preventDefault();
+	if (command === "ZOOM_IN") {
 		ctx.zoomIn();
-		return;
+		return consume();
 	}
 
-	if (ctx.directorDialogOpen && (key === " " || key === "enter")) {
-		e.preventDefault();
+	if (ctx.directorDialogOpen && command === "OK") {
 		ctx.confirmDirectorDialog();
-		return;
+		return consume();
 	}
 
 	if (ctx.isNewspaperOpen) {
-		e.preventDefault();
-		if (key === " " || key === "enter" || key === "escape") {
+		if (command === "OK" || command === "CANCEL") {
 			ctx.closeNewspaperPopup();
 		}
-		return;
+		return consume();
 	}
 
 	if (ctx.inputLocked) {
-		e.preventDefault();
-		return;
+		return consume();
 	}
 
-	if (ctx.isDrivingTractor && key === " ") {
-		e.preventDefault();
+	if (ctx.isDrivingTractor && command === "OK") {
 		const nextOn = !ctx.tractorImplementOn;
 		if (nextOn && ctx.tractorImplement === "sow") {
 			if (!ctx.tractorSeedItem || ctx.inventory[ctx.tractorSeedItem] <= 0) {
 				ctx.setTractorImplementOn(false);
 				ctx.playBad();
 				ctx.addLog("Out of seeds");
-				return;
+				return consume();
 			}
 		}
 		ctx.setTractorImplementOn(nextOn);
 		if (nextOn) {
 			ctx.applyTractorImplementAt(ctx.player.x, ctx.player.y, true);
 		}
-		return;
+		return consume();
 	}
 
 	if (ctx.isBathing) {
-		e.preventDefault();
 		ctx.stopBathing("You step out of the bath.");
-		return;
+		return consume();
 	}
 
 	if (
 		ctx.dayTransition &&
 		ctx.dayTransitionStage === "final" &&
 		ctx.dayTransitionClosePhase === "idle" &&
+		command === "OK" &&
 		key === " "
 	) {
-		e.preventDefault();
 		ctx.continueAfterSleep();
-		return;
+		return consume();
 	}
 
 	if (ctx.isOrdering || ctx.isDoctorCompounding) {
-		e.preventDefault();
-		return;
+		return consume();
 	}
 
 	if (ctx.fishing) {
-		e.preventDefault();
 		if (ctx.fishing.phase === "waiting") {
 			ctx.playBad();
 			ctx.endFishing();
-			return;
+			return consume();
 		}
-		if (ctx.fishing.phase !== "bite") return;
-		if (key.length !== 1) return;
+		if (ctx.fishing.phase !== "bite") return consume();
+		if (key.length !== 1) return consume();
 		if (key === ctx.fishing.requiredKey) {
 			ctx.clearFishingTimers();
 			ctx.setFishing((prev) => (prev ? { ...prev, phase: "success" } : prev));
@@ -264,11 +265,11 @@ export const handleGameKeyDown = (
 			ctx.fishingResolveTimeoutRef.current = window.setTimeout(() => {
 				ctx.endFishing();
 			}, 2000);
-			return;
+			return consume();
 		}
 		ctx.playBad();
 		ctx.endFishing();
-		return;
+		return consume();
 	}
 
 	if (!ctx.dayTransition && !ctx.modal) {
@@ -278,78 +279,70 @@ export const handleGameKeyDown = (
 		}
 	}
 
-	if (key === "w") {
-		e.preventDefault();
+	if (command === "MOVE_UP") {
 		if (ctx.modal && ctx.quantityPrompt) ctx.setQuantityToMax();
 		else if (ctx.modal) ctx.moveModal("up");
 		else ctx.movePlayer("up");
-		return;
+		return consume();
 	}
-	if (key === "s") {
-		e.preventDefault();
+	if (command === "MOVE_DOWN") {
 		if (ctx.modal && ctx.quantityPrompt) ctx.setQuantityToMin();
 		else if (ctx.modal) ctx.moveModal("down");
 		else ctx.movePlayer("down");
-		return;
+		return consume();
 	}
-	if (key === "a") {
-		e.preventDefault();
+	if (command === "MOVE_LEFT") {
 		if (ctx.modal && ctx.quantityPrompt) ctx.moveQuantity(-1);
 		else if (!ctx.modal) ctx.movePlayer("left");
-		return;
+		return consume();
 	}
 
-	if (key === "escape" && ctx.modal && ctx.quantityPrompt) {
-		e.preventDefault();
+	if (command === "CANCEL" && ctx.modal && ctx.quantityPrompt) {
 		ctx.cancelQuantityPrompt();
-		return;
+		return consume();
 	}
 	if (
-		key === "escape" &&
+		command === "CANCEL" &&
 		ctx.modal &&
 		!ctx.quantityPrompt &&
 		ctx.vendorMenuTitles.has(ctx.modal.title)
 	) {
-		e.preventDefault();
 		ctx.closeMenu();
-		return;
+		return consume();
 	}
-	if (key === "d") {
-		e.preventDefault();
+	if (command === "MOVE_RIGHT") {
 		if (ctx.modal && ctx.quantityPrompt) ctx.moveQuantity(1);
 		else if (!ctx.modal) ctx.movePlayer("right");
-		return;
+		return consume();
 	}
 
-	if (key === "arrowup") {
-		e.preventDefault();
+	if (command === "INTERACT_UP") {
 		if (ctx.modal && ctx.quantityPrompt) ctx.moveQuantity(1);
 		else if (ctx.modal) ctx.moveModal("up");
 		else if (!ctx.modal) ctx.interact("up");
-		return;
+		return consume();
 	}
-	if (key === "arrowdown") {
-		e.preventDefault();
+	if (command === "INTERACT_DOWN") {
 		if (ctx.modal && ctx.quantityPrompt) ctx.moveQuantity(-1);
 		else if (ctx.modal) ctx.moveModal("down");
 		else if (!ctx.modal) ctx.interact("down");
-		return;
+		return consume();
 	}
-	if (key === "arrowleft") {
-		e.preventDefault();
+	if (command === "INTERACT_LEFT") {
 		if (ctx.modal && ctx.quantityPrompt) ctx.moveQuantity(-1);
 		else if (!ctx.modal) ctx.interact("left");
-		return;
+		return consume();
 	}
-	if (key === "arrowright") {
-		e.preventDefault();
+	if (command === "INTERACT_RIGHT") {
 		if (ctx.modal && ctx.quantityPrompt) ctx.moveQuantity(1);
 		else if (!ctx.modal) ctx.interact("right");
-		return;
+		return consume();
 	}
 
-	if (key === " " || key === "enter") {
-		e.preventDefault();
+	if (command === "OK") {
 		if (ctx.modal) ctx.selectModal();
+		return consume();
 	}
+
+	return passthrough();
 };

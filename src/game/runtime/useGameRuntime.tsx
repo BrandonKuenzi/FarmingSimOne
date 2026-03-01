@@ -241,6 +241,7 @@ import {
 } from "./engine/rewardEngine";
 import { buildGameRuntimeViewModel } from "./engine/viewModelBuilder";
 import { useInputRouter } from "./useInputRouter";
+import { PC_KEYBOARD_PRESET } from "../systems/inputCommands";
 import { useWorldSimulation } from "./worldSimulation";
 import {
 	STAMINA_MAX,
@@ -876,6 +877,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const heldMoveDirRef = useRef<Dir | null>(null);
 	const heldMoveKeyRef = useRef<string | null>(null);
 	const heldMoveTimerRef = useRef<number | null>(null);
+	const dispatchHeldMoveCommandRef = useRef<(dir: Dir) => void>(() => {});
 	const tileFxBusRef = useRef(createTileFxBus());
 	const prevPlayerBobbleRef = useRef(player);
 	const prevTownNpcBobbleRef = useRef(townNpcTiles);
@@ -3610,9 +3612,6 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			playerMoveUnlockAtRef.current = now + POSITION_ANIMATION_MS;
 		}
 	};
-	const movePlayerRef = useRef(movePlayer);
-	movePlayerRef.current = movePlayer;
-
 	const clearHeldMove = () => {
 		heldMoveDirRef.current = null;
 		heldMoveKeyRef.current = null;
@@ -3628,7 +3627,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			heldMoveTimerRef.current = null;
 			const dir = heldMoveDirRef.current;
 			if (!dir) return;
-			movePlayerRef.current(dir);
+			dispatchHeldMoveCommandRef.current(dir);
 			heldMoveTimerRef.current = window.setTimeout(tick, POSITION_ANIMATION_MS);
 		};
 		heldMoveTimerRef.current = window.setTimeout(tick, POSITION_ANIMATION_MS);
@@ -4731,19 +4730,28 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		isNewspaperOpen: isNewspaperPopupOpen,
 		closeNewspaperPopup,
 	};
-	const onKeyDown = useInputRouter(inputContext);
-	const keyToHeldDirection = (key: string): Dir | null => {
-		if (key === "w") return "up";
-		if (key === "s") return "down";
-		if (key === "a") return "left";
-		if (key === "d") return "right";
-		return null;
+	const inputRouter = useInputRouter(inputContext, PC_KEYBOARD_PRESET);
+	const onKeyDown = inputRouter.onKeyDown;
+	dispatchHeldMoveCommandRef.current = (dir: Dir) => {
+		if (dir === "up") {
+			inputRouter.dispatchCommand("MOVE_UP", { sourceKey: "__held_move__" });
+			return;
+		}
+		if (dir === "down") {
+			inputRouter.dispatchCommand("MOVE_DOWN", { sourceKey: "__held_move__" });
+			return;
+		}
+		if (dir === "left") {
+			inputRouter.dispatchCommand("MOVE_LEFT", { sourceKey: "__held_move__" });
+			return;
+		}
+		inputRouter.dispatchCommand("MOVE_RIGHT", { sourceKey: "__held_move__" });
 	};
 	const onKeyDownWithHold = (e: KeyboardEvent<HTMLDivElement>) => {
 		onKeyDown(e);
 		const key = e.key.toLowerCase();
 		if (e.repeat) return;
-		const dir = keyToHeldDirection(key);
+		const dir = inputRouter.resolveHeldMoveDirectionForKey(key);
 		if (!dir) return;
 		if (
 			modal ||
