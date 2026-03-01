@@ -3,6 +3,7 @@ import type { PetEmoji } from "../../shared/types";
 import { GLYPH } from "../../config/glyphs";
 import {
 	fadeOutAndStopSound,
+	initializeSharedAudioGraph,
 	playOneShot,
 	startLoopSound,
 	stopAndResetSound,
@@ -163,6 +164,38 @@ export const initializeAudioEngine = ({
 	refs.cafeOrderMusicRef.current = new Audio(sources.cafeOrderMusicSrc);
 	refs.cafeOrderMusicRef.current.preload = "auto";
 	refs.cafeOrderMusicRef.current.loop = true;
+	initializeSharedAudioGraph([
+		refs.notificationRef.current,
+		refs.farmMusicRef.current,
+		refs.townMusicRef.current,
+		refs.beachAmbienceRef.current,
+		refs.houseMusicRef.current,
+		refs.forestMusicRef.current,
+		refs.caveMusicRef.current,
+		refs.bureaucracyMusicRef.current,
+		refs.chaChingRef.current,
+		refs.endOfDayRef.current,
+		refs.hoeSoundRef.current,
+		refs.munchSoundRef.current,
+		refs.badSoundRef.current,
+		refs.waterSoundRef.current,
+		refs.yayaSoundRef.current,
+		refs.tooTiredRef.current,
+		refs.gotRewardRef.current,
+		refs.snakeSoundRef.current,
+		refs.bearSoundRef.current,
+		refs.pooSoundRef.current,
+		refs.bathSoundRef.current,
+		refs.pluckSoundRef.current,
+		refs.ploopSoundRef.current,
+		refs.seagullsSoundRef.current,
+		refs.meowSoundRef.current,
+		refs.woofSoundRef.current,
+		refs.tractorSoundRef.current,
+		refs.sighSoundRef.current,
+		refs.whooshSoundRef.current,
+		refs.cafeOrderMusicRef.current,
+	]);
 	refs.ttsReadyRef.current =
 		typeof window !== "undefined" && "speechSynthesis" in window;
 };
