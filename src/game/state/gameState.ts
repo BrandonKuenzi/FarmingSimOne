@@ -8,6 +8,7 @@ import type {
 	DayTransitionState,
 	FishingState,
 	FishingProgressState,
+	FishingMoveUnlocks,
 	ForestChest,
 	ForestEnemy,
 	ForestObstacle,
@@ -142,6 +143,7 @@ export type GameState = {
 	npcTalkedToday: Record<string, boolean>;
 	fishing: FishingState | null;
 	fishingProgress: FishingProgressState;
+	fishingMoveUnlocks: FishingMoveUnlocks;
 	isOrdering: boolean;
 	cafeObservation: string;
 	isDoctorCompounding: boolean;

@@ -110,6 +110,8 @@ export const GLYPH = {
 	pouringLiquid: "\u{1FAD7}", // 🫗 U+1FAD7
 	chartUp: "\u{1F4C8}", // 📈 U+1F4C8
 	chartDown: "\u{1F4C9}", // 📉 U+1F4C9
+	crossedSwords: "\u{2694}\u{FE0F}", // ⚔️ U+2694 U+FE0F
+	shield: "\u{1F6E1}\u{FE0F}", // 🛡️ U+1F6E1 U+FE0F
 	rainCloud: "\u{1F327}\u{FE0F}", // 🌧️ U+1F327 U+FE0F
 	cloud: "\u{2601}\u{FE0F}", // ☁️ U+2601 U+FE0F
 	manFarmer: "\u{1F468}\u{200D}\u{1F33E}", // 👨‍🌾 U+1F468 U+200D U+1F33E

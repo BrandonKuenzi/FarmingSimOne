@@ -20,6 +20,7 @@ import type {
 	PriceState,
 	QuantityPromptState,
 	FishingPlayerMoveId,
+	FishingMoveUnlocks,
 	FishingProgressState,
 	WeatherId,
 	TileFxApi,
@@ -80,6 +81,7 @@ export type GameRuntimeViewModel = {
 	cutFishingLine: () => void;
 	fishingMoveOrder: FishingPlayerMoveId[];
 	fishingMoveInfo: Record<FishingPlayerMoveId, { label: string; description: string }>;
+	fishingMoveUnlocks: FishingMoveUnlocks;
 	isDrivingTractor: boolean;
 	isBathing: boolean;
 	showTiredFace: boolean;
