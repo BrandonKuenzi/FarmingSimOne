@@ -136,7 +136,10 @@ const groundClassByTile: Partial<Record<string, string>> = {
 
 const forestGroundBlendTiles = new Set(["T", "G", "^"]);
 
-export const toVisual = (tile: string): VisualCell => {
+export const toVisual = (tile: string, mapId?: MapId): VisualCell => {
+	if (tile === "=" && mapId === "aquarium") {
+		return { glyph: "", className: "tile-aquarium-floor" };
+	}
 	if (tileVisuals[tile]) return tileVisuals[tile];
 	return { glyph: tile };
 };

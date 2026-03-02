@@ -249,6 +249,10 @@ body {
 	background: #20160a;
 }
 
+.map.map-aquarium .tile-roof-white {
+	background: #222222;
+}
+
 .map.map-bureaucracy {
 	background: #04070f;
 }
@@ -508,6 +512,10 @@ body {
 
 .tile-path {
 	background: #a07034;
+}
+
+.tile-aquarium-floor {
+	background: #0d223a;
 }
 
 .tile-cave-path {

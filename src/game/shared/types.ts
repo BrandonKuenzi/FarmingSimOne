@@ -164,6 +164,11 @@ export type DayTransitionState = {
 };
 
 export type FishingCategory = "freshwater" | "saltwater" | "cavewater";
+export type AquariumFishNpcBehavior =
+	| "simple_wander"
+	| "fixed_bottom"
+	| "wander_top"
+	| "wander_bottom";
 
 export type FishingFishMoveId =
 	| "bite"
@@ -206,6 +211,7 @@ export type FishDefinition = {
 	name: string;
 	glyph: string;
 	category: FishingCategory;
+	aquariumNpcBehavior?: AquariumFishNpcBehavior;
 	sellPrice: number;
 	spawnWeight?: number;
 	stats: {
@@ -327,6 +333,7 @@ export type Position = {
 export type PriceState = Record<ItemId, number>;
 export type PriceTrendState = Record<ItemId, -1 | 0 | 1>;
 export type Inventory = Record<ItemId, number>;
+export type AquariumDonationInventory = Record<string, boolean>;
 
 export type ToolId =
 	| "hoe"

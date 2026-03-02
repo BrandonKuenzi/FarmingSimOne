@@ -28,6 +28,7 @@
 		"name": "Pond Frog",
 		"glyph": "🐸",
 		"category": "freshwater",
+		"aquariumNpcBehavior": "wander_top",
 		"sellPrice": 180,
 		"spawnWeight": 10,
 		"stats": {
@@ -144,6 +145,7 @@
 		"name": "Shell Scholar",
 		"glyph": "🐚",
 		"category": "saltwater",
+		"aquariumNpcBehavior": "fixed_bottom",
 		"sellPrice": 120,
 		"spawnWeight": 30,
 		"stats": {
@@ -204,6 +206,7 @@
 		"name": "Union Crab",
 		"glyph": "🦀",
 		"category": "saltwater",
+		"aquariumNpcBehavior": "wander_bottom",
 		"sellPrice": 420,
 		"spawnWeight": 30,
 		"stats": {
@@ -372,6 +375,7 @@
 		"name": "Coral Guardian",
 		"glyph": "🪸",
 		"category": "saltwater",
+		"aquariumNpcBehavior": "fixed_bottom",
 		"sellPrice": 3200,
 		"spawnWeight": 16,
 		"stats": {
@@ -400,6 +404,7 @@
 		"name": "Robert",
 		"glyph": "🧽",
 		"category": "saltwater",
+		"aquariumNpcBehavior": "wander_bottom",
 		"sellPrice": 260,
 		"spawnWeight": 16,
 		"stats": {
@@ -512,6 +517,7 @@
 		"name": "Cave Crock",
 		"glyph": "🐊",
 		"category": "cavewater",
+		"aquariumNpcBehavior": "wander_top",
 		"sellPrice": 1600,
 		"spawnWeight": 10,
 		"stats": {
@@ -548,6 +554,7 @@
 		"name": "Giant Cave Snail",
 		"glyph": "🐌",
 		"category": "cavewater",
+		"aquariumNpcBehavior": "wander_bottom",
 		"sellPrice": 1400,
 		"spawnWeight": 10,
 		"stats": {
