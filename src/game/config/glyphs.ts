@@ -145,6 +145,10 @@ export const GLYPH = {
 	monkey: "\u{1F435}", // 🐵 U+1F435
 	panda: "\u{1F43C}", // 🐼 U+1F43C
 	tRex: "\u{1F996}", // 🦖 U+1F996
+	teddy: "\u{1F9F8}", // 🧸 U+1F9F8
+	toilet: "\u{1F6BD}", // 🚽 U+1F6BD
+	cop: "\u{1F46E}", // 👮 U+1F46E
+	run: "\u{1F3C3}", // 🏃 U+1F3C3
 	bulb: "\u{1F4A1}",
 	newspaper: "\u{1F4F0}",
 } as const;

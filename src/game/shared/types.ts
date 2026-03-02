@@ -257,12 +257,24 @@ export type FishingCombatToast = {
 	durationMs?: number;
 };
 
+export type FishingImpactSoundId =
+	| "hoe"
+	| "water"
+	| "munch"
+	| "badWater1"
+	| "badWater2"
+	| "badWater3"
+	| "badWater4"
+	| "badWater5"
+	| "badWater6";
+
 export type PlayerPerTurnStatModifier = {
 	stamina: number;
 	attack: number;
 	defense: number;
 	messages: string[];
 	moveName: string;
+	impactSound?: FishingImpactSoundId;
 };
 
 export type FishPerTurnStatModifier = {
@@ -271,6 +283,7 @@ export type FishPerTurnStatModifier = {
 	defense: number;
 	messages: string[];
 	moveName: string;
+	impactSound?: FishingImpactSoundId;
 };
 
 export type FishingState = {

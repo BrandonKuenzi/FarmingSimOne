@@ -39,6 +39,12 @@ import tractorSoundSrc from "../../assets/tractor.wav";
 import sighSoundSrc from "../../assets/sigh.m4a";
 import whooshSoundSrc from "../../assets/whoosh.m4a";
 import battleMusicSrc from "../../assets/battleMusic.mp3";
+import badWater1SoundSrc from "../../assets/badWater1.mp3";
+import badWater2SoundSrc from "../../assets/badWater2.mp3";
+import badWater3SoundSrc from "../../assets/badWater3.mp3";
+import badWater4SoundSrc from "../../assets/badWater4.mp3";
+import badWater5SoundSrc from "../../assets/badWater5.mp3";
+import badWater6SoundSrc from "../../assets/badWater6.mp3";
 import {
 	generateDailyAssignmentsForNpcs,
 	generateNpcDialogLine,
@@ -305,6 +311,7 @@ import type {
 	FishPerTurnStatModifier,
 	FishingState,
 	FishingFishMoveId,
+	FishingImpactSoundId,
 	FishingPlayerMoveId,
 	ForestChest,
 	ForestEnemy,
@@ -414,7 +421,6 @@ const DIRECTOR_RETURN_DURATION_MS = 1000;
 const DIRECTOR_RETURN_SETTLE_MS = 180;
 const MOBILE_JOYSTICK_DEADZONE_PX = 14;
 const MOBILE_JOYSTICK_MAX_RADIUS_PX = 42;
-const MOBILE_INPUT_REPEAT_MS = POSITION_ANIMATION_MS;
 
 const detectDefaultControlMode = (): "pc" | "mobile" => {
 	if (typeof window === "undefined" || typeof navigator === "undefined") {
@@ -521,6 +527,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const sighSoundRef = useRef<HTMLAudioElement | null>(null);
 	const whooshSoundRef = useRef<HTMLAudioElement | null>(null);
 	const battleMusicRef = useRef<HTMLAudioElement | null>(null);
+	const badWater1SoundRef = useRef<HTMLAudioElement | null>(null);
+	const badWater2SoundRef = useRef<HTMLAudioElement | null>(null);
+	const badWater3SoundRef = useRef<HTMLAudioElement | null>(null);
+	const badWater4SoundRef = useRef<HTMLAudioElement | null>(null);
+	const badWater5SoundRef = useRef<HTMLAudioElement | null>(null);
+	const badWater6SoundRef = useRef<HTMLAudioElement | null>(null);
 	const cafeOrderMusicRef = useRef<HTMLAudioElement | null>(null);
 	const currentAreaMusicRef = useRef<HTMLAudioElement | null>(null);
 	const musicFadeIntervalRef = useRef<number | null>(null);
@@ -1348,6 +1360,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				sighSoundRef,
 				whooshSoundRef,
 				battleMusicRef,
+				badWater1SoundRef,
+				badWater2SoundRef,
+				badWater3SoundRef,
+				badWater4SoundRef,
+				badWater5SoundRef,
+				badWater6SoundRef,
 				cafeOrderMusicRef,
 				currentAreaMusicRef,
 				ttsReadyRef,
@@ -1384,6 +1402,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				sighSoundSrc,
 				whooshSoundSrc,
 				battleMusicSrc,
+				badWater1SoundSrc,
+				badWater2SoundSrc,
+				badWater3SoundSrc,
+				badWater4SoundSrc,
+				badWater5SoundSrc,
+				badWater6SoundSrc,
 			},
 		});
 	}, []);
@@ -1411,6 +1435,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		stopTractorLoop,
 		playSigh,
 		playWhoosh,
+		playBadWaterSound,
 		startBattleMusicLoop,
 		stopBattleMusicLoop,
 		speakNpcLine,
@@ -1446,6 +1471,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			sighSoundRef,
 			whooshSoundRef,
 			battleMusicRef,
+			badWater1SoundRef,
+			badWater2SoundRef,
+			badWater3SoundRef,
+			badWater4SoundRef,
+			badWater5SoundRef,
+			badWater6SoundRef,
 			cafeOrderMusicRef,
 			currentAreaMusicRef,
 			ttsReadyRef,
@@ -1864,6 +1895,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		before: FishingState,
 		after: FishingState,
 		playerStaminaDamage: number,
+		attemptedPlayerDebuffStat?: "attack" | "defense",
 	): FishingTurnToastDrafts => {
 		const player: FishingToastDraft[] = [];
 		const fish: FishingToastDraft[] = [];
@@ -1904,6 +1936,24 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			}
 			fish.push(line);
 		});
+		if (attemptedPlayerDebuffStat) {
+			const field =
+				attemptedPlayerDebuffStat === "attack" ? "playerAttack" : "playerDefense";
+			const delta = after[field] - before[field];
+			const hasDebuffToastForStat = player.some(
+				(toast) =>
+					toast.kind === "stat" &&
+					toast.tone === "debuff" &&
+					toast.text.includes(fishingStatIconByKey[attemptedPlayerDebuffStat]),
+			);
+			if (delta === 0 && !hasDebuffToastForStat) {
+				player.push({
+					kind: "stat",
+					text: `-0 ${fishingStatIconByKey[attemptedPlayerDebuffStat]}`,
+					tone: "debuff",
+				});
+			}
+		}
 		return { player, fish };
 	};
 	const upsertPlayerPerTurnModifier = (
@@ -2113,6 +2163,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				fishToasts,
 				expBarLevelUpBurst: false,
 			});
+			const effectImpactSound = effect.modifier.impactSound;
+			if (effectImpactSound) {
+				playFishingImpactSound(effectImpactSound);
+			}
 			if (nextStamina <= 0) playBad();
 			fishingResolveTimeoutRef.current = window.setTimeout(() => {
 				if (nextStamina <= 0) {
@@ -2131,9 +2185,37 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		step(baseFishing, baseStamina);
 	};
 
-	const playFishingImpactSound = (sound: "hoe" | "water") => {
+	const playFishingImpactSound = (sound: FishingImpactSoundId) => {
 		if (sound === "water") {
 			playWater();
+			return;
+		}
+		if (sound === "munch") {
+			playMunch();
+			return;
+		}
+		if (sound === "badWater1") {
+			playBadWaterSound("badWater1");
+			return;
+		}
+		if (sound === "badWater2") {
+			playBadWaterSound("badWater2");
+			return;
+		}
+		if (sound === "badWater3") {
+			playBadWaterSound("badWater3");
+			return;
+		}
+		if (sound === "badWater4") {
+			playBadWaterSound("badWater4");
+			return;
+		}
+		if (sound === "badWater5") {
+			playBadWaterSound("badWater5");
+			return;
+		}
+		if (sound === "badWater6") {
+			playBadWaterSound("badWater6");
 			return;
 		}
 		playHoe();
@@ -2268,6 +2350,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			baseFishing,
 			fishTurn.fishing,
 			fishTurn.staminaDamage,
+			fishTurn.attemptedPlayerDebuffStat,
 		);
 		const fishIntroToasts = stampFishingToasts(
 			fishTurnToasts.fish.filter((toast) => toast.kind === "stat"),
@@ -3491,6 +3574,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	}, [ownedWardrobeLooks, playerEmoji]);
 
 	useEffect(() => {
+		if (playerEmoji !== GLYPH.fish) return;
+		const waterCapacity = getWaterCapacity(tools);
+		if (waterLevel === waterCapacity) return;
+		setWaterLevel(waterCapacity);
+	}, [playerEmoji, tools, waterLevel]);
+
+	useEffect(() => {
 		setUnlockFlags((prev) =>
 			resolveUnlockFlags(
 				{
@@ -3512,6 +3602,35 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}, 2000);
 		return () => window.clearInterval(interval);
 	}, []);
+
+	useEffect(() => {
+		if (playerEmoji !== GLYPH.toilet) return;
+		if (player.map === "forest") {
+			const poo = forestEnemies.find(
+				(enemy) =>
+					enemy.type === "poop" &&
+					enemy.x === player.x &&
+					enemy.y === player.y,
+			);
+			if (!poo) return;
+			playWater();
+			setForestEnemies((prev) => prev.filter((enemy) => enemy.id !== poo.id));
+			awardToiletPrize();
+			return;
+		}
+		if (player.map === "cave") {
+			const poo = caveEnemies.find(
+				(enemy) =>
+					enemy.type === "poop" &&
+					enemy.x === player.x &&
+					enemy.y === player.y,
+			);
+			if (!poo) return;
+			playWater();
+			setCaveEnemies((prev) => prev.filter((enemy) => enemy.id !== poo.id));
+			awardToiletPrize();
+		}
+	}, [playerEmoji, player.map, player.x, player.y, forestEnemies, caveEnemies]);
 
 	const isWindSlashOn = (x: number, y: number) => {
 		const baseRow = activeMapLayouts[player.map]?.[y];
@@ -3608,13 +3727,24 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		map: MapId,
 		x: number,
 		y: number,
-		options?: { ignoreEnemyId?: number },
+		options?: {
+			ignoreEnemyId?: number;
+			allowWaterWalk?: boolean;
+			allowStepOnPoo?: boolean;
+		},
 	) => {
 		if (x < 0 || y < 0) return false;
 		const rows = activeMapLayouts[map];
 		if (!rows || y >= rows.length || x >= (rows[0]?.length ?? 0)) return false;
 		if (map === "forest") {
 			const tile = rows[y]?.[x] ?? "T";
+			if (
+				options?.allowWaterWalk &&
+				(tile === "~" || tile === "[")
+			) {
+				if (isForestOccupied(x, y, options?.ignoreEnemyId)) return false;
+				return true;
+			}
 			if (!isForestWalkableTile(tile) || isForestBlockedTile(tile))
 				return false;
 			if (!forestChest.opened && forestChest.x === x && forestChest.y === y)
@@ -3625,16 +3755,47 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				)
 			)
 				return false;
-			if (isForestOccupied(x, y, options?.ignoreEnemyId)) return false;
+			const occupiedByBlockedEnemy = forestEnemies.some(
+				(e) =>
+					e.id !== options?.ignoreEnemyId &&
+					e.x === x &&
+					e.y === y &&
+					!(options?.allowStepOnPoo && e.type === "poop"),
+			);
+			if (
+				forestObstacles.some((o) => o.x === x && o.y === y) ||
+				occupiedByBlockedEnemy
+			) {
+				return false;
+			}
 			return true;
 		}
 		if (map === "cave") {
 			const tile = rows[y]?.[x] ?? "<";
+			if (
+				options?.allowWaterWalk &&
+				(tile === "~" || tile === "[")
+			) {
+				if (isCaveOccupied(x, y, options?.ignoreEnemyId)) return false;
+				return true;
+			}
 			if (!isCaveWalkableTile(tile) || isCaveBlockedTile(tile)) return false;
 			if (caveLadderPos && x === caveLadderPos.x && y === caveLadderPos.y) {
 				return true;
 			}
-			if (isCaveOccupied(x, y, options?.ignoreEnemyId)) return false;
+			const occupiedByBlockedEnemy = caveEnemies.some(
+				(e) =>
+					e.id !== options?.ignoreEnemyId &&
+					e.x === x &&
+					e.y === y &&
+					!(options?.allowStepOnPoo && e.type === "poop"),
+			);
+			if (
+				caveObstacles.some((o) => o.x === x && o.y === y) ||
+				occupiedByBlockedEnemy
+			) {
+				return false;
+			}
 			return true;
 		}
 		if (
@@ -3680,11 +3841,32 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return true;
 		}
 		const tile = rows[y]?.[x] ?? "#";
+		if (options?.allowWaterWalk && (tile === "~" || tile === "[")) {
+			return true;
+		}
 		return isPassableChar(tile);
 	};
 
 	const canEnterForest = () => stamina > 0;
 	const canEnterCave = () => stamina > 0;
+	const awardToiletPrize = () => {
+		const roll = randomRoll();
+		if (roll < 0.5) {
+			const amount = randomInt(100, 500);
+			applyMoneyDelta(amount);
+			addLog(`Found $${amount} in the mess.`);
+			return;
+		}
+		if (roll < 0.9) {
+			const amount = randomInt(10, 20);
+			updateInventory("feed", amount);
+			addLog(`Found animal feed x${amount}.`);
+			return;
+		}
+		const amount = randomInt(1, 5);
+		updateInventory("iron", amount);
+		addLog(`Found iron x${amount}.`);
+	};
 
 	const applyForestDamage = (amount: number, _source: string) => {
 		if (playerRef.current.map !== "forest" || amount <= 0) return;
@@ -3726,6 +3908,53 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				return { ...delta, distance };
 			})
 			.sort((a, b) => a.distance - b.distance);
+	const getPrioritizedFleeDirs = (
+		fromX: number,
+		fromY: number,
+		targetX: number,
+		targetY: number,
+	) =>
+		Object.values(npcMoveDirections)
+			.map((delta) => {
+				const nx = fromX + delta.dx;
+				const ny = fromY + delta.dy;
+				const distance = Math.max(
+					Math.abs(targetX - nx),
+					Math.abs(targetY - ny),
+				);
+				return { ...delta, distance };
+			})
+			.sort((a, b) => b.distance - a.distance);
+	const maybeMoveEnemyAwayFromPlayer = (
+		enemy: ForestEnemy,
+		map: "forest" | "cave",
+		playerNow: typeof playerRef.current,
+		playerInMap: boolean,
+	): ForestEnemy | null => {
+		const shouldFlee =
+			playerEmoji === GLYPH.tRex ||
+			(playerEmoji === GLYPH.toilet && enemy.type === "poop");
+		if (!shouldFlee || !playerInMap) return null;
+		const currentDistance = Math.max(
+			Math.abs(playerNow.x - enemy.x),
+			Math.abs(playerNow.y - enemy.y),
+		);
+		if (currentDistance > 4) return null;
+		const fleeDirs = getPrioritizedFleeDirs(
+			enemy.x,
+			enemy.y,
+			playerNow.x,
+			playerNow.y,
+		);
+		for (const delta of fleeDirs) {
+			const nx = enemy.x + delta.dx;
+			const ny = enemy.y + delta.dy;
+			if (delta.distance <= currentDistance) continue;
+			if (!isPassableAt(map, nx, ny, { ignoreEnemyId: enemy.id })) continue;
+			return { ...enemy, x: nx, y: ny };
+		}
+		return enemy;
+	};
 
 	const maybeMoveForestEnemy = (
 		enemy: ForestEnemy,
@@ -3734,6 +3963,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (simulationPaused) return enemy;
 		const playerNow = playerRef.current;
 		const playerInForest = playerNow.map === "forest";
+		const fleeMove = maybeMoveEnemyAwayFromPlayer(
+			enemy,
+			"forest",
+			playerNow,
+			playerInForest,
+		);
+		if (fleeMove) return fleeMove;
 
 		if (enemy.type === "snake") {
 			const state = forestSnakeDirsRef.current[enemy.id] ?? {
@@ -3869,7 +4105,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 
 		// Bears aggro within a 7x7 around anchor, otherwise return to anchor.
+		const bearsIgnorePlayer = playerEmoji === GLYPH.teddy;
 		const playerInBearArea =
+			!bearsIgnorePlayer &&
 			playerInForest &&
 			Math.max(
 				Math.abs(playerNow.x - enemy.x),
@@ -3891,7 +4129,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		for (const delta of candidates) {
 			const nx = enemy.x + delta.dx;
 			const ny = enemy.y + delta.dy;
-			if (playerInForest && nx === playerNow.x && ny === playerNow.y) {
+			if (
+				!bearsIgnorePlayer &&
+				playerInForest &&
+				nx === playerNow.x &&
+				ny === playerNow.y
+			) {
 				playBearSound();
 				applyForestDamage(30, "A bear");
 				return enemy;
@@ -3909,6 +4152,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (simulationPaused) return enemy;
 		const playerNow = playerRef.current;
 		const playerInCave = playerNow.map === "cave";
+		const fleeMove = maybeMoveEnemyAwayFromPlayer(
+			enemy,
+			"cave",
+			playerNow,
+			playerInCave,
+		);
+		if (fleeMove) return fleeMove;
 
 		if (enemy.type === "snake" || enemy.type === "bat") {
 			const wasWithinOneTile =
@@ -4034,7 +4284,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return enemy;
 		}
 
+		const bearsIgnorePlayer = playerEmoji === GLYPH.teddy;
 		const playerInBearArea =
+			!bearsIgnorePlayer &&
 			playerInCave &&
 			Math.max(
 				Math.abs(playerNow.x - enemy.x),
@@ -4055,7 +4307,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		for (const delta of candidates) {
 			const nx = enemy.x + delta.dx;
 			const ny = enemy.y + delta.dy;
-			if (playerInCave && nx === playerNow.x && ny === playerNow.y) {
+			if (
+				!bearsIgnorePlayer &&
+				playerInCave &&
+				nx === playerNow.x &&
+				ny === playerNow.y
+			) {
 				playBearSound();
 				applyCaveDamage(30, "A bear");
 				return enemy;
@@ -4884,14 +5141,20 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			);
 		}
 		if (map === "forest") {
+			const blockOnPoo = playerEmoji !== GLYPH.toilet;
 			return (
-				forestEnemies.some((e) => e.x === x && e.y === y) ||
+				forestEnemies.some(
+					(e) => e.x === x && e.y === y && (blockOnPoo || e.type !== "poop"),
+				) ||
 				forestObstacles.some((o) => o.x === x && o.y === y)
 			);
 		}
 		if (map === "cave") {
+			const blockOnPoo = playerEmoji !== GLYPH.toilet;
 			return (
-				caveEnemies.some((e) => e.x === x && e.y === y) ||
+				caveEnemies.some(
+					(e) => e.x === x && e.y === y && (blockOnPoo || e.type !== "poop"),
+				) ||
 				caveObstacles.some((o) => o.x === x && o.y === y)
 			);
 		}
@@ -5036,6 +5299,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const movePlayer = (dir: Dir) => {
+		const moveCadenceMs =
+			playerEmoji === GLYPH.tRex
+				? POSITION_ANIMATION_MS * 4
+				: playerEmoji === GLYPH.run
+					? POSITION_ANIMATION_MS / 2
+				: POSITION_ANIMATION_MS;
 		const now = performance.now();
 		if (now < playerMoveUnlockAtRef.current) return;
 		let didMove = false;
@@ -5067,7 +5336,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				keyForPos,
 				tractorImplement,
 				tractorImplementOn,
-				isPassableAt,
+				isPassableAt: (map, x, y) =>
+					isPassableAt(map, x, y, {
+						allowWaterWalk: playerEmoji === GLYPH.frog,
+						allowStepOnPoo: playerEmoji === GLYPH.toilet,
+					}),
 				canLeapfrogBarnAnimalAt: (map, x, y) => {
 					if (map !== animalsMap) return false;
 					const tileEntry = Object.entries(animalTiles).find(
@@ -5140,7 +5413,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			dir,
 		);
 		if (didMove) {
-			playerMoveUnlockAtRef.current = now + POSITION_ANIMATION_MS;
+			playerMoveUnlockAtRef.current = now + moveCadenceMs;
 		}
 	};
 	const clearHeldMove = () => {
@@ -5153,15 +5426,21 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const scheduleHeldMoveStep = () => {
+		const moveCadenceMs =
+			playerEmoji === GLYPH.tRex
+				? POSITION_ANIMATION_MS * 4
+				: playerEmoji === GLYPH.run
+					? POSITION_ANIMATION_MS / 2
+				: POSITION_ANIMATION_MS;
 		if (heldMoveTimerRef.current !== null) return;
 		const tick = () => {
 			heldMoveTimerRef.current = null;
 			const dir = heldMoveDirRef.current;
 			if (!dir) return;
 			dispatchHeldMoveCommandRef.current(dir);
-			heldMoveTimerRef.current = window.setTimeout(tick, POSITION_ANIMATION_MS);
+			heldMoveTimerRef.current = window.setTimeout(tick, moveCadenceMs);
 		};
-		heldMoveTimerRef.current = window.setTimeout(tick, POSITION_ANIMATION_MS);
+		heldMoveTimerRef.current = window.setTimeout(tick, moveCadenceMs);
 	};
 
 	const clearMobileMoveCadence = () => {
@@ -6483,12 +6762,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			setTraderTrades,
 			traderAfterSaleLines,
 			sketchyMerchantActive,
+			playerEmoji,
 			sketchyMerchantStock,
 			SKETCHY_CRATE_POS,
 			dontTouchSketchy,
 			SKETCHY_MERCHANT_POS,
 			sketchyMerchantIntro,
 			setSketchyMerchantStock,
+			setSketchyMerchantActive,
 			sketchyVendorSales,
 			boatTiles,
 			boatDialogArray,
@@ -6740,10 +7021,21 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			dispatchMobileMoveCommandRef.current(activeDir);
 			mobileMoveCadenceTimerRef.current = window.setTimeout(
 				tick,
-				MOBILE_INPUT_REPEAT_MS,
+				playerEmoji === GLYPH.tRex
+					? POSITION_ANIMATION_MS * 4
+					: playerEmoji === GLYPH.run
+						? POSITION_ANIMATION_MS / 2
+					: POSITION_ANIMATION_MS,
 			);
 		};
-		mobileMoveCadenceTimerRef.current = window.setTimeout(tick, MOBILE_INPUT_REPEAT_MS);
+		mobileMoveCadenceTimerRef.current = window.setTimeout(
+			tick,
+			playerEmoji === GLYPH.tRex
+				? POSITION_ANIMATION_MS * 4
+				: playerEmoji === GLYPH.run
+					? POSITION_ANIMATION_MS / 2
+				: POSITION_ANIMATION_MS,
+		);
 	};
 
 	const resolveTouchDirection = (

@@ -249,6 +249,10 @@ body {
 	background: #20160a;
 }
 
+.map.map-cave .tile-water {
+	background: #1e4f87;
+}
+
 .map.map-aquarium .tile-roof-white {
 	background: #222222;
 }
@@ -1197,7 +1201,7 @@ li {
 }
 
 .fishing-combat-toast {
-	font-size: clamp(18px, 2.4vw, 32px);
+	font-size: clamp(36px, 4.8vw, 64px);
 	font-weight: 900;
 	line-height: 1;
 	text-shadow: 0 3px 10px rgba(0, 0, 0, 0.65);

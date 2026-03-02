@@ -4,6 +4,7 @@ import type {
 	FishDefinition,
 	FishingCategory,
 	FishingFishMoveId,
+	FishingImpactSoundId,
 	FishingMovePoolEntry,
 	FishingPlayerMoveId,
 	FishingProgressState,
@@ -83,7 +84,7 @@ export const FISHING_PLAYER_MOVES: Record<
 
 export const FISHING_PLAYER_MOVE_IMPACT_SOUNDS: Record<
 	FishingPlayerMoveId,
-	"hoe" | "water"
+	FishingImpactSoundId
 > = {
 	reel_in: "hoe",
 	pull_rod: "hoe",
@@ -119,28 +120,40 @@ export const FISHING_FISH_MOVE_LABELS: Record<FishingFishMoveId, string> = {
 
 export const FISHING_FISH_MOVE_IMPACT_SOUNDS: Record<
 	FishingFishMoveId,
-	"hoe" | "water"
+	FishingImpactSoundId
 > = {
-	bite: "water",
+	bite: "munch",
 	thrash: "water",
 	dive_deep: "water",
 	wrap_line: "water",
 	go_along: "water",
-	undertow_rip: "water",
-	thalassophobia: "water",
-	cavernous_hunger: "water",
-	pressure_of_the_deep: "water",
-	clear_water_focus: "water",
-	rising_tide: "water",
-	salt_armor: "water",
-	leviathans_wake: "water",
-	echoing_hunger: "water",
-	bedrock_fortification: "water",
-	subterranean_rot: "water",
-	shenanigans: "water",
-	spatula_slap: "water",
-	sponge_laugh: "water",
+	undertow_rip: "badWater1",
+	thalassophobia: "badWater5",
+	cavernous_hunger: "munch",
+	pressure_of_the_deep: "badWater4",
+	clear_water_focus: "badWater5",
+	rising_tide: "badWater2",
+	salt_armor: "badWater1",
+	leviathans_wake: "badWater4",
+	echoing_hunger: "badWater3",
+	bedrock_fortification: "badWater3",
+	subterranean_rot: "badWater3",
+	shenanigans: "badWater6",
+	spatula_slap: "hoe",
+	sponge_laugh: "badWater2",
 };
+
+export const FISHING_EFFECT_SOUND_OPTIONS: FishingImpactSoundId[] = [
+	"hoe",
+	"water",
+	"munch",
+	"badWater1",
+	"badWater2",
+	"badWater3",
+	"badWater4",
+	"badWater5",
+	"badWater6",
+];
 
 export const FISHING_LEVEL_UP_COMPLIMENTS: string[] = [
 	"You will be able to catch bigger and stronger fish now!",
@@ -518,6 +531,7 @@ export const resolveFishTurn = (args: {
 	fishing: FishingState;
 	staminaDamage: number;
 	message: string;
+	attemptedPlayerDebuffStat?: "attack" | "defense";
 	addPlayerPerTurnModifier?: PlayerPerTurnStatModifier;
 	addFishPerTurnModifier?: FishPerTurnStatModifier;
 } => {
@@ -600,7 +614,16 @@ export const resolveFishTurn = (args: {
 		};
 	}
 	if (moveId === "cavernous_hunger") {
-		const statToSteal = randomInt(0, 1) === 0 ? "attack" : "defense";
+		const canStealAttack = fishing.playerAttack > 0;
+		const canStealDefense = fishing.playerDefense > 0;
+		const statToSteal =
+			canStealAttack && canStealDefense
+				? randomInt(0, 1) === 0
+					? "attack"
+					: "defense"
+				: canStealAttack
+					? "attack"
+					: "defense";
 		const statLabel = statToSteal === "attack" ? "Attack" : "Defense";
 		const stealRoll = randomInt(1, 3);
 		const available =
@@ -627,6 +650,7 @@ export const resolveFishTurn = (args: {
 						: fishing.fishDefense,
 			},
 			staminaDamage: baseDamage,
+			attemptedPlayerDebuffStat: statToSteal,
 			message: `The ${fishing.fishName} used Cavernous Hunger causing ${baseDamage} damage and stole ${stealAmount} ${statLabel} from you!`,
 		};
 	}
@@ -662,6 +686,7 @@ export const resolveFishTurn = (args: {
 				fishHp: Math.max(0, fishing.fishHp - selfDamage),
 			},
 			staminaDamage: 0,
+			attemptedPlayerDebuffStat: statToSteal,
 			message: `${fishing.fishName} used Pressure of the Deep. It stole ${stealAmount} ${statLabel} from you. But it hurt itself by ${selfDamage} HP in the process.`,
 		};
 	}
@@ -713,6 +738,7 @@ export const resolveFishTurn = (args: {
 					"The sea builds momentum, and so does the fish.",
 					"Another swell rolls in. It's getting stronger.",
 				],
+				impactSound: "badWater2",
 			},
 		};
 	}
@@ -733,6 +759,7 @@ export const resolveFishTurn = (args: {
 					"The fish turns with practiced calm-hard to budge.",
 					"Seawater flashes, and its defenses thicken.",
 				],
+				impactSound: "badWater1",
 			},
 		};
 	}
@@ -753,6 +780,7 @@ export const resolveFishTurn = (args: {
 					"Another surge slams your arms numb.",
 					"The ocean won't let you rest-keep pulling!",
 				],
+				impactSound: "badWater4",
 			},
 			addFishPerTurnModifier: {
 				hp: 0,
@@ -766,6 +794,7 @@ export const resolveFishTurn = (args: {
 					"Each wave gives it more leverage.",
 					"It surges forward with terrifying confidence.",
 				],
+				impactSound: "badWater1",
 			},
 		};
 	}
@@ -786,6 +815,7 @@ export const resolveFishTurn = (args: {
 					"Each drip of water sounds like a countdown.",
 					"The darkness gnaws at your confidence.",
 				],
+				impactSound: "badWater3",
 			},
 			addFishPerTurnModifier: {
 				hp: 0,
@@ -799,6 +829,7 @@ export const resolveFishTurn = (args: {
 					"It thrums with hungry cave-energy.",
 					"It pulls harder, like it's learned your rhythm.",
 				],
+				impactSound: "badWater1",
 			},
 		};
 	}
@@ -819,6 +850,7 @@ export const resolveFishTurn = (args: {
 					"It becomes a little more immovable each turn.",
 					"The stone remembers. The stone protects.",
 				],
+				impactSound: "badWater3",
 			},
 		};
 	}
@@ -839,6 +871,7 @@ export const resolveFishTurn = (args: {
 					"The walls feel closer. Your guard slips.",
 					"Each turn, the cavern takes something from you.",
 				],
+				impactSound: "badWater3",
 			},
 		};
 	}
@@ -863,6 +896,7 @@ export const resolveFishTurn = (args: {
 					"What is going on?!",
 					"You swear the sponge winked at you.",
 				],
+				impactSound: "badWater6",
 			},
 			addFishPerTurnModifier: {
 				hp: randSigned(),
@@ -876,6 +910,7 @@ export const resolveFishTurn = (args: {
 					"Reality bends slightly near the sponge.",
 					"You regret asking what Robert was doing.",
 				],
+				impactSound: "badWater6",
 			},
 		};
 	}
@@ -903,6 +938,7 @@ export const resolveFishTurn = (args: {
 				robertSpongeLaughUsed: true,
 			},
 			staminaDamage: 0,
+			attemptedPlayerDebuffStat: "defense",
 			message: `Robert used Sponge Laugh! Your defense drops by ${debuff}!`,
 		};
 	}
