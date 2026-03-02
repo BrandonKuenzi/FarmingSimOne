@@ -50,6 +50,7 @@ import type {
 	ToolLevels,
 	TraderTradeEntry,
 	VendorKey,
+	ProgressEventPayload,
 } from "../shared/types";
 
 export type InteractionsContext = {
@@ -122,6 +123,7 @@ export type InteractionsContext = {
 	}) => void;
 	randomInt: (min: number, max: number) => number;
 	tileFx: TileFxApi;
+	onProgressEvent?: (event: ProgressEventPayload) => void;
 };
 
 export const handleLateInteractionBlocks = (
@@ -183,6 +185,7 @@ export const handleLateInteractionBlocks = (
 		openQuantityPrompt,
 		randomInt,
 		tileFx,
+		onProgressEvent,
 	} = ctx;
 
 	const copSketchyLines = [
@@ -217,6 +220,15 @@ export const handleLateInteractionBlocks = (
 			if (milkCount > 0) updateInventory("milk", milkCount);
 			if (woolCount > 0) updateInventory("wool", woolCount);
 			if (eggCount > 0) updateInventory("egg", eggCount);
+			if (milkCount > 0) {
+				onProgressEvent?.({ type: "milk_collected", quantity: milkCount });
+			}
+			if (woolCount > 0) {
+				onProgressEvent?.({ type: "wool_collected", quantity: woolCount });
+			}
+			if (eggCount > 0) {
+				onProgressEvent?.({ type: "egg_collected", quantity: eggCount });
+			}
 			setFarmEggDrops(() => ({}));
 			setAnimals((prev) =>
 				prev.map((animal) =>
@@ -277,6 +289,7 @@ export const handleLateInteractionBlocks = (
 					fedIds.has(animal.id) ? { ...animal, fedToday: true } : animal,
 				),
 			);
+			onProgressEvent?.({ type: "animal_fed", quantity: feedCount });
 			updateInventory("feed", -feedCount);
 			playMunch();
 			tileFx.at({ map: playerMap, x: tx, y: ty }).streatch(1.35, 260);
@@ -296,6 +309,7 @@ export const handleLateInteractionBlocks = (
 			});
 			playPluck();
 			updateInventory("egg", 1);
+			onProgressEvent?.({ type: "egg_collected", quantity: 1 });
 			return true;
 		}
 		const nearAnimals = animals
@@ -315,6 +329,11 @@ export const handleLateInteractionBlocks = (
 					: tools.shears;
 				const produced = rollLivestockYield(toolLevel);
 				updateInventory(product, produced);
+				if (product === "milk") {
+					onProgressEvent?.({ type: "milk_collected", quantity: produced });
+				} else if (product === "wool") {
+					onProgressEvent?.({ type: "wool_collected", quantity: produced });
+				}
 				tileFx.actor(`animal-${animal.id}`).streatch(1.35, 220);
 				setAnimals((prev) =>
 					prev.map((a) =>
@@ -343,6 +362,7 @@ export const handleLateInteractionBlocks = (
 			setAnimals((prev) =>
 				prev.map((a) => (a.id === animal.id ? { ...a, fedToday: true } : a)),
 			);
+			onProgressEvent?.({ type: "animal_fed", quantity: 1 });
 			tileFx.actor(`animal-${animal.id}`).streatch(1.35, 220);
 			updateInventory("feed", -1);
 			playMunch();

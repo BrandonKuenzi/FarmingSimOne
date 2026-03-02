@@ -24,6 +24,9 @@ import type {
 	Position,
 	PriceState,
 	PriceTrendState,
+	ProgressAlgorithmId,
+	ProgressLoadoutRow,
+	ProgressTargetId,
 	QuantityPromptState,
 	SketchyStockEntry,
 	ToolLevels,
@@ -167,6 +170,14 @@ export type GameState = {
 	farmWeedObstacles: Record<string, boolean>;
 	farmEggDrops: Record<string, boolean>;
 	pendingUpgradeScenes: UpgradeSceneEvent[];
+	progressPercent: number;
+	progressWon: boolean;
+	progressWinPopupShown: boolean;
+	progressStoneTargetCounts: Record<ProgressTargetId, number>;
+	progressStoneAlgorithmCounts: Record<ProgressAlgorithmId, number>;
+	progressLoadoutRows: [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow];
+	highestForestLevelReached: number;
+	highestCaveLevelReached: number;
 };
 
 export type GameStateAction = {

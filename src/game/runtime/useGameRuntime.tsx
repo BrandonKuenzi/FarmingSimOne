@@ -24,6 +24,7 @@ import cafeOrderMusicSrc from "../../assets/SpaceStore.mp3";
 import notificationSoundSrc from "../../assets/shuffle.m4a";
 import forestMusicSrc from "../../assets/GameDeepForest.mp3";
 import caveMusicSrc from "../../assets/CaveTheme.mp3";
+import themeSongSrc from "../../assets/themeSong.mp3";
 import spaceBgSrc from "../../assets/SpaceBG.mp3";
 import gotRewardSoundSrc from "../../assets/gotReward.mp3";
 import snakeSoundSrc from "../../assets/snake.m4a";
@@ -294,6 +295,18 @@ import {
 	rollLivestockYield,
 	toolNames,
 } from "../systems/tools";
+import {
+	applyProgressEventToState,
+	makeEmptyProgressLoadoutRows,
+} from "../progression/progressMonitor";
+import {
+	makeEmptyProgressAlgorithmCounts,
+	progressAlgorithmStones,
+} from "../progression/progressStonesAlgorithmic";
+import {
+	makeEmptyProgressTargetCounts,
+	progressTargetStones,
+} from "../progression/progressStonesTarget";
 import type {
 	Animal,
 	AnimalDef,
@@ -333,6 +346,11 @@ import type {
 	PlayerPerTurnStatModifier,
 	PriceState,
 	PriceTrendState,
+	ProgressAlgorithmId,
+	ProgressEventPayload,
+	ProgressLoadoutRow,
+	ProgressRarity,
+	ProgressTargetId,
 	QuantityPromptState,
 	SketchyStockEntry,
 	SnakePatrolState,
@@ -504,6 +522,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const houseMusicRef = useRef<HTMLAudioElement | null>(null);
 	const forestMusicRef = useRef<HTMLAudioElement | null>(null);
 	const caveMusicRef = useRef<HTMLAudioElement | null>(null);
+	const computerLabMusicRef = useRef<HTMLAudioElement | null>(null);
 	const bureaucracyMusicRef = useRef<HTMLAudioElement | null>(null);
 	const chaChingRef = useRef<HTMLAudioElement | null>(null);
 	const endOfDayRef = useRef<HTMLAudioElement | null>(null);
@@ -552,6 +571,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const tiredFaceTimeoutRef = useRef<number | null>(null);
 	const petRunoverBadTimeoutRef = useRef<number | null>(null);
 	const forestHitTimeoutRef = useRef<number | null>(null);
+	const lastStoneHintPlayerPosRef = useRef<{ map: MapId; x: number; y: number } | null>(
+		null,
+	);
 	const orderMidTimeoutRef = useRef<number | null>(null);
 	const orderCompleteTimeoutRef = useRef<number | null>(null);
 	const orderRewardTimeoutRef = useRef<number | null>(null);
@@ -796,6 +818,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				),
 				farmEggDrops: {},
 				pendingUpgradeScenes: [],
+				progressPercent: 0,
+				progressWon: false,
+				progressWinPopupShown: false,
+				progressStoneTargetCounts: makeEmptyProgressTargetCounts(),
+				progressStoneAlgorithmCounts: makeEmptyProgressAlgorithmCounts(),
+				progressLoadoutRows: makeEmptyProgressLoadoutRows(),
+				highestForestLevelReached: 1,
+				highestCaveLevelReached: 1,
 			};
 		},
 	);
@@ -972,6 +1002,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		farmWeedObstacles,
 		farmEggDrops,
 		pendingUpgradeScenes,
+		progressPercent,
+		progressWon,
+		progressWinPopupShown,
+		progressStoneTargetCounts,
+		progressStoneAlgorithmCounts,
+		progressLoadoutRows,
+		highestForestLevelReached,
+		highestCaveLevelReached,
 	} = gameState;
 	const quantityParentMenuRef = useRef<{
 		modal: ModalState;
@@ -986,6 +1024,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const directorRunningRef = useRef(false);
 	const directorConfirmRef = useRef<(() => void) | null>(null);
 	const directorTimersRef = useRef<number[]>([]);
+	const gameStateRef = useRef(gameState);
 	const playerRef = useRef(player);
 	const playerMoveUnlockAtRef = useRef(0);
 	const prevZoomWhooshRef = useRef(mapZoom);
@@ -1152,6 +1191,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setFarmWeedObstacles = setForKey("farmWeedObstacles");
 	const setFarmEggDrops = setForKey("farmEggDrops");
 	const setPendingUpgradeScenes = setForKey("pendingUpgradeScenes");
+	const setProgressPercent = setForKey("progressPercent");
+	const setProgressWon = setForKey("progressWon");
+	const setProgressWinPopupShown = setForKey("progressWinPopupShown");
+	const setProgressStoneTargetCounts = setForKey("progressStoneTargetCounts");
+	const setProgressStoneAlgorithmCounts = setForKey("progressStoneAlgorithmCounts");
+	const setProgressLoadoutRows = setForKey("progressLoadoutRows");
+	const setHighestForestLevelReached = setForKey("highestForestLevelReached");
+	const setHighestCaveLevelReached = setForKey("highestCaveLevelReached");
 	const activeMapLayouts = useMemo(
 		() => ({
 			...mapLayouts,
@@ -1337,6 +1384,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				houseMusicRef,
 				forestMusicRef,
 				caveMusicRef,
+				computerLabMusicRef,
 				bureaucracyMusicRef,
 				chaChingRef,
 				endOfDayRef,
@@ -1387,6 +1435,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				notificationSoundSrc,
 				forestMusicSrc,
 				caveMusicSrc,
+				themeSongSrc,
 				spaceBgSrc,
 				gotRewardSoundSrc,
 				snakeSoundSrc,
@@ -1448,6 +1497,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			houseMusicRef,
 			forestMusicRef,
 			caveMusicRef,
+			computerLabMusicRef,
 			bureaucracyMusicRef,
 			chaChingRef,
 			endOfDayRef,
@@ -1528,6 +1578,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				houseMusicRef,
 				forestMusicRef,
 				caveMusicRef,
+				computerLabMusicRef,
 				bureaucracyMusicRef,
 				chaChingRef,
 				endOfDayRef,
@@ -1702,6 +1753,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				bureaucracyMusicRef.current.pause();
 				bureaucracyMusicRef.current.currentTime = 0;
 			}
+			if (computerLabMusicRef.current) {
+				computerLabMusicRef.current.pause();
+				computerLabMusicRef.current.currentTime = 0;
+			}
 			if (tractorSoundRef.current) {
 				tractorSoundRef.current.pause();
 				tractorSoundRef.current.currentTime = 0;
@@ -1751,6 +1806,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		houseMusicRef,
 		forestMusicRef,
 		caveMusicRef,
+		computerLabMusicRef,
 		bureaucracyMusicRef,
 		endOfDayRef,
 		cafeOrderMusicRef,
@@ -2226,6 +2282,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		switchAreaMusic(cafeOrderMusicRef.current, true);
 		playYaya();
 		queueFishingReward(caughtFishing);
+		emitProgressEvent({ type: "fish_caught", quantity: 1 });
 		setFishing({
 			...caughtFishing,
 			phase: "caught",
@@ -2827,6 +2884,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		fadeTownAndBeach(1, 0);
 	}, [player.map, player.y]);
+
+	useEffect(() => {
+		gameStateRef.current = gameState;
+	}, [gameState]);
 
 	useEffect(() => {
 		playerRef.current = player;
@@ -4662,6 +4723,34 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					...(rawState as Partial<GameState>).unlockFlags,
 				},
 			),
+			progressPercent: Math.max(
+				0,
+				Math.min(1000, (rawState as Partial<GameState>).progressPercent ?? 0),
+			),
+			progressWon: (rawState as Partial<GameState>).progressWon ?? false,
+			progressWinPopupShown:
+				(rawState as Partial<GameState>).progressWinPopupShown ?? false,
+			progressStoneTargetCounts: {
+				...makeEmptyProgressTargetCounts(),
+				...((rawState as Partial<GameState>).progressStoneTargetCounts ?? {}),
+			},
+			progressStoneAlgorithmCounts: {
+				...makeEmptyProgressAlgorithmCounts(),
+				...((rawState as Partial<GameState>).progressStoneAlgorithmCounts ?? {}),
+			},
+			progressLoadoutRows:
+				(rawState as Partial<GameState>).progressLoadoutRows ??
+				makeEmptyProgressLoadoutRows(),
+			highestForestLevelReached: Math.max(
+				rawState.forestLevel,
+				(rawState as Partial<GameState>).highestForestLevelReached ??
+					rawState.forestLevel,
+			),
+			highestCaveLevelReached: Math.max(
+				rawState.caveLevel,
+				(rawState as Partial<GameState>).highestCaveLevelReached ??
+					rawState.caveLevel,
+			),
 			inventory: (() => {
 				const defaultInventory = makeEmptyInventory();
 				const rawInventory = (rawState as Partial<GameState>).inventory as
@@ -5014,6 +5103,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			switchAreaMusic(getAreaMusicForMap("forest"), true);
 			addLog(`You push deeper into the forest (Depth ${nextLevel}).`);
 		}
+		setHighestForestLevelReached((prev) => Math.max(prev, nextLevel));
+		emitProgressEvent({ type: "forest_depth_advanced", forestLevel: nextLevel });
 		if (fromMenu) closeMenu();
 	};
 	const continueCaveDungeon = (fromMenu = false) => {
@@ -5037,6 +5128,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			switchAreaMusic(caveMusicRef.current, true);
 			addLog(`You descend deeper into the cave (Depth ${nextLevel}).`);
 		}
+		setHighestCaveLevelReached((prev) => Math.max(prev, nextLevel));
+		emitProgressEvent({ type: "cave_depth_advanced", caveLevel: nextLevel });
 		if (fromMenu) closeMenu();
 	};
 	const openForestExitMenu = () => {
@@ -5416,6 +5509,21 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			playerMoveUnlockAtRef.current = now + moveCadenceMs;
 		}
 	};
+
+	useEffect(() => {
+		const nextPos = { map: player.map, x: player.x, y: player.y };
+		const prevPos = lastStoneHintPlayerPosRef.current;
+		if (
+			prevPos &&
+			prevPos.map === nextPos.map &&
+			prevPos.x === nextPos.x &&
+			prevPos.y === nextPos.y
+		) {
+			return;
+		}
+		lastStoneHintPlayerPosRef.current = nextPos;
+		maybeToastComputerLabStoneHints(nextPos);
+	}, [player.map, player.x, player.y, progressLoadoutRows]);
 	const clearHeldMove = () => {
 		heldMoveDirRef.current = null;
 		heldMoveKeyRef.current = null;
@@ -5466,6 +5574,42 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		mobileInteractCommandSentRef.current = false;
 	};
 
+	const emitProgressEvent = (event: ProgressEventPayload) => {
+		const state = gameStateRef.current;
+		const result = applyProgressEventToState(
+			{
+				progressPercent: state.progressPercent,
+				progressWon: state.progressWon,
+				progressLoadoutRows: state.progressLoadoutRows,
+				inventory: state.inventory,
+				aquariumDonations: state.aquariumDonations,
+				animals: state.animals,
+				plots: state.plots,
+				tools: state.tools,
+				barnTier: state.barnTier,
+				highestForestLevelReached: state.highestForestLevelReached,
+				highestCaveLevelReached: state.highestCaveLevelReached,
+			},
+			event,
+		);
+		if (result.increment <= 0) return;
+		setProgressPercent(result.progressPercent);
+		setProgressWon(result.progressWon);
+		if (result.progressWinPopupShown && !state.progressWinPopupShown) {
+			setProgressWinPopupShown(true);
+			window.setTimeout(() => {
+				openMenu("Victory", ["You win!"], [{ label: "Nice!", onSelect: closeMenu }]);
+			}, 0);
+		}
+		gameStateRef.current = {
+			...state,
+			progressPercent: result.progressPercent,
+			progressWon: result.progressWon,
+			progressWinPopupShown:
+				state.progressWinPopupShown || result.progressWinPopupShown,
+		};
+	};
+
 	const updateInventory = (
 		item: ItemId,
 		amount: number,
@@ -5483,7 +5627,248 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		applyMoneyDeltaState(setMoney, setCurrentDayEarned, setTotalEarned, delta);
 		if (delta > 0) {
 			tileFxBusRef.current.api.actor("player").toast(`+$${delta}`);
+			emitProgressEvent({ type: "money_gained", moneyDelta: delta });
 		}
+	};
+
+	const grantProgressStone = (
+		kind: "target" | "algorithm",
+		stoneId: ProgressTargetId | ProgressAlgorithmId,
+		label: string,
+	) => {
+		if (kind === "target") {
+			setProgressStoneTargetCounts((prev) => ({
+				...prev,
+				[stoneId as ProgressTargetId]: (prev[stoneId as ProgressTargetId] ?? 0) + 1,
+			}));
+			gameStateRef.current = {
+				...gameStateRef.current,
+				progressStoneTargetCounts: {
+					...gameStateRef.current.progressStoneTargetCounts,
+					[stoneId as ProgressTargetId]:
+						(gameStateRef.current.progressStoneTargetCounts[
+							stoneId as ProgressTargetId
+						] ?? 0) + 1,
+				},
+			};
+		} else {
+			setProgressStoneAlgorithmCounts((prev) => ({
+				...prev,
+				[stoneId as ProgressAlgorithmId]:
+					(prev[stoneId as ProgressAlgorithmId] ?? 0) + 1,
+			}));
+			gameStateRef.current = {
+				...gameStateRef.current,
+				progressStoneAlgorithmCounts: {
+					...gameStateRef.current.progressStoneAlgorithmCounts,
+					[stoneId as ProgressAlgorithmId]:
+						(gameStateRef.current.progressStoneAlgorithmCounts[
+							stoneId as ProgressAlgorithmId
+						] ?? 0) + 1,
+				},
+			};
+		}
+		addLog(`Found progress stone: ${label}.`);
+		tileFxBusRef.current.api.actor("player").toast(`+1 ${label}`, 5000);
+	};
+	const debugGrantAllProgressStones = () => {
+		setProgressStoneTargetCounts((prev) => {
+			const next = { ...prev };
+			for (const stone of progressTargetStones) {
+				next[stone.id] = (next[stone.id] ?? 0) + 1;
+			}
+			return next;
+		});
+		setProgressStoneAlgorithmCounts((prev) => {
+			const next = { ...prev };
+			for (const stone of progressAlgorithmStones) {
+				next[stone.id] = (next[stone.id] ?? 0) + 1;
+			}
+			return next;
+		});
+		const nextTargetCounts = { ...gameStateRef.current.progressStoneTargetCounts };
+		for (const stone of progressTargetStones) {
+			nextTargetCounts[stone.id] = (nextTargetCounts[stone.id] ?? 0) + 1;
+		}
+		const nextAlgorithmCounts = { ...gameStateRef.current.progressStoneAlgorithmCounts };
+		for (const stone of progressAlgorithmStones) {
+			nextAlgorithmCounts[stone.id] = (nextAlgorithmCounts[stone.id] ?? 0) + 1;
+		}
+		gameStateRef.current = {
+			...gameStateRef.current,
+			progressStoneTargetCounts: nextTargetCounts,
+			progressStoneAlgorithmCounts: nextAlgorithmCounts,
+		};
+		addLog("Debug grant: +1 of every progress stone.");
+		tileFxBusRef.current.api.actor("player").toast("+1 all progress stones", 4500);
+	};
+
+	const maybeGrantChestProgressStone = (kind: "forest" | "cave", depth: number) => {
+		const milestone = depth % 5 === 0;
+		const chance = milestone ? 0.35 : 0.18;
+		if (randomRoll() >= chance) return;
+		const targetRarities: ProgressRarity[] = milestone
+			? ["rare", "legendary"]
+			: ["common", "uncommon"];
+		const algoRarities: ProgressRarity[] = milestone
+			? ["rare", "legendary"]
+			: ["common", "uncommon"];
+		const targetPool = progressTargetStones.filter((stone) =>
+			targetRarities.includes(stone.rarity),
+		);
+		const algoPool = progressAlgorithmStones.filter((stone) =>
+			algoRarities.includes(stone.rarity),
+		);
+		if (targetPool.length <= 0 && algoPool.length <= 0) return;
+		const pickTarget = targetPool.length > 0 && (algoPool.length === 0 || randomRoll() < 0.5);
+		if (pickTarget) {
+			const stone = targetPool[randomInt(0, targetPool.length - 1)]!;
+			grantProgressStone("target", stone.id, stone.name);
+			return;
+		}
+		const stone = algoPool[randomInt(0, algoPool.length - 1)]!;
+		grantProgressStone("algorithm", stone.id, stone.name);
+		if (kind === "cave" && milestone) {
+			addLog("A deep-level chest boosted your chance at rare progress stones.");
+		}
+	};
+
+	const countUsedTargetStone = (stoneId: ProgressTargetId): number =>
+		progressLoadoutRows.filter((row) => row.targetStoneId === stoneId).length;
+	const countUsedAlgorithmStone = (stoneId: ProgressAlgorithmId): number =>
+		progressLoadoutRows.reduce(
+			(total, row) =>
+				total + row.algorithmStoneIds.filter((id) => id === stoneId).length,
+			0,
+		);
+	const previewIncrementForLoadoutRow = (row: ProgressLoadoutRow): number => {
+		if (!row.targetStoneId) return 0;
+		const emptyRows = makeEmptyProgressLoadoutRows();
+		const event: ProgressEventPayload =
+			row.targetStoneId === "money_gained"
+				? { type: "money_gained", moneyDelta: 100 }
+				: row.targetStoneId === "aquarium_donated"
+					? { type: "aquarium_donated" }
+					: row.targetStoneId === "forest_depth_advanced"
+						? { type: "forest_depth_advanced", forestLevel: highestForestLevelReached }
+						: row.targetStoneId === "cave_depth_advanced"
+							? { type: "cave_depth_advanced", caveLevel: highestCaveLevelReached }
+							: { type: row.targetStoneId, quantity: 1 };
+		const previewState = gameStateRef.current;
+		const result = applyProgressEventToState(
+			{
+				progressPercent: previewState.progressPercent,
+				progressWon: previewState.progressWon,
+				progressLoadoutRows: [row, emptyRows[1], emptyRows[2]],
+				inventory: previewState.inventory,
+				aquariumDonations: previewState.aquariumDonations,
+				animals: previewState.animals,
+				plots: previewState.plots,
+				tools: previewState.tools,
+				barnTier: previewState.barnTier,
+				highestForestLevelReached: previewState.highestForestLevelReached,
+				highestCaveLevelReached: previewState.highestCaveLevelReached,
+			},
+			event,
+		);
+		return Math.max(0, Math.floor(result.increment));
+	};
+	const describeLoadoutRowChain = (row: ProgressLoadoutRow): string => {
+		const parts = row.algorithmStoneIds
+			.map((id) => progressAlgorithmStones.find((stone) => stone.id === id)?.name ?? null)
+			.filter((name): name is string => !!name);
+		if (parts.length <= 0) return "(none)";
+		return parts.join(" -> ");
+	};
+	const targetStoneToastText = (targetId: ProgressTargetId): string => {
+		if (targetId === "money_gained") return "Any time you earn $100";
+		if (targetId === "fish_caught") return "When you catch a fish";
+		if (targetId === "forest_depth_advanced") return "When you advance deeper in the forest";
+		if (targetId === "cave_depth_advanced") return "When you advance deeper in the cave";
+		if (targetId === "crop_harvested") return "When you harvest crops";
+		if (targetId === "animal_fed") return "When you feed farm animals";
+		if (targetId === "milk_collected") return "When you milk a cow";
+		if (targetId === "wool_collected") return "When you collect wool";
+		if (targetId === "egg_collected") return "When you collect eggs";
+		if (targetId === "crop_sold") return "When you sell crops";
+		if (targetId === "animal_product_sold") return "When you sell animal products";
+		if (targetId === "fish_sold") return "When you sell fish";
+		return "When you donate to the aquarium";
+	};
+	const algorithmStoneToastText = (algorithmId: ProgressAlgorithmId): string => {
+		if (algorithmId === "add_1") return "Adds 1";
+		if (algorithmId === "add_2") return "Adds 2";
+		if (algorithmId === "add_3") return "Adds 3";
+		if (algorithmId === "add_5") return "Adds 5";
+		if (algorithmId === "add_diamond_count") return "Adds however many diamonds you own";
+		if (algorithmId === "add_barn_tier") return "Adds your barn tier";
+		if (algorithmId === "add_tier5_tools") return "Adds however many tier 5 tools you unlocked";
+		if (algorithmId === "mul_1_25") return "Multiplys by 1.25";
+		if (algorithmId === "mul_1_5") return "Multiplys by 1.5";
+		if (algorithmId === "mul_2") return "Multiplys by 2";
+		if (algorithmId === "mul_donated_fish_count")
+			return "Multiplys by however many fish you donated";
+		if (algorithmId === "add_cow_count") return "Adds however many cows you own";
+		if (algorithmId === "add_sheep_count") return "Adds however many sheep you own";
+		if (algorithmId === "add_chicken_count")
+			return "Adds however many chickens you own";
+		if (algorithmId === "add_crop_count")
+			return "Adds however many crops are currently on your farm";
+		if (algorithmId === "add_highest_forest_level")
+			return "Adds your highest forest level reached";
+		return "Adds your highest cave level reached";
+	};
+	const maybeToastComputerLabStoneHints = (nextPos: {
+		map: MapId;
+		x: number;
+		y: number;
+	}) => {
+		if (nextPos.map !== "computer_lab") return;
+		const rowIndex: 0 | 1 | 2 | -1 =
+			nextPos.y === 3 ? 0 : nextPos.y === 5 ? 1 : nextPos.y === 7 ? 2 : -1;
+		if (rowIndex < 0) return;
+		if (nextPos.x < 3 || nextPos.x > 6) return;
+		const row = gameStateRef.current.progressLoadoutRows[rowIndex as 0 | 1 | 2];
+		const counterY = nextPos.y - 1;
+		if (nextPos.x === 3) {
+			if (!row.targetStoneId) return;
+			tileFxBusRef.current.api
+				.at({ map: "computer_lab", x: 3, y: counterY })
+				.toast(targetStoneToastText(row.targetStoneId), 5000);
+			return;
+		}
+		const algoIndex = (nextPos.x - 4) as 0 | 1 | 2;
+		const algorithmStoneId = row.algorithmStoneIds[algoIndex];
+		if (!algorithmStoneId) return;
+		tileFxBusRef.current.api
+			.at({ map: "computer_lab", x: nextPos.x, y: counterY })
+			.toast(algorithmStoneToastText(algorithmStoneId), 5000);
+	};
+	const setRowTargetStoneId = (
+		prev: [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow],
+		rowIndex: 0 | 1 | 2,
+		targetStoneId: ProgressTargetId | null,
+	): [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow] => {
+		if (rowIndex === 0) return [{ ...prev[0], targetStoneId }, prev[1], prev[2]];
+		if (rowIndex === 1) return [prev[0], { ...prev[1], targetStoneId }, prev[2]];
+		return [prev[0], prev[1], { ...prev[2], targetStoneId }];
+	};
+	const setAlgorithmSlot = (
+		prev: [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow],
+		rowIndex: 0 | 1 | 2,
+		algoIndex: 0 | 1 | 2,
+		stoneId: ProgressAlgorithmId | null,
+	): [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow] => {
+		const row = prev[rowIndex];
+		const algorithmStoneIds: [ProgressAlgorithmId | null, ProgressAlgorithmId | null, ProgressAlgorithmId | null] =
+			algoIndex === 0
+				? [stoneId, row.algorithmStoneIds[1], row.algorithmStoneIds[2]]
+				: algoIndex === 1
+					? [row.algorithmStoneIds[0], stoneId, row.algorithmStoneIds[2]]
+					: [row.algorithmStoneIds[0], row.algorithmStoneIds[1], stoneId];
+		if (rowIndex === 0) return [{ ...row, algorithmStoneIds }, prev[1], prev[2]];
+		if (rowIndex === 1) return [prev[0], { ...row, algorithmStoneIds }, prev[2]];
+		return [prev[0], prev[1], { ...row, algorithmStoneIds }];
 	};
 
 	const canAfford = (value: number) => money >= value;
@@ -5566,6 +5951,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 						updateInventory(fish.itemId, -1, { suppressToast: true });
 						setAquariumDonations(nextDonations);
+						emitProgressEvent({
+							type: "aquarium_donated",
+							quantity: 1,
+							itemId: fish.itemId,
+						});
 						addLog(`Donated ${fish.name} to the aquarium.`);
 						closeMenu();
 
@@ -5700,6 +6090,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			setAnimals,
 			setAnimalTiles,
 			setAnimalAnchors,
+			onProgressEvent: emitProgressEvent,
 		});
 	};
 
@@ -6263,6 +6654,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					houseMusicRef.current,
 					forestMusicRef.current,
 					caveMusicRef.current,
+					computerLabMusicRef.current,
 					bureaucracyMusicRef.current,
 					cafeOrderMusicRef.current,
 					endOfDayRef.current,
@@ -6482,6 +6874,197 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const delta = dirDelta[dir];
 		const tx = player.x + delta.dx;
 		const ty = player.y + delta.dy;
+		if (player.map === "computer_lab") {
+			const targetCell = activeMapLayouts.computer_lab?.[ty]?.[tx] ?? "";
+			const rowIndex: 0 | 1 | 2 | -1 = ty === 2 ? 0 : ty === 4 ? 1 : ty === 6 ? 2 : -1;
+			const algoIndex: 0 | 1 | 2 | -1 = tx === 4 ? 0 : tx === 5 ? 1 : tx === 6 ? 2 : -1;
+			const isTargetSlot = tx === 3;
+			if (targetCell === "x" && tx === 2 && rowIndex >= 0) {
+				const rowSlotIndex = rowIndex as 0 | 1 | 2;
+				const row = progressLoadoutRows[rowSlotIndex];
+				const targetStone = row.targetStoneId
+					? progressTargetStones.find((stone) => stone.id === row.targetStoneId)
+					: null;
+				if (!targetStone) {
+					openMenu(
+						`Row ${rowIndex + 1} Terminal`,
+						[
+							"No target stone is installed in this row.",
+							"Install a target stone and algorithms to activate this chain.",
+						],
+						[{ label: "Back", onSelect: closeMenu }],
+					);
+					return;
+				}
+				const previewIncrement = previewIncrementForLoadoutRow(row);
+				const baseHint =
+					targetStone.id === "money_gained"
+						? "Preview base uses $100 gained."
+						: "Preview base uses quantity 1 trigger.";
+				openMenu(
+					`Row ${rowIndex + 1} Terminal`,
+					[
+						`Target mechanic: ${targetStone.name}`,
+						targetStone.description,
+						`Algorithm chain: ${describeLoadoutRowChain(row)}`,
+						`Current reward preview: +${previewIncrement} progress per trigger.`,
+						baseHint,
+					],
+					[{ label: "Back", onSelect: closeMenu }],
+				);
+				return;
+			}
+			if (targetCell === "x" && rowIndex >= 0 && (isTargetSlot || algoIndex >= 0)) {
+				const rowSlotIndex = rowIndex as 0 | 1 | 2;
+				const row = progressLoadoutRows[rowSlotIndex];
+				if (isTargetSlot) {
+					const currentTargetStoneId = row.targetStoneId;
+					if (currentTargetStoneId) {
+						const installedTargetStone = progressTargetStones.find(
+							(stone) => stone.id === currentTargetStoneId,
+						);
+						openMenu(
+							`Row ${rowIndex + 1} Target`,
+							["Remove the currently installed target stone."],
+							[
+								{
+									label: "Remove",
+									info: [
+										`Installed: ${installedTargetStone?.name ?? currentTargetStoneId}`,
+										`Effect: ${installedTargetStone?.description ?? "No description available."}`,
+									],
+									onSelect: () => {
+										setProgressLoadoutRows((prev) => {
+											return setRowTargetStoneId(prev, rowSlotIndex, null);
+										});
+										closeMenu();
+									},
+								},
+								{
+									label: "Cancel",
+									info: [
+										`Installed: ${installedTargetStone?.name ?? currentTargetStoneId}`,
+										`Effect: ${installedTargetStone?.description ?? "No description available."}`,
+									],
+									onSelect: closeMenu,
+								},
+							],
+						);
+						return;
+					}
+					const targetOptions = progressTargetStones.reduce<ModalOption[]>(
+						(options, stone) => {
+							const used = countUsedTargetStone(stone.id);
+							const owned = progressStoneTargetCounts[stone.id] ?? 0;
+							const available =
+								owned - used + (currentTargetStoneId === stone.id ? 1 : 0);
+							if (available <= 0) return options;
+							options.push({
+								label: `${stone.name} (${owned})`,
+								info: [stone.description, `Rarity: ${stone.rarity}`],
+								onSelect: () => {
+									if (available <= 0 && currentTargetStoneId !== stone.id) {
+										playBad();
+										addLog("You do not own an available copy of that stone.");
+										closeMenu();
+										return;
+									}
+									setProgressLoadoutRows((prev) => {
+										return setRowTargetStoneId(prev, rowSlotIndex, stone.id);
+										});
+										closeMenu();
+									},
+							});
+							return options;
+						},
+						[],
+					);
+					openMenu(
+						`Row ${rowIndex + 1} Target`,
+						targetOptions.length > 0
+							? ["Install or remove a target progress stone."]
+							: ["You do not own any target stones yet."],
+						[
+							...targetOptions,
+							{ label: "Back", onSelect: closeMenu },
+						],
+					);
+					return;
+				}
+				const algoSlotIndex: 0 | 1 | 2 = algoIndex === -1 ? 0 : algoIndex;
+				const currentAlgorithmStoneId = row.algorithmStoneIds[algoSlotIndex];
+				if (currentAlgorithmStoneId) {
+					const installedAlgorithmStone = progressAlgorithmStones.find(
+						(stone) => stone.id === currentAlgorithmStoneId,
+					);
+					openMenu(
+						`Row ${rowIndex + 1} Algorithm ${algoIndex + 1}`,
+						["Remove the currently installed algorithmic progress stone."],
+						[
+							{
+								label: "Remove",
+								info: [
+									`Installed: ${installedAlgorithmStone?.name ?? currentAlgorithmStoneId}`,
+									`Effect: ${installedAlgorithmStone?.description ?? "No description available."}`,
+								],
+								onSelect: () => {
+									setProgressLoadoutRows((prev) => {
+										return setAlgorithmSlot(prev, rowSlotIndex, algoSlotIndex, null);
+									});
+									closeMenu();
+								},
+							},
+							{
+								label: "Cancel",
+								info: [
+									`Installed: ${installedAlgorithmStone?.name ?? currentAlgorithmStoneId}`,
+									`Effect: ${installedAlgorithmStone?.description ?? "No description available."}`,
+								],
+								onSelect: closeMenu,
+							},
+						],
+					);
+					return;
+				}
+				const visibleAlgorithmOptions = progressAlgorithmStones.reduce<ModalOption[]>(
+					(options, stone) => {
+						const used = countUsedAlgorithmStone(stone.id);
+						const owned = progressStoneAlgorithmCounts[stone.id] ?? 0;
+						const available = owned - used + (currentAlgorithmStoneId === stone.id ? 1 : 0);
+						if (available <= 0) return options;
+						options.push({
+							label: `${stone.name} (${owned})`,
+							info: [stone.description, `Rarity: ${stone.rarity}`],
+							onSelect: () => {
+								if (available <= 0 && currentAlgorithmStoneId !== stone.id) {
+									playBad();
+									addLog("You do not own an available copy of that stone.");
+									closeMenu();
+									return;
+								}
+								setProgressLoadoutRows((prev) => {
+									return setAlgorithmSlot(prev, rowSlotIndex, algoSlotIndex, stone.id);
+								});
+								closeMenu();
+							},
+						});
+						return options;
+					},
+					[],
+				);
+				openMenu(
+					`Row ${rowIndex + 1} Algorithm ${algoIndex + 1}`,
+					visibleAlgorithmOptions.length > 0
+						? ["Install or remove an algorithmic progress stone."]
+						: ["You do not own any algorithm stones yet."],
+					[
+						...visibleAlgorithmOptions,
+						{ label: "Back", onSelect: closeMenu },
+					],
+				);
+				return;
+			}
+		}
 		if (player.map === "aquarium") {
 			const aquariumTile = activeMapLayouts.aquarium?.[ty]?.[tx] ?? "";
 			const aquariumCategoryForInteractTile = (() => {
@@ -6671,6 +7254,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			forestBonusChests,
 			setForestBonusChests,
 			forestIsBonusLevel,
+			forestLevel,
 			grantBonusChestRewardSet,
 			forestObstacleAt,
 			setForestObstacles,
@@ -6789,6 +7373,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			tileFx: tileFxBusRef.current.api,
 			aquariumCuratorTile,
 			interactAquariumCurator,
+			onProgressEvent: emitProgressEvent,
+			maybeGrantChestProgressStone,
 		};
 		runInteract(interactCtx, dir);
 	};
@@ -6854,6 +7440,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const inputContext: GameKeyDownContext = {
 		applyMoneyDelta,
 		updateInventory,
+		debugGrantAllProgressStones,
 		spawnAnimalInBarn,
 		addLog,
 		isDrivingTractor,
@@ -7332,6 +7919,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		currentWeather,
 		weatherEmojiById,
 		money,
+		progressPercent,
+		progressWon,
+		progressLoadoutRows,
 		stamina,
 		staminaMax,
 		waterLevel,

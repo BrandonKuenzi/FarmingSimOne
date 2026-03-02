@@ -99,6 +99,7 @@ export const shopMaps: Exclude<
 	| "aquarium"
 	| "forest"
 	| "cave"
+	| "computer_lab"
 	| "bureaucracy_office"
 >[] = [
 	"seed_shop",
@@ -120,6 +121,7 @@ export const shopDecorForSaleItems: Record<
 		| "aquarium"
 		| "forest"
 		| "cave"
+		| "computer_lab"
 		| "bureaucracy_office"
 	>,
 	string[]

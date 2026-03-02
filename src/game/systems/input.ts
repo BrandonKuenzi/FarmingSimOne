@@ -80,6 +80,7 @@ export const selectModalOption = (ctx: {
 export type GameKeyDownContext = {
 	applyMoneyDelta: (delta: number) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
+	debugGrantAllProgressStones: () => void;
 	spawnAnimalInBarn: (type: AnimalType) => boolean;
 	addLog: (line: string) => void;
 	isDrivingTractor: boolean;
@@ -178,6 +179,7 @@ export const handleGameInputCommand = (
 		ctx.updateInventory("ruby", 10);
 		ctx.updateInventory("diamond", 10);
 		ctx.updateInventory("emerald", 10);
+		ctx.debugGrantAllProgressStones();
 		return consume();
 	}
 

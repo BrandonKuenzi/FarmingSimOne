@@ -150,6 +150,9 @@ export const GLYPH = {
 	cop: "\u{1F46E}", // 👮 U+1F46E
 	run: "\u{1F3C3}", // 🏃 U+1F3C3
 	bulb: "\u{1F4A1}",
+	trophy: "\u{1F3C6}",
+	hole: "\u{1F573}\u{FE0F}",
+	desktopComputer: "\u{1F5A5}\u{FE0F}",
 	newspaper: "\u{1F4F0}",
 } as const;
 

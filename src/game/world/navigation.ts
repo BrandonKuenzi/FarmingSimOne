@@ -1,5 +1,6 @@
 import {
 	CAVE_GATE_Y,
+	COMPUTER_LAB_TOWN_DOOR_POS,
 	FARM_HEIGHT,
 	FARM_WIDTH,
 	FOREST_GATE_Y,
@@ -33,6 +34,7 @@ export const isShopMap = (
 	| "aquarium"
 	| "forest"
 	| "cave"
+	| "computer_lab"
 	| "bureaucracy_office"
 > =>
 	mapId in vendorByShopMap;
@@ -140,8 +142,22 @@ export const doors: Record<MapId, Door[]> = {
 			target: { map: "aquarium", x: 19, y: 13 },
 			label: "Aquarium",
 		},
+		{
+			x: COMPUTER_LAB_TOWN_DOOR_POS.x,
+			y: COMPUTER_LAB_TOWN_DOOR_POS.y,
+			target: { map: "computer_lab", x: 7, y: 9 },
+			label: "Computer Lab",
+		},
 	],
 	aquarium: [{ x: 20, y: 14, target: { map: "town", x: 51, y: 16 }, label: "Exit" }],
+	computer_lab: [
+		{
+			x: 7,
+			y: 10,
+			target: { map: "town", x: COMPUTER_LAB_TOWN_DOOR_POS.x, y: COMPUTER_LAB_TOWN_DOOR_POS.y + 1 },
+			label: "Exit",
+		},
+	],
 	seed_shop: [{ x: 7, y: 7, target: { map: "town", x: 8, y: 8 }, label: "Exit" }],
 	feed_shop: [{ x: 7, y: 7, target: { map: "town", x: 15, y: 8 }, label: "Exit" }],
 	animal_shop: [{ x: 7, y: 7, target: { map: "town", x: 22, y: 8 }, label: "Exit" }],

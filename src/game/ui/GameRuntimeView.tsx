@@ -6,11 +6,15 @@ import React, {
 	useState,
 } from "react";
 import { motion } from "framer-motion";
+import progressShortSoundSrc from "../../assets/progressShort.mp3";
+import progressMediumSoundSrc from "../../assets/progressMedium.mp3";
+import progressLongSoundSrc from "../../assets/progressLong.mp3";
 import type { GameRuntimeViewModel } from "./viewModel";
 import { BUREAUCRACY_EXIT_POS } from "../world/layout";
 import { GLYPH } from "../config/glyphs";
 import { AnimatedEmojiTile } from "./AnimatedEmojiTile";
 import { CurrentMarket } from "./CurrentMarket";
+import { StoneUI } from "./StoneUI";
 import {
 	CAMERA_FOLLOW_ANIMATION_EASE,
 	CAMERA_FOLLOW_MS,
@@ -71,6 +75,150 @@ const PopStatValue = ({ value }: { value: number }) => (
 	</motion.span>
 );
 
+const PROGRESS_POINTS_MAX = 1000;
+const PROGRESS_ANIMATION_BURST_WINDOW_MS = 450;
+const PROGRESS_SOUND_COOLDOWN_MS = 1000;
+
+const clampProgressPoints = (value: number): number =>
+	Math.max(0, Math.min(PROGRESS_POINTS_MAX, value));
+
+const progressDurationMsForDelta = (deltaPoints: number): number => {
+	if (deltaPoints <= 10) return 1000;
+	if (deltaPoints < 50) return 2000;
+	return 3000;
+};
+
+const easeOutCubic = (value: number): number => 1 - (1 - value) ** 3;
+
+const ProgressHudRow = ({
+	progressPoints,
+	progressWon,
+}: {
+	progressPoints: number;
+	progressWon: boolean;
+}) => {
+	const initialPoints = clampProgressPoints(progressPoints);
+	const [animatedPoints, setAnimatedPoints] = useState(initialPoints);
+	const [progressPulseDurationMs, setProgressPulseDurationMs] = useState(0);
+	const [progressPulseKey, setProgressPulseKey] = useState(0);
+	const displayedPointsRef = useRef(initialPoints);
+	const animationFrameRef = useRef<number | null>(null);
+	const progressShortSoundRef = useRef<HTMLAudioElement | null>(null);
+	const progressMediumSoundRef = useRef<HTMLAudioElement | null>(null);
+	const progressLongSoundRef = useRef<HTMLAudioElement | null>(null);
+	const lastProgressSoundAtMsRef = useRef(0);
+	const burstStateRef = useRef({
+		lastUpdateAtMs: 0,
+		rollingDeltaPoints: 0,
+	});
+	const targetPoints = clampProgressPoints(progressPoints);
+
+	useEffect(() => {
+		progressShortSoundRef.current = new Audio(progressShortSoundSrc);
+		progressShortSoundRef.current.preload = "auto";
+		progressMediumSoundRef.current = new Audio(progressMediumSoundSrc);
+		progressMediumSoundRef.current.preload = "auto";
+		progressLongSoundRef.current = new Audio(progressLongSoundSrc);
+		progressLongSoundRef.current.preload = "auto";
+	}, []);
+
+	useEffect(() => {
+		const startPoints = displayedPointsRef.current;
+		if (startPoints === targetPoints) return;
+
+		const nowMs = performance.now();
+		const thisDelta = Math.abs(targetPoints - startPoints);
+		const burstState = burstStateRef.current;
+		const inBurstWindow =
+			nowMs - burstState.lastUpdateAtMs <= PROGRESS_ANIMATION_BURST_WINDOW_MS;
+		const rollingDelta = inBurstWindow
+			? burstState.rollingDeltaPoints + thisDelta
+			: thisDelta;
+		burstState.lastUpdateAtMs = nowMs;
+		burstState.rollingDeltaPoints = rollingDelta;
+		const durationMs = progressDurationMsForDelta(rollingDelta);
+		setProgressPulseDurationMs(durationMs);
+		setProgressPulseKey((prev) => prev + 1);
+		const canPlaySoundNow =
+			nowMs - lastProgressSoundAtMsRef.current >= PROGRESS_SOUND_COOLDOWN_MS;
+		if (canPlaySoundNow && rollingDelta > 0) {
+			const soundRef =
+				rollingDelta <= 10
+					? progressShortSoundRef
+					: rollingDelta < 50
+						? progressMediumSoundRef
+						: progressLongSoundRef;
+			if (soundRef.current) {
+				soundRef.current.currentTime = 0;
+				void soundRef.current.play().catch(() => undefined);
+				lastProgressSoundAtMsRef.current = nowMs;
+			}
+		}
+
+		if (animationFrameRef.current !== null) {
+			cancelAnimationFrame(animationFrameRef.current);
+			animationFrameRef.current = null;
+		}
+		const animationStartAt = nowMs;
+
+		const tick = (frameNowMs: number) => {
+			const elapsedMs = frameNowMs - animationStartAt;
+			const ratio = durationMs <= 0 ? 1 : Math.min(1, elapsedMs / durationMs);
+			const easedRatio = easeOutCubic(ratio);
+			const nextPoints =
+				startPoints + (targetPoints - startPoints) * easedRatio;
+			displayedPointsRef.current = nextPoints;
+			setAnimatedPoints(nextPoints);
+
+			if (ratio < 1) {
+				animationFrameRef.current = requestAnimationFrame(tick);
+				return;
+			}
+			displayedPointsRef.current = targetPoints;
+			setAnimatedPoints(targetPoints);
+			animationFrameRef.current = null;
+		};
+
+		animationFrameRef.current = requestAnimationFrame(tick);
+		return () => {
+			if (animationFrameRef.current !== null) {
+				cancelAnimationFrame(animationFrameRef.current);
+				animationFrameRef.current = null;
+			}
+		};
+	}, [targetPoints]);
+
+	const displayedProgressPercent = Math.max(
+		0,
+		Math.min(100, Math.floor(animatedPoints / 10)),
+	);
+	const displayedProgressPercentExact = Math.max(
+		0,
+		Math.min(100, animatedPoints / 10),
+	);
+
+	return (
+		<div className='hud-progress-row'>
+			<span className='hud-progress-label'>
+				Progress: {displayedProgressPercent}%{progressWon ? " (Complete)" : ""}
+			</span>
+			<div className='progress-bar'>
+				<div
+					key={`progress-fill-pulse-${progressPulseKey}`}
+					className='progress-fill'
+					style={{
+						width: `${displayedProgressPercentExact}%`,
+						animation:
+							progressPulseDurationMs > 0
+								? `progress-fill-pulse ${progressPulseDurationMs}ms ease-in-out 1 forwards`
+								: undefined,
+					}}
+				/>
+			</div>
+		</div>
+	);
+};
+
 type VisualMover = {
 	id: string;
 	x: number;
@@ -118,6 +266,7 @@ type MapViewportCtx = Pick<
 	| "caveRubble"
 	| "toVisual"
 	| "spriteTilesNeedingGround"
+	| "progressLoadoutRows"
 	| "petFacing"
 	| "tractorFacing"
 	| "showForestHit"
@@ -174,6 +323,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		caveRubble,
 		toVisual,
 		spriteTilesNeedingGround,
+		progressLoadoutRows,
 		petFacing,
 		tractorFacing,
 		showForestHit,
@@ -502,36 +652,36 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 														glyph: ".",
 														className: "tile-water tile-fishing-bobber",
 													}
-													: effectiveCell === "~" &&
-														  isRippleWaterTile(player.map, x, y)
+												: effectiveCell === "~" &&
+													  isRippleWaterTile(player.map, x, y)
+													? {
+															glyph: waterRipplePhase ? "-" : "--",
+															className: "tile-water tile-ripple",
+														}
+													: effectiveCell === "," &&
+														  isAnimatedGrassTile(player.map, x, y)
 														? {
-																glyph: waterRipplePhase ? "-" : "--",
-																className: "tile-water tile-ripple",
+																glyph: "|",
+																className: `tile-grass tile-foliage tile-foliage-${grassFoliageVariant(player.map, x, y)}`,
 															}
-														: effectiveCell === "," &&
-															  isAnimatedGrassTile(player.map, x, y)
+														: effectiveCell === "/" &&
+															  player.map === "cave" &&
+															  caveLadderPos &&
+															  caveLadderPos.x === x &&
+															  caveLadderPos.y === y
 															? {
-																	glyph: "|",
-																	className: `tile-grass tile-foliage tile-foliage-${grassFoliageVariant(player.map, x, y)}`,
+																	glyph: GLYPH.ladder,
+																	className: "tile-cave-next-ladder",
 																}
-															: effectiveCell === "/" &&
-																  player.map === "cave" &&
-																  caveLadderPos &&
-																  caveLadderPos.x === x &&
-																  caveLadderPos.y === y
-																? {
-																		glyph: GLYPH.ladder,
-																		className: "tile-cave-next-ladder",
-																	}
-																: player.map === "cave" && effectiveCell === ")"
-																	? caveRubble[tileKey]
-																		? {
-																				glyph: caveRubble[tileKey]!,
-																				className:
-																					"tile-cave-path tile-cave-rubble",
-																			}
-																		: toVisual(effectiveCell, player.map)
-																	: toVisual(effectiveCell, player.map);
+															: player.map === "cave" && effectiveCell === ")"
+																? caveRubble[tileKey]
+																	? {
+																			glyph: caveRubble[tileKey]!,
+																			className:
+																				"tile-cave-path tile-cave-rubble",
+																		}
+																	: toVisual(effectiveCell, player.map)
+																: toVisual(effectiveCell, player.map);
 						const withGround =
 							groundClass &&
 							!visual.className &&
@@ -548,6 +698,14 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 							effectiveCell === "%" ||
 							effectiveCell === "&" ||
 							effectiveCell === "?";
+						const labPcRowIndex: 0 | 1 | 2 | -1 =
+							y === 2 ? 0 : y === 4 ? 1 : y === 6 ? 2 : -1;
+						const isLabPcActive =
+							player.map === "computer_lab" &&
+							x === 2 &&
+							effectiveCell === "x" &&
+							labPcRowIndex >= 0 &&
+							!!progressLoadoutRows[labPcRowIndex as 0 | 1 | 2].targetStoneId;
 						const shouldFlipGlyph = isPetGlyphCell && petFacing < 0;
 						const glyphClassName = [
 							"emoji-glyph",
@@ -576,6 +734,48 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 								(withGround.className !== "tile-grass" &&
 									withGround.className !== "tile-water" &&
 									withGround.className !== "tile-forest-grass"));
+						const labRowIndex: 0 | 1 | 2 | -1 =
+							y === 2 ? 0 : y === 4 ? 1 : y === 6 ? 2 : -1;
+						let stoneOverlay: JSX.Element | null = null;
+						if (
+							player.map === "computer_lab" &&
+							labRowIndex >= 0 &&
+							(x === 3 || x === 4 || x === 5 || x === 6)
+						) {
+							const rowSlotIndex = labRowIndex as 0 | 1 | 2;
+							const rowLoadout = progressLoadoutRows[rowSlotIndex];
+							stoneOverlay =
+								x === 3 ? (
+									<StoneUI
+										kind='target'
+										row={rowLoadout}
+									/>
+								) : (
+									<StoneUI
+										kind='algorithm'
+										row={rowLoadout}
+										algorithmIndex={(x - 4) as 0 | 1 | 2}
+									/>
+								);
+						}
+						const terminalOverlay =
+							player.map === "computer_lab" &&
+							labRowIndex >= 0 &&
+							x === 2 &&
+							effectiveCell === "x" ? (
+								<span className='stone-ui-overlay'>
+									<span
+										className={[
+											"computer-lab-terminal-overlay-glyph",
+											isLabPcActive ? "stone-ui-pc-active" : "",
+										]
+											.filter(Boolean)
+											.join(" ")}
+									>
+										{GLYPH.desktopComputer}
+									</span>
+								</span>
+							) : null;
 						return (
 							<span
 								key={`${x}-${y}`}
@@ -610,6 +810,8 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 										{withGround.glyph}
 									</span>
 								)}
+								{terminalOverlay}
+								{stoneOverlay}
 							</span>
 						);
 					})}
@@ -637,6 +839,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 			caveRubble,
 			toVisual,
 			spriteTilesNeedingGround,
+			progressLoadoutRows,
 			petFacing,
 			unfedAnimalMap,
 			unfedAnimalTileKeys,
@@ -880,7 +1083,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		<div className='map-wrap'>
 			<div
 				ref={mapRef}
-				className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""} ${player.map === "bureaucracy_office" ? "map-bureaucracy" : ""} ${player.map === "aquarium" ? "map-aquarium" : ""}`}
+				className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""} ${player.map === "bureaucracy_office" ? "map-bureaucracy" : ""} ${player.map === "aquarium" ? "map-aquarium" : ""} ${player.map === "computer_lab" ? "map-computer-lab" : ""}`}
 				style={{
 					fontSize: `calc(${mapZoom} * clamp(13px, 1.48vw, 24px))`,
 					transition: `font-size ${POSITION_ANIMATION_MS}ms ${CAMERA_FOLLOW_ANIMATION_EASE}`,
@@ -996,7 +1199,11 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 											key={`bubble-${x}-${y}`}
 											className='tile aquarium-bubble-overlay-item tile-aquarium-bubble'
 										>
-											{hasBubble ? <span className='aquarium-bubble-glyph'>o</span> : ""}
+											{hasBubble ? (
+												<span className='aquarium-bubble-glyph'>o</span>
+											) : (
+												""
+											)}
 										</span>
 									);
 								})}
@@ -1234,6 +1441,9 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		currentWeather,
 		weatherEmojiById,
 		money,
+		progressPercent,
+		progressWon,
+		progressLoadoutRows,
 		stamina,
 		staminaMax,
 		waterLevel,
@@ -1360,7 +1570,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 	const newspaperPictureSeed = day + newspaper.length;
 	const showFishingEncounter = !!fishing && fishing.phase !== "waiting";
 	const openingStage = fishing?.openingStage ?? "none";
-	const fishingBuffChoiceVisible = !!fishing && fishing.awaitingLevelUpBuffChoice;
+	const fishingBuffChoiceVisible =
+		!!fishing && fishing.awaitingLevelUpBuffChoice;
 	const fishingMenuVisible =
 		(!!fishing &&
 			fishing.showMenu &&
@@ -1391,22 +1602,26 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 	const displayedFishingLevel = fishing?.playerLevel ?? fishingProgress.level;
 	const displayedFishingExp = fishing?.playerExp ?? fishingProgress.exp;
 	const fishingExpToNext =
-		displayedFishingLevel >= 100 ? 0 : Math.max(10, Math.floor(displayedFishingLevel * 10));
+		displayedFishingLevel >= 100
+			? 0
+			: Math.max(10, Math.floor(displayedFishingLevel * 10));
 	const fishingExpRatio =
 		displayedFishingLevel >= 100
 			? 1
-			: Math.max(0, Math.min(1, displayedFishingExp / Math.max(1, fishingExpToNext)));
-	const fishingExpAnimate =
-		fishing?.expBarLevelUpBurst
-			? {
-					width: [
-						"100%",
-						"100%",
-						"0%",
-						`${Math.max(0, Math.min(1, fishingExpRatio)) * 100}%`,
-					],
-				}
-			: { width: `${Math.max(0, Math.min(1, fishingExpRatio)) * 100}%` };
+			: Math.max(
+					0,
+					Math.min(1, displayedFishingExp / Math.max(1, fishingExpToNext)),
+				);
+	const fishingExpAnimate = fishing?.expBarLevelUpBurst
+		? {
+				width: [
+					"100%",
+					"100%",
+					"0%",
+					`${Math.max(0, Math.min(1, fishingExpRatio)) * 100}%`,
+				],
+			}
+		: { width: `${Math.max(0, Math.min(1, fishingExpRatio)) * 100}%` };
 	const fishingExpTransition = fishing?.expBarLevelUpBurst
 		? {
 				duration: 2,
@@ -1431,7 +1646,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 			]
 		: [];
 	const selectedBuffOption = fishing
-		? fishingBuffOptions[fishing.selectedMoveIndex] ?? fishingBuffOptions[0]
+		? (fishingBuffOptions[fishing.selectedMoveIndex] ?? fishingBuffOptions[0])
 		: null;
 	const unlockedMoveEntries = fishingMoveOrder
 		.map((moveId, sourceIndex) => ({ moveId, sourceIndex }))
@@ -1439,7 +1654,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 	const selectedMoveOption = fishing
 		? (() => {
 				const moveId = fishingMoveOrder[fishing.selectedMoveIndex];
-				if (moveId && fishingMoveUnlocks[moveId]) return fishingMoveInfo[moveId];
+				if (moveId && fishingMoveUnlocks[moveId])
+					return fishingMoveInfo[moveId];
 				const fallback = unlockedMoveEntries[0];
 				return fallback ? fishingMoveInfo[fallback.moveId] : null;
 			})()
@@ -1527,6 +1743,10 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					</div>
 				</div>
 			</div>
+			<ProgressHudRow
+				progressPoints={progressPercent}
+				progressWon={progressWon}
+			/>
 
 			<div className='gameplay-main'>
 				<div className='inventory inventory-strip gameplay-inventory'>
@@ -1537,7 +1757,9 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 								key='water-row'
 								className='inventory-item'
 							>
-								<span className='inventory-item-icon'>{GLYPH.pouringLiquid}</span>{" "}
+								<span className='inventory-item-icon'>
+									{GLYPH.pouringLiquid}
+								</span>{" "}
 								{/* water can */}
 								<span>Water:</span>
 								<span>{waterLevel}</span>
@@ -1607,7 +1829,9 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 									aria-label='Zoom out'
 								>
 									<div className='mobile-zoom-icon'>
-										<span className='mobile-zoom-base'>{GLYPH.magnifierLeft}</span>
+										<span className='mobile-zoom-base'>
+											{GLYPH.magnifierLeft}
+										</span>
 										<span className='mobile-zoom-mark'>-</span>
 									</div>
 								</button>
@@ -1620,7 +1844,9 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 									aria-label='Zoom in'
 								>
 									<div className='mobile-zoom-icon'>
-										<span className='mobile-zoom-base'>{GLYPH.magnifierLeft}</span>
+										<span className='mobile-zoom-base'>
+											{GLYPH.magnifierLeft}
+										</span>
 										<span className='mobile-zoom-mark'>+</span>
 									</div>
 								</button>
@@ -1663,6 +1889,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 							caveRubble,
 							toVisual,
 							spriteTilesNeedingGround,
+							progressLoadoutRows,
 							petFacing,
 							tractorFacing,
 							showForestHit,
@@ -1822,10 +2049,12 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 												: 0.2,
 									}}
 								>
-									<div className='fishing-hud-name'>You LVL {displayedFishingLevel}</div>
+									<div className='fishing-hud-name'>
+										You LVL {displayedFishingLevel}
+									</div>
 									<div className='small'>
-										{GLYPH.crossedSwords} <PopStatValue value={fishing.playerAttack} />{" "}
-										{GLYPH.shield}{" "}
+										{GLYPH.crossedSwords}{" "}
+										<PopStatValue value={fishing.playerAttack} /> {GLYPH.shield}{" "}
 										<PopStatValue value={fishing.playerDefense} />
 									</div>
 									<div className='fishing-bar-wrap'>
@@ -1873,8 +2102,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 								>
 									<div className='fishing-hud-name'>{fishing.fishName}</div>
 									<div className='small'>
-										{GLYPH.crossedSwords} <PopStatValue value={fishing.fishAttack} />{" "}
-										{GLYPH.shield}{" "}
+										{GLYPH.crossedSwords}{" "}
+										<PopStatValue value={fishing.fishAttack} /> {GLYPH.shield}{" "}
 										<PopStatValue value={fishing.fishDefense} />
 									</div>
 									<div className='fishing-bar-wrap'>
@@ -1948,7 +2177,11 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 											key={toast.id}
 											className={`fishing-combat-toast ${toast.tone}`}
 											initial={{ opacity: 0, y: 0, scale: 0.9 }}
-											animate={{ opacity: [0, 1, 1, 0], y: [0, -8, -20, -34], scale: 1 }}
+											animate={{
+												opacity: [0, 1, 1, 0],
+												y: [0, -8, -20, -34],
+												scale: 1,
+											}}
 											transition={{
 												duration: (toast.durationMs ?? 900) / 1000,
 												ease: "easeOut",
@@ -2008,7 +2241,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 												fishing.fishAnim === "defeat"
 													? 2
 													: fishing.phase === "intro" &&
-															openingStage === "fish_enter"
+														  openingStage === "fish_enter"
 														? 1
 														: fishing.fishAnim === "bobble"
 															? 2
@@ -2025,7 +2258,11 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 											key={toast.id}
 											className={`fishing-combat-toast ${toast.tone}`}
 											initial={{ opacity: 0, y: 0, scale: 0.9 }}
-											animate={{ opacity: [0, 1, 1, 0], y: [0, -8, -20, -34], scale: 1 }}
+											animate={{
+												opacity: [0, 1, 1, 0],
+												y: [0, -8, -20, -34],
+												scale: 1,
+											}}
 											transition={{
 												duration: (toast.durationMs ?? 900) / 1000,
 												ease: "easeOut",
@@ -2050,63 +2287,68 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 								className={`fishing-options-panel fishing-panel-layer ${fishingMenuVisible ? "active" : ""}`}
 								aria-hidden={!fishingMenuVisible}
 							>
-								{fishingBuffChoiceVisible
-									? (
-											<>
-												<div className='fishing-options-moves'>
-													{fishingBuffOptions.map((option, idx) => {
-														const isSelected = fishing.selectedMoveIndex === idx;
-														return (
-															<button
-																key={option.key}
-																type='button'
-																className={`option fishing-move-button ${isSelected ? "active" : ""}`}
-																onClick={option.onSelect}
-																onMouseEnter={() =>
-																	moveFishingBuffSelection(idx - fishing.selectedMoveIndex)
-																}
-																disabled={!fishingMenuVisible || !fishingBuffChoiceEnabled}
-															>
-																<span>{isSelected ? ">" : " "}</span>
-																<span>{option.label}</span>
-															</button>
-														);
-													})}
-												</div>
-												<div className='fishing-options-description small'>
-													{selectedBuffOption?.description ?? ""}
-												</div>
-											</>
-										)
-									: (
-											<>
-												<div className='fishing-options-moves'>
-													{unlockedMoveEntries.map(({ moveId, sourceIndex }) => {
-														const info = fishingMoveInfo[moveId];
-														const isSelected = fishing.selectedMoveIndex === sourceIndex;
-														const isTurn = fishing.phase === "player_turn";
-														return (
-															<button
-																key={moveId}
-																type='button'
-																className={`option fishing-move-button ${isSelected ? "active" : ""}`}
-																onClick={() => selectFishingMoveById(moveId)}
-																onMouseEnter={() =>
-																	moveFishingSelection(sourceIndex - fishing.selectedMoveIndex)
-																}
-																disabled={!isTurn || !fishingMenuVisible}
-															>
-																<span>{isSelected ? ">" : " "}</span>
-																<span>{info.label}</span>
-															</button>
-														);
-													})}
-												</div>
-												<div className='fishing-options-description small'>
-													{selectedMoveOption?.description ?? ""}
-												</div>
-											</>
-										)}
+								{fishingBuffChoiceVisible ? (
+									<>
+										<div className='fishing-options-moves'>
+											{fishingBuffOptions.map((option, idx) => {
+												const isSelected = fishing.selectedMoveIndex === idx;
+												return (
+													<button
+														key={option.key}
+														type='button'
+														className={`option fishing-move-button ${isSelected ? "active" : ""}`}
+														onClick={option.onSelect}
+														onMouseEnter={() =>
+															moveFishingBuffSelection(
+																idx - fishing.selectedMoveIndex,
+															)
+														}
+														disabled={
+															!fishingMenuVisible || !fishingBuffChoiceEnabled
+														}
+													>
+														<span>{isSelected ? ">" : " "}</span>
+														<span>{option.label}</span>
+													</button>
+												);
+											})}
+										</div>
+										<div className='fishing-options-description small'>
+											{selectedBuffOption?.description ?? ""}
+										</div>
+									</>
+								) : (
+									<>
+										<div className='fishing-options-moves'>
+											{unlockedMoveEntries.map(({ moveId, sourceIndex }) => {
+												const info = fishingMoveInfo[moveId];
+												const isSelected =
+													fishing.selectedMoveIndex === sourceIndex;
+												const isTurn = fishing.phase === "player_turn";
+												return (
+													<button
+														key={moveId}
+														type='button'
+														className={`option fishing-move-button ${isSelected ? "active" : ""}`}
+														onClick={() => selectFishingMoveById(moveId)}
+														onMouseEnter={() =>
+															moveFishingSelection(
+																sourceIndex - fishing.selectedMoveIndex,
+															)
+														}
+														disabled={!isTurn || !fishingMenuVisible}
+													>
+														<span>{isSelected ? ">" : " "}</span>
+														<span>{info.label}</span>
+													</button>
+												);
+											})}
+										</div>
+										<div className='fishing-options-description small'>
+											{selectedMoveOption?.description ?? ""}
+										</div>
+									</>
+								)}
 							</div>
 						</div>
 						{openingStage === "ready" && (
@@ -2224,8 +2466,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 														<span
 															className={
 																modal.title === "Wardrobe"
-																? "wardrobe-option-label"
-																: undefined
+																	? "wardrobe-option-label"
+																	: undefined
 															}
 														>
 															{opt.label}
