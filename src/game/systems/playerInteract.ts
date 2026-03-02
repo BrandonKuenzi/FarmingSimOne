@@ -29,6 +29,7 @@ import type {
 	VendorKey,
 	WeatherId,
 	TileFxApi,
+	ProgressEventPayload,
 } from "../shared/types";
 
 type QuantityPromptConfig = {
@@ -211,6 +212,7 @@ export type PlayerInteractContext = {
 	caveIsBonusLevel: boolean;
 	openCaveBonusChestReward: () => void;
 	caveLevel: number;
+	forestLevel: number;
 	setCaveLadderPos: Dispatch<SetStateAction<Point | null>>;
 	caveObstacles: ForestObstacle[];
 	animalsMap: MapId;
@@ -318,6 +320,8 @@ export type PlayerInteractContext = {
 	tileFx: TileFxApi;
 	aquariumCuratorTile: Point | null;
 	interactAquariumCurator: () => void;
+	onProgressEvent?: (event: ProgressEventPayload) => void;
+	maybeGrantChestProgressStone?: (kind: "forest" | "cave", depth: number) => void;
 };
 
 export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
@@ -431,6 +435,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		caveObstacleAt,
 		setCaveObstacles,
 		caveLevel,
+		forestLevel,
 		setCaveLadderPos,
 		caveObstacles,
 		animalsMap,
@@ -524,6 +529,8 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		tileFx,
 		aquariumCuratorTile,
 		interactAquariumCurator,
+		onProgressEvent,
+		maybeGrantChestProgressStone,
 	} = ctx;
 	if (modal || fishing || isOrdering || isDoctorCompounding || isDrivingTractor)
 		return;
@@ -860,6 +867,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		if (forestChest.x === tx && forestChest.y === ty && !forestChest.opened) {
 			setForestChest((prev: ForestChest) => ({ ...prev, opened: true }));
 			openHighValueForestChestReward();
+			maybeGrantChestProgressStone?.("forest", forestLevel);
 			return;
 		}
 
@@ -874,6 +882,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			);
 			if (forestIsBonusLevel) {
 				openHighValueForestChestReward();
+				maybeGrantChestProgressStone?.("forest", forestLevel);
 				return;
 			}
 			const roll = randomRoll();
@@ -909,6 +918,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				);
 			}
 			openRewardPopup(line);
+			maybeGrantChestProgressStone?.("forest", forestLevel);
 			return;
 		}
 
@@ -999,6 +1009,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				prev ? { ...prev, opened: true } : prev,
 			);
 			ctx.openCaveBonusChestReward();
+			maybeGrantChestProgressStone?.("cave", caveLevel);
 			return;
 		}
 		const obstacle = caveObstacleAt(tx, ty);
@@ -1340,6 +1351,12 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				[plotKey]: { crop: null, growthDays: 0, watered: false },
 			}));
 			updateInventory(crop.harvestItem, 1);
+			onProgressEvent?.({
+				type: "crop_harvested",
+				quantity: 1,
+				cropId: plot.crop,
+				itemId: crop.harvestItem,
+			});
 			playPluck();
 		} else if (!plot.watered) {
 			const targets = getHoeTargets(player.x, player.y, dir, tools.wateringCan);
@@ -1505,6 +1522,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			openQuantityPrompt,
 			randomInt,
 			tileFx,
+			onProgressEvent,
 		})
 	)
 		return;

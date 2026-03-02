@@ -35,6 +35,7 @@ type AreaMusicControllerInput = {
 	houseMusicRef: AudioRef;
 	forestMusicRef: AudioRef;
 	caveMusicRef: AudioRef;
+	computerLabMusicRef: AudioRef;
 	bureaucracyMusicRef: AudioRef;
 	endOfDayRef: AudioRef;
 	cafeOrderMusicRef: AudioRef;
@@ -64,6 +65,7 @@ export const createAreaMusicController = (
 		houseMusicRef,
 		forestMusicRef,
 		caveMusicRef,
+		computerLabMusicRef,
 		bureaucracyMusicRef,
 		endOfDayRef,
 		cafeOrderMusicRef,
@@ -79,6 +81,7 @@ export const createAreaMusicController = (
 		if (mapId === "farm") return farmMusicRef.current;
 		if (mapId === "town" || isShopMap(mapId)) return townMusicRef.current;
 		if (mapId === "aquarium") return bureaucracyMusicRef.current;
+		if (mapId === "computer_lab") return computerLabMusicRef.current;
 		if (mapId === "forest") {
 			if (forestIsBonusLevel) return bureaucracyMusicRef.current;
 			return forestMusicRef.current;
@@ -126,6 +129,7 @@ export const createAreaMusicController = (
 			houseMusicRef.current,
 			forestMusicRef.current,
 			caveMusicRef.current,
+			computerLabMusicRef.current,
 			bureaucracyMusicRef.current,
 			endOfDayRef.current,
 			cafeOrderMusicRef.current,

@@ -42,6 +42,7 @@ import type {
 	ToolLevels,
 	UnlockFlags,
 	VendorKey,
+	ProgressEventPayload,
 } from "../shared/types";
 
 type Point = { x: number; y: number };
@@ -110,6 +111,7 @@ type VendorContext = {
 	setAnimalAnchors: (
 		updater: (prev: Record<number, Point>) => Record<number, Point>,
 	) => void;
+	onProgressEvent?: (event: ProgressEventPayload) => void;
 };
 
 const withBack = (closeMenu: () => void) => ({
@@ -163,6 +165,7 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 		setAnimals,
 		setAnimalTiles,
 		setAnimalAnchors,
+		onProgressEvent,
 	} = ctx;
 
 	if (key === "seed_vendor") {
@@ -617,6 +620,24 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 							onConfirm: (quantity) => {
 								updateInventory(id, -quantity);
 								applyMoneyDelta(unitPrice * quantity);
+								const fishIdSet = new Set(fishItemIds as ItemId[]);
+								const animalProductSet = new Set<ItemId>(["milk", "wool", "egg"]);
+								const eventType = fishIdSet.has(id)
+									? "fish_sold"
+									: animalProductSet.has(id)
+										? "animal_product_sold"
+										: "crop_sold";
+								onProgressEvent?.({
+									type: eventType,
+									quantity,
+									itemId: id,
+									saleCategory:
+										eventType === "fish_sold"
+											? "fish"
+											: eventType === "animal_product_sold"
+												? "animal_product"
+												: "crop",
+								});
 								playChaChing();
 								addLog(`Sold ${itemNames[id]} x${quantity}.`);
 							},

@@ -30,6 +30,7 @@ type AudioSources = {
 	notificationSoundSrc: string;
 	forestMusicSrc: string;
 	caveMusicSrc: string;
+	themeSongSrc: string;
 	spaceBgSrc: string;
 	gotRewardSoundSrc: string;
 	snakeSoundSrc: string;
@@ -61,6 +62,7 @@ type AudioRefs = {
 	houseMusicRef: AudioRef;
 	forestMusicRef: AudioRef;
 	caveMusicRef: AudioRef;
+	computerLabMusicRef: AudioRef;
 	bureaucracyMusicRef: AudioRef;
 	chaChingRef: AudioRef;
 	endOfDayRef: AudioRef;
@@ -128,6 +130,9 @@ export const initializeAudioEngine = ({
 	refs.caveMusicRef.current = new Audio(sources.caveMusicSrc);
 	refs.caveMusicRef.current.preload = "auto";
 	refs.caveMusicRef.current.loop = true;
+	refs.computerLabMusicRef.current = new Audio(sources.themeSongSrc);
+	refs.computerLabMusicRef.current.preload = "auto";
+	refs.computerLabMusicRef.current.loop = true;
 	refs.bureaucracyMusicRef.current = new Audio(sources.spaceBgSrc);
 	refs.bureaucracyMusicRef.current.preload = "auto";
 	refs.bureaucracyMusicRef.current.loop = true;
@@ -201,6 +206,7 @@ export const initializeAudioEngine = ({
 		refs.houseMusicRef.current,
 		refs.forestMusicRef.current,
 		refs.caveMusicRef.current,
+		refs.computerLabMusicRef.current,
 		refs.bureaucracyMusicRef.current,
 		refs.chaChingRef.current,
 		refs.endOfDayRef.current,

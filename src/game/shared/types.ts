@@ -6,6 +6,7 @@ export type MapId =
 	| "aquarium"
 	| "forest"
 	| "cave"
+	| "computer_lab"
 	| "bureaucracy_office"
 	| "seed_shop"
 	| "feed_shop"
@@ -513,6 +514,80 @@ export type ProgressionState = {
 	hasTractor: boolean;
 	hasHeadlamp: boolean;
 	ownedPet: PetEmoji | null;
+};
+
+export type ProgressRarity = "common" | "uncommon" | "rare" | "legendary";
+
+export type ProgressTargetId =
+	| "money_gained"
+	| "fish_caught"
+	| "forest_depth_advanced"
+	| "cave_depth_advanced"
+	| "crop_harvested"
+	| "animal_fed"
+	| "milk_collected"
+	| "wool_collected"
+	| "egg_collected"
+	| "crop_sold"
+	| "animal_product_sold"
+	| "fish_sold"
+	| "aquarium_donated";
+
+export type ProgressAlgorithmId =
+	| "add_1"
+	| "add_2"
+	| "add_3"
+	| "add_5"
+	| "add_diamond_count"
+	| "add_barn_tier"
+	| "add_tier5_tools"
+	| "mul_1_25"
+	| "mul_1_5"
+	| "mul_2"
+	| "mul_donated_fish_count"
+	| "add_cow_count"
+	| "add_sheep_count"
+	| "add_chicken_count"
+	| "add_crop_count"
+	| "add_highest_forest_level"
+	| "add_highest_cave_level";
+
+export type ProgressEventType = ProgressTargetId;
+
+export type ProgressEventPayload = {
+	type: ProgressEventType;
+	moneyDelta?: number;
+	quantity?: number;
+	itemId?: ItemId;
+	animalType?: AnimalType;
+	cropId?: CropId;
+	saleCategory?: "crop" | "animal_product" | "fish";
+	forestLevel?: number;
+	caveLevel?: number;
+};
+
+export type ProgressTargetStoneDef = {
+	id: ProgressTargetId;
+	name: string;
+	target: ProgressTargetId;
+	rarity: ProgressRarity;
+	description: string;
+};
+
+export type ProgressAlgorithmStoneDef = {
+	id: ProgressAlgorithmId;
+	name: string;
+	rarity: ProgressRarity;
+	description: string;
+};
+
+export type ProgressLoadoutRow = {
+	targetStoneId: ProgressTargetId | null;
+	algorithmStoneIds: [
+		ProgressAlgorithmId | null,
+		ProgressAlgorithmId | null,
+		ProgressAlgorithmId | null,
+	];
 };
 
 export type SaveGameData = {

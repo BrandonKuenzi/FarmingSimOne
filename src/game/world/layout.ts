@@ -24,6 +24,9 @@ export const TOWN_OCEAN_START_Y = TOWN_SAND_Y + 1;
 export const BUREAUCRACY_ENTRY_POS = { x: 12, y: 9 };
 export const BUREAUCRACY_EXIT_POS = { x: 12, y: 11 };
 export const BUREAUCRACY_SAVARIO_POS = { x: 12, y: 5 };
+export const COMPUTER_LAB_TOWN_DOOR_POS = { x: 2, y: 3 };
+export const COMPUTER_LAB_ROOF_PURPLE_TILE = "\u00D7";
+export const COMPUTER_LAB_ROOF_DARK_TILE = "\u00D8";
 
 export const BARN_MAX_TIER: BarnTier = 5;
 export const BARN_TIER_NAMES: Record<BarnTier, string> = {
@@ -230,6 +233,21 @@ export const buildTownLayout = (): string[] => {
 		grid[shopY + 2][doorX] = sign;
 	});
 
+	for (let yy = 0; yy <= 1; yy += 1) {
+		for (let xx = 1; xx <= 4; xx += 1) {
+			grid[yy][xx] =
+				(xx - 1) % 2 === 0
+					? COMPUTER_LAB_ROOF_PURPLE_TILE
+					: COMPUTER_LAB_ROOF_DARK_TILE;
+		}
+	}
+	for (let yy = 2; yy <= 3; yy += 1) {
+		for (let xx = 1; xx <= 4; xx += 1) {
+			grid[yy][xx] = "W";
+		}
+	}
+	grid[2][3] = '"';
+
 	for (let y = 1; y <= TOWN_COAST_WALL_Y; y += 1) {
 		mainPathXs.forEach((px) => {
 			grid[y][px] = "=";
@@ -291,6 +309,11 @@ export const buildTownLayout = (): string[] => {
 	for (let x = 45; x <= 53; x += 1) {
 		grid[16][x] = "=";
 	}
+	grid[COMPUTER_LAB_TOWN_DOOR_POS.y]![COMPUTER_LAB_TOWN_DOOR_POS.x] = "+";
+	for (let y = COMPUTER_LAB_TOWN_DOOR_POS.y + 1; y <= 7; y += 1) {
+		grid[y]![COMPUTER_LAB_TOWN_DOOR_POS.x] = "=";
+	}
+	grid[4][1] = "\u00D9";
 	grid[14][50] = "(";
 	grid[14][52] = "-";
 	grid[14][54] = '"';
@@ -708,6 +731,20 @@ export const buildBureaucracyOfficeLayout = (): string[] => {
 	return grid.map((row) => row.join(""));
 };
 
+export const buildComputerLabLayout = (): string[] => [
+	"################",
+	"#..............#",
+	"#.xxxxx..xxxx..#",
+	"#..............#",
+	"#.xxxxx..xxxx..#",
+	"#..............#",
+	"#.xxxxx..xxxx..#",
+	"#..............#",
+	"#..............#",
+	"#..............#",
+	"#######+########",
+];
+
 export const mapLayouts: Record<MapId, string[]> = {
 	farm: buildFarmLayout(1),
 	house: [
@@ -724,6 +761,7 @@ export const mapLayouts: Record<MapId, string[]> = {
 	aquarium: buildAquariumLayout(),
 	forest: buildForestPlaceholderLayout(),
 	cave: buildCavePlaceholderLayout(),
+	computer_lab: buildComputerLabLayout(),
 	bureaucracy_office: buildBureaucracyOfficeLayout(),
 	seed_shop: buildShopLayout(),
 	feed_shop: buildShopLayout(),
@@ -795,12 +833,16 @@ export const mapTiles: Record<MapId, Tile[][]> = Object.fromEntries(
 					c === "(" ||
 					c === "-" ||
 					c === '"' ||
-					c === "\u00A7"
+					c === "\u00A7" ||
+					c === COMPUTER_LAB_ROOF_PURPLE_TILE ||
+					c === COMPUTER_LAB_ROOF_DARK_TILE
 				) {
 					return { icon: c, passable: false, label: "Roof" };
 				}
 				if (c === "l") return { icon: c, passable: false, label: "Window" };
 				if (c === "x") return { icon: "x", passable: false, label: "Counter" };
+				if (c === "\u00D9")
+					return { icon: c, passable: false, label: "Trophy Display" };
 				if (c === "h") return { icon: "h", passable: false, label: "Chair" };
 				if (c === "j")
 					return { icon: "j", passable: false, label: "Shopkeeper" };

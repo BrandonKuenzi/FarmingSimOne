@@ -18,6 +18,7 @@ import type {
 	Plot,
 	Position,
 	PriceState,
+	ProgressLoadoutRow,
 	QuantityPromptState,
 	FishingPlayerMoveId,
 	FishingMoveUnlocks,
@@ -49,6 +50,9 @@ export type GameRuntimeViewModel = {
 	currentWeather: WeatherId;
 	weatherEmojiById: Record<string, string>;
 	money: number;
+	progressPercent: number;
+	progressWon: boolean;
+	progressLoadoutRows: [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow];
 	stamina: number;
 	staminaMax: number;
 	waterLevel: number;
