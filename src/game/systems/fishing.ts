@@ -877,7 +877,7 @@ export const resolveFishTurn = (args: {
 	}
 	if (moveId === "shenanigans") {
 		const randSigned = () => {
-			const base = randomInt(10, 100);
+			const base = randomInt(5, 20);
 			return randomInt(0, 1) === 0 ? -base : base;
 		};
 		return {
