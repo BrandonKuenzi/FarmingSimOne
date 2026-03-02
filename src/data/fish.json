@@ -5,7 +5,7 @@
 		"glyph": "🐟",
 		"category": "freshwater",
 		"sellPrice": 100,
-		"spawnWeight": 80,
+		"spawnWeight": 15,
 		"stats": {
 			"maxHp": 10,
 			"attack": 3,
@@ -29,7 +29,7 @@
 		"glyph": "🐸",
 		"category": "freshwater",
 		"sellPrice": 180,
-		"spawnWeight": 55,
+		"spawnWeight": 10,
 		"stats": {
 			"maxHp": 16,
 			"attack": 5,
@@ -57,7 +57,7 @@
 		"glyph": "🐠",
 		"category": "freshwater",
 		"sellPrice": 350,
-		"spawnWeight": 35,
+		"spawnWeight": 7,
 		"stats": {
 			"maxHp": 28,
 			"attack": 9,
@@ -85,7 +85,7 @@
 		"glyph": "🐢",
 		"category": "freshwater",
 		"sellPrice": 650,
-		"spawnWeight": 20,
+		"spawnWeight": 7,
 		"stats": {
 			"maxHp": 40,
 			"attack": 7,
@@ -155,15 +155,19 @@
 		"movePool": [
 			{
 				"moveId": "undertow_rip",
-				"weight": 12
+				"weight": 10
 			},
 			{
 				"moveId": "wrap_line",
-				"weight": 65
+				"weight": 30
+			},
+			{
+				"moveId": "salt_armor",
+				"weight": 55
 			},
 			{
 				"moveId": "go_along",
-				"weight": 23
+				"weight": 15
 			}
 		]
 	},
@@ -211,19 +215,23 @@
 		"movePool": [
 			{
 				"moveId": "undertow_rip",
-				"weight": 16
+				"weight": 14
 			},
 			{
 				"moveId": "wrap_line",
-				"weight": 46
+				"weight": 34
+			},
+			{
+				"moveId": "salt_armor",
+				"weight": 22
 			},
 			{
 				"moveId": "bite",
-				"weight": 25
+				"weight": 20
 			},
 			{
 				"moveId": "go_along",
-				"weight": 13
+				"weight": 10
 			}
 		]
 	},
@@ -318,10 +326,6 @@
 				"weight": 20
 			},
 			{
-				"moveId": "wrap_line",
-				"weight": 36
-			},
-			{
 				"moveId": "thrash",
 				"weight": 20
 			},
@@ -351,11 +355,15 @@
 		"movePool": [
 			{
 				"moveId": "undertow_rip",
-				"weight": 25
+				"weight": 20
+			},
+			{
+				"moveId": "leviathans_wake",
+				"weight": 20
 			},
 			{
 				"moveId": "bite",
-				"weight": 75
+				"weight": 60
 			}
 		]
 	},
@@ -365,7 +373,7 @@
 		"glyph": "🪸",
 		"category": "saltwater",
 		"sellPrice": 3200,
-		"spawnWeight": 12,
+		"spawnWeight": 16,
 		"stats": {
 			"maxHp": 78,
 			"attack": 14,
@@ -375,11 +383,15 @@
 		"movePool": [
 			{
 				"moveId": "undertow_rip",
-				"weight": 25
+				"weight": 20
 			},
 			{
-				"moveId": "wrap_line",
-				"weight": 75
+				"moveId": "rising_tide",
+				"weight": 20
+			},
+			{
+				"moveId": "salt_armor",
+				"weight": 15
 			}
 		]
 	},
@@ -389,29 +401,25 @@
 		"glyph": "🧽",
 		"category": "saltwater",
 		"sellPrice": 260,
-		"spawnWeight": 12,
+		"spawnWeight": 16,
 		"stats": {
-			"maxHp": 16,
+			"maxHp": 200,
 			"attack": 5,
 			"defense": 6
 		},
 		"expGranted": 120,
 		"movePool": [
 			{
-				"moveId": "undertow_rip",
-				"weight": 15
+				"moveId": "shenanigans",
+				"weight": 1
 			},
 			{
-				"moveId": "wrap_line",
-				"weight": 25
+				"moveId": "spatula_slap",
+				"weight": 1
 			},
 			{
-				"moveId": "go_along",
-				"weight": 50
-			},
-			{
-				"moveId": "thrash",
-				"weight": 10
+				"moveId": "sponge_laugh",
+				"weight": 1
 			}
 		]
 	},
@@ -423,7 +431,7 @@
 		"sellPrice": 5000,
 		"spawnWeight": 2,
 		"stats": {
-			"maxHp": 135,
+			"maxHp": 300,
 			"attack": 38,
 			"defense": 32
 		},
@@ -431,27 +439,39 @@
 		"movePool": [
 			{
 				"moveId": "thalassophobia",
-				"weight": 28
+				"weight": 20
 			},
 			{
 				"moveId": "undertow_rip",
-				"weight": 18
+				"weight": 14
 			},
 			{
 				"moveId": "dive_deep",
-				"weight": 24
+				"weight": 16
 			},
 			{
-				"moveId": "wrap_line",
+				"moveId": "leviathans_wake",
 				"weight": 18
 			},
 			{
+				"moveId": "rising_tide",
+				"weight": 14
+			},
+			{
+				"moveId": "salt_armor",
+				"weight": 12
+			},
+			{
+				"moveId": "wrap_line",
+				"weight": 4
+			},
+			{
 				"moveId": "thrash",
-				"weight": 8
+				"weight": 1
 			},
 			{
 				"moveId": "go_along",
-				"weight": 4
+				"weight": 1
 			}
 		]
 	},
@@ -463,7 +483,7 @@
 		"sellPrice": 1100,
 		"spawnWeight": 18,
 		"stats": {
-			"maxHp": 46,
+			"maxHp": 60,
 			"attack": 14,
 			"defense": 14
 		},
@@ -471,23 +491,19 @@
 		"movePool": [
 			{
 				"moveId": "cavernous_hunger",
-				"weight": 22
+				"weight": 14
+			},
+			{
+				"moveId": "echoing_hunger",
+				"weight": 20
 			},
 			{
 				"moveId": "bite",
-				"weight": 28
-			},
-			{
-				"moveId": "wrap_line",
-				"weight": 24
+				"weight": 20
 			},
 			{
 				"moveId": "dive_deep",
-				"weight": 16
-			},
-			{
-				"moveId": "go_along",
-				"weight": 10
+				"weight": 14
 			}
 		]
 	},
@@ -507,19 +523,23 @@
 		"movePool": [
 			{
 				"moveId": "cavernous_hunger",
-				"weight": 18
+				"weight": 10
 			},
 			{
-				"moveId": "bite",
-				"weight": 52
-			},
-			{
-				"moveId": "thrash",
+				"moveId": "subterranean_rot",
 				"weight": 20
 			},
 			{
+				"moveId": "bite",
+				"weight": 46
+			},
+			{
+				"moveId": "thrash",
+				"weight": 16
+			},
+			{
 				"moveId": "dive_deep",
-				"weight": 10
+				"weight": 8
 			}
 		]
 	},
@@ -529,9 +549,9 @@
 		"glyph": "🐌",
 		"category": "cavewater",
 		"sellPrice": 1400,
-		"spawnWeight": 12,
+		"spawnWeight": 10,
 		"stats": {
-			"maxHp": 80,
+			"maxHp": 150,
 			"attack": 10,
 			"defense": 26
 		},
@@ -539,15 +559,15 @@
 		"movePool": [
 			{
 				"moveId": "cavernous_hunger",
-				"weight": 20
+				"weight": 10
 			},
 			{
-				"moveId": "wrap_line",
-				"weight": 64
+				"moveId": "bedrock_fortification",
+				"weight": 34
 			},
 			{
 				"moveId": "go_along",
-				"weight": 12
+				"weight": 8
 			},
 			{
 				"moveId": "bite",
@@ -559,39 +579,35 @@
 		"id": "ocean_man_dark_legend_01",
 		"name": "Legendary Ocean Man of the Dark",
 		"glyph": "🧜‍♂️",
-		"category": "saltwater",
+		"category": "cavewater",
 		"sellPrice": 5000,
 		"spawnWeight": 1,
 		"stats": {
-			"maxHp": 160,
+			"maxHp": 300,
 			"attack": 42,
 			"defense": 36
 		},
 		"expGranted": 700,
 		"movePool": [
 			{
-				"moveId": "thalassophobia",
-				"weight": 26
-			},
-			{
-				"moveId": "undertow_rip",
-				"weight": 18
+				"moveId": "cavernous_hunger",
+				"weight": 20
 			},
 			{
 				"moveId": "dive_deep",
-				"weight": 22
+				"weight": 20
 			},
 			{
-				"moveId": "wrap_line",
-				"weight": 18
+				"moveId": "leviathans_wake",
+				"weight": 20
 			},
 			{
-				"moveId": "thrash",
-				"weight": 10
+				"moveId": "bedrock_fortification",
+				"weight": 20
 			},
 			{
-				"moveId": "bite",
-				"weight": 6
+				"moveId": "subterranean_rot",
+				"weight": 20
 			}
 		]
 	}

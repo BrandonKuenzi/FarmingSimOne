@@ -8,7 +8,10 @@ import type {
 	FishingPlayerMoveId,
 	FishingProgressState,
 	FishingState,
+	FishPerTurnStatModifier,
+	FishingMoveUnlocks,
 	MapId,
+	PlayerPerTurnStatModifier,
 } from "../shared/types";
 
 type TimerRef = { current: number | null };
@@ -23,8 +26,22 @@ export const FISHING_PLAYER_MOVE_ORDER: FishingPlayerMoveId[] = [
 	"pull_rod",
 	"release_line",
 	"use_net",
+	"relax_you_are_fishing",
+	"steady_hands",
+	"focus_on_drag",
 	"cut_line",
 ];
+
+export const createInitialFishingMoveUnlocks = (): FishingMoveUnlocks => ({
+	reel_in: true,
+	pull_rod: false,
+	release_line: false,
+	use_net: false,
+	relax_you_are_fishing: false,
+	steady_hands: false,
+	focus_on_drag: false,
+	cut_line: true,
+});
 
 export const FISHING_PLAYER_MOVES: Record<
 	FishingPlayerMoveId,
@@ -35,7 +52,7 @@ export const FISHING_PLAYER_MOVES: Record<
 		description: "Standard attack.",
 	},
 	pull_rod: {
-		label: "Pull Rod",
+		label: "Jerk Rod Sideways",
 		description: "Small damage and lower fish defense by 1.",
 	},
 	release_line: {
@@ -44,11 +61,23 @@ export const FISHING_PLAYER_MOVES: Record<
 	},
 	use_net: {
 		label: "Use Net",
-		description: "Try to catch based on level and fish HP.",
+		description: "Try to instant win. More success when fish has low HP.",
+	},
+	relax_you_are_fishing: {
+		label: "Relax",
+		description: "Gain +1 attack and +1 defense every turn.",
+	},
+	steady_hands: {
+		label: "Steady Hands",
+		description: "Gain +3 attack every turn.",
+	},
+	focus_on_drag: {
+		label: "Focus on Drag",
+		description: "Gain +3 defense every turn.",
 	},
 	cut_line: {
 		label: "Cut Line",
-		description: "Leave encounter immediately.",
+		description: "Give up, you quitter.",
 	},
 };
 
@@ -60,6 +89,9 @@ export const FISHING_PLAYER_MOVE_IMPACT_SOUNDS: Record<
 	pull_rod: "hoe",
 	release_line: "hoe",
 	use_net: "hoe",
+	relax_you_are_fishing: "water",
+	steady_hands: "water",
+	focus_on_drag: "water",
 	cut_line: "hoe",
 };
 
@@ -68,12 +100,21 @@ export const FISHING_FISH_MOVE_LABELS: Record<FishingFishMoveId, string> = {
 	thrash: "Thrash",
 	dive_deep: "Dive Deep",
 	wrap_line: "Wrap Line",
-	go_along: "Go Along",
+	go_along: "Do Nothing",
 	undertow_rip: "Undertow Rip",
 	thalassophobia: "Thalassophobia",
 	cavernous_hunger: "Cavernous Hunger",
 	pressure_of_the_deep: "Pressure of the Deep",
 	clear_water_focus: "Clear Water Focus",
+	rising_tide: "Rising Tide",
+	salt_armor: "Salt Armor",
+	leviathans_wake: "Leviathan's Wake",
+	echoing_hunger: "Echoing Hunger",
+	bedrock_fortification: "Bedrock Fortification",
+	subterranean_rot: "Subterranean Rot",
+	shenanigans: "Shenanigans",
+	spatula_slap: "Spatula Slap",
+	sponge_laugh: "Sponge Laugh",
 };
 
 export const FISHING_FISH_MOVE_IMPACT_SOUNDS: Record<
@@ -90,6 +131,15 @@ export const FISHING_FISH_MOVE_IMPACT_SOUNDS: Record<
 	cavernous_hunger: "water",
 	pressure_of_the_deep: "water",
 	clear_water_focus: "water",
+	rising_tide: "water",
+	salt_armor: "water",
+	leviathans_wake: "water",
+	echoing_hunger: "water",
+	bedrock_fortification: "water",
+	subterranean_rot: "water",
+	shenanigans: "water",
+	spatula_slap: "water",
+	sponge_laugh: "water",
 };
 
 export const FISHING_LEVEL_UP_COMPLIMENTS: string[] = [
@@ -114,6 +164,40 @@ export const FISHING_LEVEL_UP_COMPLIMENTS: string[] = [
 	"That is some elite reel-in energy!",
 	"The waters are starting to fear you!",
 ];
+
+const WRAP_LINE_UNDERWATER_OBJECTS: string[] = [
+	" big log",
+	"n old shipwreck",
+	" stick",
+	" grove of seaweed",
+	" coral outcrop",
+	" rusted anchor",
+	" fishing net",
+	" jagged reef edge",
+	" tangle of kelp",
+	" sunken crate",
+	" stone pillar",
+	" driftwood branch",
+	" mossy boulder",
+	"n abandoned buoy chain",
+	" shell-covered post",
+	"n ancient mooring line",
+	" submerged cart wheel",
+	" pile of oyster shells",
+	"n iron cage",
+	" broken dock beam",
+	" vending machine humming softly",
+	" porcelain toilet throne",
+	" rubber duck congregation",
+	" ugly shopping cart",
+	" disco ball still spinning",
+	" pirate's lava lamp",
+	" suspicious briefcase full of sand",
+	" garden gnome in diving goggles",
+	" banquet table set for crabs",
+	" karaoke machine playing bubbles",
+];
+
 const calculateBuffAmount = (
 	attackerAttack: number,
 	attackerDefense: number,
@@ -147,6 +231,8 @@ export const rollFishingLevelUpDefenseBuffAmount = (
 
 const clamp = (value: number, min: number, max: number) =>
 	Math.min(max, Math.max(min, value));
+const whole = (value: number): number =>
+	value >= 0 ? Math.floor(value) : Math.ceil(value);
 
 const weightedPick = <T>(
 	entries: Array<{ value: T; weight: number }>,
@@ -261,7 +347,7 @@ export const applyFishingExpGain = (
 };
 
 export const computeDamage = (attack: number, defense: number): number =>
-	Math.max(1, attack - defense);
+	Math.max(1, whole(attack) - whole(defense));
 
 export const resolvePlayerFishingMove = (args: {
 	moveId: FishingPlayerMoveId;
@@ -273,6 +359,8 @@ export const resolvePlayerFishingMove = (args: {
 	message: string;
 	caught: boolean;
 	cutLine: boolean;
+	addPlayerPerTurnModifier?: PlayerPerTurnStatModifier;
+	addFishPerTurnModifier?: FishPerTurnStatModifier;
 } => {
 	const { moveId, fishing, randomRoll, fishingRodTierLevel } = args;
 	const rodTierBonus = Math.max(0, fishingRodTierLevel - 1);
@@ -312,13 +400,75 @@ export const resolvePlayerFishingMove = (args: {
 		};
 	}
 
+	if (moveId === "relax_you_are_fishing") {
+		return {
+			fishing,
+			message: "You relax...",
+			caught: false,
+			cutLine: false,
+			addPlayerPerTurnModifier: {
+				stamina: 0,
+				attack: 1,
+				defense: 1,
+				moveName: "Relax",
+				messages: [
+					"You remember that you are here to have fun.",
+					"You take a moment to enjoy the beauty around you.",
+					"You pause for a moment to eat some sunflower seeds.",
+					"This moment is bringing back great memories for you.",
+					"You take a deep breath. The air here is clean.",
+				],
+			},
+		};
+	}
+	if (moveId === "steady_hands") {
+		return {
+			fishing,
+			message: "You focus on your grip...",
+			caught: false,
+			cutLine: false,
+			addPlayerPerTurnModifier: {
+				stamina: 0,
+				attack: 3,
+				defense: 0,
+				moveName: "Steady Hands",
+				messages: [
+					"You adjust your grip and find the perfect angle.",
+					"Your hands settle into a calm, confident rhythm.",
+					"You stop fighting the line-and start controlling it.",
+					"Every pull is cleaner. Every motion has purpose.",
+					"Your focus sharpens. You're locked in.",
+				],
+			},
+		};
+	}
+	if (moveId === "focus_on_drag") {
+		return {
+			fishing,
+			message: "You concentrate on the reel's drag.",
+			caught: false,
+			cutLine: false,
+			addPlayerPerTurnModifier: {
+				stamina: 0,
+				attack: 0,
+				defense: 3,
+				moveName: "Focus on Drag",
+				messages: [
+					"You fine-tune the drag for perfect resistance.",
+					"The reel clicks softly as you dial it in.",
+					"You check the tension on the line...",
+					"You adjust the drag so the rod bends just a little.",
+					"You adjust the line tension-it sings smoothly under controlled pressure.",
+				],
+			},
+		};
+	}
+
 	if (moveId === "pull_rod") {
-		const pullDamage = Math.max(1, damage / 2) + rodTierBonus;
+		const pullDamage = whole(Math.max(1, damage / 2) + rodTierBonus);
 		const fishHp = Math.max(0, currentFishHp - pullDamage);
 		const totalDebuf =
-			fishing.fishDefense > debuffAmount
-				? debuffAmount
-				: fishing.fishDefense;
+			fishing.fishDefense > debuffAmount ? debuffAmount : fishing.fishDefense;
 		return {
 			fishing: {
 				...fishing,
@@ -333,14 +483,12 @@ export const resolvePlayerFishingMove = (args: {
 
 	if (moveId === "release_line") {
 		const totalDebuf =
-			fishing.fishAttack > debuffAmount
-				? debuffAmount
-				: fishing.fishAttack;
+			fishing.fishAttack > debuffAmount ? debuffAmount : fishing.fishAttack;
 		return {
 			fishing: {
 				...fishing,
-				fishAttack: Math.max(0, fishing.fishAttack - totalDebuf),
-				fishHp: Math.min(fishing.fishMaxHp, currentFishHp + totalDebuf),
+				fishAttack: Math.max(0, fishing.fishAttack - whole(totalDebuf)),
+				fishHp: Math.min(fishing.fishMaxHp, currentFishHp + whole(totalDebuf)),
 			},
 			message: `You loosen line; fish attack drop by ${totalDebuf} but it recovers ${totalDebuf} HP. `,
 			caught: false,
@@ -366,7 +514,13 @@ export const resolveFishTurn = (args: {
 	moveId: FishingFishMoveId;
 	playerStamina: number;
 	playerStaminaMax: number;
-}): { fishing: FishingState; staminaDamage: number; message: string } => {
+}): {
+	fishing: FishingState;
+	staminaDamage: number;
+	message: string;
+	addPlayerPerTurnModifier?: PlayerPerTurnStatModifier;
+	addFishPerTurnModifier?: FishPerTurnStatModifier;
+} => {
 	const { fishing, moveId, playerStamina, playerStaminaMax } = args;
 	const baseDamage = computeDamage(fishing.fishAttack, fishing.playerDefense);
 	let debuffAmount = calculateBuffAmount(
@@ -379,7 +533,7 @@ export const resolveFishTurn = (args: {
 		return {
 			fishing,
 			staminaDamage: 0,
-			message: `${fishing.fishName} drifts in place.`,
+			message: `${fishing.fishName} is resting.`,
 		};
 	}
 
@@ -388,14 +542,19 @@ export const resolveFishTurn = (args: {
 			debuffAmount > fishing.fishMaxHp / 2
 				? fishing.fishMaxHp / 2
 				: debuffAmount;
+		const totalBuffWhole = whole(totalBuff);
+		const underwaterObject =
+			WRAP_LINE_UNDERWATER_OBJECTS[
+				randomInt(0, WRAP_LINE_UNDERWATER_OBJECTS.length - 1)
+			]!;
 
 		return {
 			fishing: {
 				...fishing,
-				fishDefense: fishing.fishDefense + totalBuff,
+				fishDefense: fishing.fishDefense + totalBuffWhole,
 			},
 			staminaDamage: 0,
-			message: `${fishing.fishName} wraps your line. Defense rose.`,
+			message: `${fishing.fishName} wraps your line around a${underwaterObject} making it harder to reel in!`,
 		};
 	}
 
@@ -412,8 +571,9 @@ export const resolveFishTurn = (args: {
 	}
 
 	if (moveId === "thrash") {
-		const thrashDamage =
-			randomInt(1, 3) === 2 ? fishing.fishMaxHp / 10 : fishing.fishMaxHp / 15;
+		const thrashDamage = whole(
+			randomInt(1, 3) === 2 ? fishing.fishMaxHp / 10 : fishing.fishMaxHp / 15,
+		);
 		return {
 			fishing: {
 				...fishing,
@@ -536,6 +696,216 @@ export const resolveFishTurn = (args: {
 			message: `${fishing.fishName} used Clear Water Focus. It restored ${recoveredHp} HP and raised its ${raiseAttack ? "Attack" : "Defense"} by ${gainAmount}.`,
 		};
 	}
+	if (moveId === "rising_tide") {
+		return {
+			fishing,
+			staminaDamage: 0,
+			message: "The fish summons a Rising Tide...",
+			addFishPerTurnModifier: {
+				hp: 0,
+				attack: 3,
+				defense: 0,
+				moveName: "Rising Tide",
+				messages: [
+					"The tide rises higher with every pull.",
+					"Cold ocean water surges in rhythmic waves.",
+					"The current strengthens-your line hums with tension.",
+					"The sea builds momentum, and so does the fish.",
+					"Another swell rolls in. It's getting stronger.",
+				],
+			},
+		};
+	}
+	if (moveId === "salt_armor") {
+		return {
+			fishing,
+			staminaDamage: 0,
+			message: "The fish hardens into Salt Armor...",
+			addFishPerTurnModifier: {
+				hp: 0,
+				attack: 0,
+				defense: 3,
+				moveName: "Salt Armor",
+				messages: [
+					"Salt crystals form a gritty shield.",
+					"The ocean's minerals cling to its scales like armor.",
+					"A briny crust hardens around it.",
+					"The fish turns with practiced calm-hard to budge.",
+					"Seawater flashes, and its defenses thicken.",
+				],
+			},
+		};
+	}
+	if (moveId === "leviathans_wake") {
+		return {
+			fishing,
+			staminaDamage: 0,
+			message: "The water churns-Leviathan's Wake!",
+			addPlayerPerTurnModifier: {
+				stamina: -4,
+				attack: 0,
+				defense: 0,
+				moveName: "Leviathan's Wake",
+				messages: [
+					"A violent wake batters your stance.",
+					"Foam and spray steal your breath.",
+					"The sea drags at you like it's alive.",
+					"Another surge slams your arms numb.",
+					"The ocean won't let you rest-keep pulling!",
+				],
+			},
+			addFishPerTurnModifier: {
+				hp: 0,
+				attack: 2,
+				defense: 0,
+				moveName: "Leviathan's Wake",
+				messages: [
+					"It rides the wake like a weapon.",
+					"The turbulence makes it bolder.",
+					"It feeds on the chaos of the surf.",
+					"Each wave gives it more leverage.",
+					"It surges forward with terrifying confidence.",
+				],
+			},
+		};
+	}
+	if (moveId === "echoing_hunger") {
+		return {
+			fishing,
+			staminaDamage: 0,
+			message: "A hollow vibration-Echoing Hunger...",
+			addPlayerPerTurnModifier: {
+				stamina: 0,
+				attack: -2,
+				defense: 0,
+				moveName: "Echoing Hunger",
+				messages: [
+					"The cave steals your strength one echo at a time.",
+					"Your arms feel heavier in the cold dark.",
+					"The silence presses down on your will to fight.",
+					"Each drip of water sounds like a countdown.",
+					"The darkness gnaws at your confidence.",
+				],
+			},
+			addFishPerTurnModifier: {
+				hp: 0,
+				attack: 2,
+				defense: 0,
+				moveName: "Echoing Hunger",
+				messages: [
+					"It grows bolder as the cave feeds it.",
+					"The shadows sharpen its strikes.",
+					"Your weakness makes it stronger.",
+					"It thrums with hungry cave-energy.",
+					"It pulls harder, like it's learned your rhythm.",
+				],
+			},
+		};
+	}
+	if (moveId === "bedrock_fortification") {
+		return {
+			fishing,
+			staminaDamage: 0,
+			message: "Stone creeps over it-Bedrock Fortification!",
+			addFishPerTurnModifier: {
+				hp: 0,
+				attack: 0,
+				defense: 4,
+				moveName: "Bedrock Fortification",
+				messages: [
+					"Sediment thickens into a stubborn shell.",
+					"The cave's grit seals every weak point.",
+					"Rock-dust swirls and hardens into defense.",
+					"It becomes a little more immovable each turn.",
+					"The stone remembers. The stone protects.",
+				],
+			},
+		};
+	}
+	if (moveId === "subterranean_rot") {
+		return {
+			fishing,
+			staminaDamage: 0,
+			message: "The cavern exhales-Subterranean Rot...",
+			addPlayerPerTurnModifier: {
+				stamina: 0,
+				attack: 0,
+				defense: -3,
+				moveName: "Subterranean Rot",
+				messages: [
+					"Your footing crumbles beneath you.",
+					"Damp air weakens your grip and resolve.",
+					"The cave saps your ability to brace.",
+					"The walls feel closer. Your guard slips.",
+					"Each turn, the cavern takes something from you.",
+				],
+			},
+		};
+	}
+	if (moveId === "shenanigans") {
+		const randSigned = () => {
+			const base = randomInt(10, 100);
+			return randomInt(0, 1) === 0 ? -base : base;
+		};
+		return {
+			fishing,
+			staminaDamage: 0,
+			message: "Robert uses Shenanigans!",
+			addPlayerPerTurnModifier: {
+				stamina: randSigned(),
+				attack: randSigned(),
+				defense: randSigned(),
+				moveName: "Shenanigans",
+				messages: [
+					"Robert's shenanigans affect you in unexpected ways.",
+					"Robert did something... you don't know how...",
+					"You don't know how much more of this you can take.",
+					"What is going on?!",
+					"You swear the sponge winked at you.",
+				],
+			},
+			addFishPerTurnModifier: {
+				hp: randSigned(),
+				attack: randSigned(),
+				defense: randSigned(),
+				moveName: "Shenanigans",
+				messages: [
+					"Robert's shenanigans affect the fish in unexpected ways.",
+					"The fish looks confused. You feel confused too.",
+					"Somehow, this is getting weirder.",
+					"Reality bends slightly near the sponge.",
+					"You regret asking what Robert was doing.",
+				],
+			},
+		};
+	}
+	if (moveId === "spatula_slap") {
+		const damage = whole(10 + fishing.fishAttack);
+		return {
+			fishing,
+			staminaDamage: damage,
+			message: `Robert used Spatula Slap! It bonked you for ${damage} damage!`,
+		};
+	}
+	if (moveId === "sponge_laugh") {
+		const debuff = 20;
+		if (fishing.robertSpongeLaughUsed) {
+			return {
+				fishing,
+				staminaDamage: 0,
+				message: "Robert used Sponge Laugh! But it has no extra effect.",
+			};
+		}
+		return {
+			fishing: {
+				...fishing,
+				playerDefense: Math.max(0, fishing.playerDefense - debuff),
+				robertSpongeLaughUsed: true,
+			},
+			staminaDamage: 0,
+			message: `Robert used Sponge Laugh! Your defense drops by ${debuff}!`,
+		};
+	}
 
 	// TODO(fishing): hook additional fish moves into this resolver.
 	return {
@@ -621,6 +991,12 @@ export const startFishingSequence = (ctx: {
 		openingStage: "none",
 		playerAnim: null,
 		fishAnim: null,
+		playerToasts: [],
+		fishToasts: [],
+		expBarLevelUpBurst: false,
+		playerPerTurnModifiers: [],
+		fishPerTurnModifiers: [],
+		robertSpongeLaughUsed: false,
 	});
 	ctx.addLog("[full] You cast your line...");
 	const waitMs = ctx.randomInt(2, 8) * 1000;

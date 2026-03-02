@@ -1145,6 +1145,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		cutFishingLine,
 		fishingMoveOrder,
 		fishingMoveInfo,
+		fishingMoveUnlocks,
 		isDrivingTractor,
 		isBathing,
 		showTiredFace,
@@ -1275,6 +1276,54 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		displayedFishingLevel >= 100
 			? 1
 			: Math.max(0, Math.min(1, displayedFishingExp / Math.max(1, fishingExpToNext)));
+	const fishingExpAnimate =
+		fishing?.expBarLevelUpBurst
+			? {
+					width: [
+						"100%",
+						"100%",
+						"0%",
+						`${Math.max(0, Math.min(1, fishingExpRatio)) * 100}%`,
+					],
+				}
+			: { width: `${Math.max(0, Math.min(1, fishingExpRatio)) * 100}%` };
+	const fishingExpTransition = fishing?.expBarLevelUpBurst
+		? {
+				duration: 2,
+				ease: "easeInOut" as const,
+				times: [0, 0.5, 0.5001, 1],
+			}
+		: { duration: 2, ease: "easeInOut" as const };
+	const fishingBuffOptions = fishing
+		? [
+				{
+					key: "attack",
+					label: `Attack +${fishing.levelUpBuffAttackAmount}`,
+					description: "Permanently increase fishing attack.",
+					onSelect: () => selectFishingLevelUpBuffChoice(0),
+				},
+				{
+					key: "defense",
+					label: `Defense +${fishing.levelUpBuffDefenseAmount}`,
+					description: "Permanently increase fishing defense.",
+					onSelect: () => selectFishingLevelUpBuffChoice(1),
+				},
+			]
+		: [];
+	const selectedBuffOption = fishing
+		? fishingBuffOptions[fishing.selectedMoveIndex] ?? fishingBuffOptions[0]
+		: null;
+	const unlockedMoveEntries = fishingMoveOrder
+		.map((moveId, sourceIndex) => ({ moveId, sourceIndex }))
+		.filter(({ moveId }) => fishingMoveUnlocks[moveId]);
+	const selectedMoveOption = fishing
+		? (() => {
+				const moveId = fishingMoveOrder[fishing.selectedMoveIndex];
+				if (moveId && fishingMoveUnlocks[moveId]) return fishingMoveInfo[moveId];
+				const fallback = unlockedMoveEntries[0];
+				return fallback ? fishingMoveInfo[fallback.moveId] : null;
+			})()
+		: null;
 	return (
 		<div
 			className={`game-shell${controlMode === "mobile" ? " mobile-controls-enabled" : ""}`}
@@ -1650,16 +1699,19 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 								>
 									<div className='fishing-hud-name'>You LVL {displayedFishingLevel}</div>
 									<div className='small'>
-										ATK <PopStatValue value={fishing.playerAttack} /> DEF{" "}
+										{GLYPH.crossedSwords} <PopStatValue value={fishing.playerAttack} />{" "}
+										{GLYPH.shield}{" "}
 										<PopStatValue value={fishing.playerDefense} />
 									</div>
 									<div className='fishing-bar-wrap'>
 										<div className='fishing-bar-track'>
-											<div
+											<motion.div
 												className='fishing-bar-fill player'
-												style={{
+												initial={false}
+												animate={{
 													width: `${(Math.max(0, Math.min(staminaMax, stamina)) / Math.max(1, staminaMax)) * 100}%`,
 												}}
+												transition={{ duration: 2, ease: "easeInOut" }}
 											/>
 										</div>
 										<div className='small'>
@@ -1668,9 +1720,11 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										<div className='fishing-exp-row small'>
 											<span>EXP</span>
 											<div className='fishing-bar-track exp'>
-												<div
+												<motion.div
 													className='fishing-bar-fill exp'
-													style={{ width: `${fishingExpRatio * 100}%` }}
+													initial={false}
+													animate={fishingExpAnimate}
+													transition={fishingExpTransition}
 												/>
 											</div>
 											<span>
@@ -1694,16 +1748,19 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 								>
 									<div className='fishing-hud-name'>{fishing.fishName}</div>
 									<div className='small'>
-										ATK <PopStatValue value={fishing.fishAttack} /> DEF{" "}
+										{GLYPH.crossedSwords} <PopStatValue value={fishing.fishAttack} />{" "}
+										{GLYPH.shield}{" "}
 										<PopStatValue value={fishing.fishDefense} />
 									</div>
 									<div className='fishing-bar-wrap'>
 										<div className='fishing-bar-track'>
-											<div
+											<motion.div
 												className='fishing-bar-fill fish'
-												style={{
+												initial={false}
+												animate={{
 													width: `${(Math.max(0, Math.min(fishing.fishMaxHp, fishing.fishHp)) / Math.max(1, fishing.fishMaxHp)) * 100}%`,
 												}}
+												transition={{ duration: 2, ease: "easeInOut" }}
 											/>
 										</div>
 										<div className='small'>
@@ -1760,6 +1817,22 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										{playerEmoji}
 									</motion.div>
 								)}
+								<div className='fishing-combat-toast-stack player'>
+									{fishing.playerToasts.map((toast) => (
+										<motion.div
+											key={toast.id}
+											className={`fishing-combat-toast ${toast.tone}`}
+											initial={{ opacity: 0, y: 0, scale: 0.9 }}
+											animate={{ opacity: [0, 1, 1, 0], y: [0, -8, -20, -34], scale: 1 }}
+											transition={{
+												duration: (toast.durationMs ?? 900) / 1000,
+												ease: "easeOut",
+											}}
+										>
+											{toast.text}
+										</motion.div>
+									))}
+								</div>
 							</div>
 							<div className='fishing-portrait-slot fish'>
 								{showFishPortrait && (
@@ -1821,6 +1894,22 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										{fishing.fishGlyph}
 									</motion.div>
 								)}
+								<div className='fishing-combat-toast-stack fish'>
+									{fishing.fishToasts.map((toast) => (
+										<motion.div
+											key={toast.id}
+											className={`fishing-combat-toast ${toast.tone}`}
+											initial={{ opacity: 0, y: 0, scale: 0.9 }}
+											animate={{ opacity: [0, 1, 1, 0], y: [0, -8, -20, -34], scale: 1 }}
+											transition={{
+												duration: (toast.durationMs ?? 900) / 1000,
+												ease: "easeOut",
+											}}
+										>
+											{toast.text}
+										</motion.div>
+									))}
+								</div>
 							</div>
 						</div>
 						<div
@@ -1837,59 +1926,62 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 								aria-hidden={!fishingMenuVisible}
 							>
 								{fishingBuffChoiceVisible
-									? [
-											{
-												key: "attack",
-												label: `Attack +${fishing.levelUpBuffAttackAmount}`,
-												description: "Permanently increase fishing attack.",
-												onSelect: () => selectFishingLevelUpBuffChoice(0),
-											},
-											{
-												key: "defense",
-												label: `Defense +${fishing.levelUpBuffDefenseAmount}`,
-												description: "Permanently increase fishing defense.",
-												onSelect: () => selectFishingLevelUpBuffChoice(1),
-											},
-										].map((option, idx) => {
-											const isSelected = fishing.selectedMoveIndex === idx;
-											return (
-												<button
-													key={option.key}
-													type='button'
-													className={`option fishing-move-button ${isSelected ? "active" : ""}`}
-													onClick={option.onSelect}
-													onMouseEnter={() =>
-														moveFishingBuffSelection(idx - fishing.selectedMoveIndex)
-													}
-													disabled={!fishingMenuVisible || !fishingBuffChoiceEnabled}
-												>
-													<span>{isSelected ? ">" : " "}</span>
-													<span>{option.label}</span>
-													<span className='small'>{option.description}</span>
-												</button>
-											);
-										})
-									: fishingMoveOrder.map((moveId, idx) => {
-									const info = fishingMoveInfo[moveId];
-									const isSelected = fishing.selectedMoveIndex === idx;
-									const isTurn = fishing.phase === "player_turn";
-									return (
-										<button
-											key={moveId}
-											type='button'
-											className={`option fishing-move-button ${isSelected ? "active" : ""}`}
-											onClick={() => selectFishingMoveById(moveId)}
-											onMouseEnter={() =>
-												moveFishingSelection(idx - fishing.selectedMoveIndex)
-											}
-											disabled={!isTurn || !fishingMenuVisible}
-										>
-											<span>{isSelected ? ">" : " "}</span>
-											<span>{info.label}</span>
-											<span className='small'>{info.description}</span>
-										</button>
-									);
-								})}
+									? (
+											<>
+												<div className='fishing-options-moves'>
+													{fishingBuffOptions.map((option, idx) => {
+														const isSelected = fishing.selectedMoveIndex === idx;
+														return (
+															<button
+																key={option.key}
+																type='button'
+																className={`option fishing-move-button ${isSelected ? "active" : ""}`}
+																onClick={option.onSelect}
+																onMouseEnter={() =>
+																	moveFishingBuffSelection(idx - fishing.selectedMoveIndex)
+																}
+																disabled={!fishingMenuVisible || !fishingBuffChoiceEnabled}
+															>
+																<span>{isSelected ? ">" : " "}</span>
+																<span>{option.label}</span>
+															</button>
+														);
+													})}
+												</div>
+												<div className='fishing-options-description small'>
+													{selectedBuffOption?.description ?? ""}
+												</div>
+											</>
+										)
+									: (
+											<>
+												<div className='fishing-options-moves'>
+													{unlockedMoveEntries.map(({ moveId, sourceIndex }) => {
+														const info = fishingMoveInfo[moveId];
+														const isSelected = fishing.selectedMoveIndex === sourceIndex;
+														const isTurn = fishing.phase === "player_turn";
+														return (
+															<button
+																key={moveId}
+																type='button'
+																className={`option fishing-move-button ${isSelected ? "active" : ""}`}
+																onClick={() => selectFishingMoveById(moveId)}
+																onMouseEnter={() =>
+																	moveFishingSelection(sourceIndex - fishing.selectedMoveIndex)
+																}
+																disabled={!isTurn || !fishingMenuVisible}
+															>
+																<span>{isSelected ? ">" : " "}</span>
+																<span>{info.label}</span>
+															</button>
+														);
+													})}
+												</div>
+												<div className='fishing-options-description small'>
+													{selectedMoveOption?.description ?? ""}
+												</div>
+											</>
+										)}
 							</div>
 						</div>
 						{openingStage === "ready" && (

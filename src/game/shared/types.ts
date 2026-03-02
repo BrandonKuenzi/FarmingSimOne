@@ -174,13 +174,25 @@ export type FishingFishMoveId =
 	| "thalassophobia"
 	| "cavernous_hunger"
 	| "pressure_of_the_deep"
-	| "clear_water_focus";
+	| "clear_water_focus"
+	| "rising_tide"
+	| "salt_armor"
+	| "leviathans_wake"
+	| "echoing_hunger"
+	| "bedrock_fortification"
+	| "subterranean_rot"
+	| "shenanigans"
+	| "spatula_slap"
+	| "sponge_laugh";
 
 export type FishingPlayerMoveId =
 	| "reel_in"
 	| "pull_rod"
 	| "release_line"
 	| "use_net"
+	| "relax_you_are_fishing"
+	| "steady_hands"
+	| "focus_on_drag"
 	| "cut_line";
 
 export type FishingMovePoolEntry = {
@@ -211,6 +223,8 @@ export type FishingProgressState = {
 	defenseBonus: number;
 };
 
+export type FishingMoveUnlocks = Record<FishingPlayerMoveId, boolean>;
+
 export type FishingEncounterPhase =
 	| "waiting"
 	| "intro"
@@ -228,6 +242,29 @@ export type FishingOpeningStage =
 	| "fish_hook_text"
 	| "player_stats_enter"
 	| "ready";
+
+export type FishingCombatToast = {
+	id: number;
+	text: string;
+	tone: "buff" | "debuff";
+	durationMs?: number;
+};
+
+export type PlayerPerTurnStatModifier = {
+	stamina: number;
+	attack: number;
+	defense: number;
+	messages: string[];
+	moveName: string;
+};
+
+export type FishPerTurnStatModifier = {
+	hp: number;
+	attack: number;
+	defense: number;
+	messages: string[];
+	moveName: string;
+};
 
 export type FishingState = {
 	map: MapId;
@@ -259,6 +296,12 @@ export type FishingState = {
 	openingStage: FishingOpeningStage;
 	playerAnim: "stretch" | "squash" | null;
 	fishAnim: "stretch" | "squash" | "defeat" | "bobble" | null;
+	playerToasts: FishingCombatToast[];
+	fishToasts: FishingCombatToast[];
+	expBarLevelUpBurst: boolean;
+	playerPerTurnModifiers: PlayerPerTurnStatModifier[];
+	fishPerTurnModifiers: FishPerTurnStatModifier[];
+	robertSpongeLaughUsed: boolean;
 };
 
 export type Warp = {

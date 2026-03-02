@@ -158,6 +158,7 @@ import { interactVendorMenu } from "../systems/vendors";
 import { interactBuilderVendorMenu } from "../systems/builder";
 import {
 	clearFishingTimers as clearFishingTimersSystem,
+	createInitialFishingMoveUnlocks,
 	FISHING_FISH_MOVE_IMPACT_SOUNDS,
 	FISHING_LEVEL_UP_COMPLIMENTS,
 	FISHING_PLAYER_MOVES,
@@ -299,6 +300,8 @@ import type {
 	CropId,
 	DayTransitionState,
 	Dir,
+	FishingCombatToast,
+	FishPerTurnStatModifier,
 	FishingState,
 	FishingFishMoveId,
 	FishingPlayerMoveId,
@@ -319,6 +322,7 @@ import type {
 	Point,
 	Plot,
 	Position,
+	PlayerPerTurnStatModifier,
 	PriceState,
 	PriceTrendState,
 	QuantityPromptState,
@@ -527,6 +531,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const fishingWaitTimeoutRef = useRef<number | null>(null);
 	const fishingCatchTimeoutRef = useRef<number | null>(null);
 	const fishingResolveTimeoutRef = useRef<number | null>(null);
+	const fishingToastIdRef = useRef(0);
 	const fishingWaterIntervalRef = useRef<number | null>(null);
 	const waterRefillTileTimeoutRef = useRef<number | null>(null);
 	const tiredDuckTimeoutRef = useRef<number | null>(null);
@@ -754,6 +759,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				npcTalkedToday: {},
 				fishing: null,
 				fishingProgress: { level: 1, exp: 0, attackBonus: 0, defenseBonus: 0 },
+				fishingMoveUnlocks: createInitialFishingMoveUnlocks(),
 				isOrdering: false,
 				cafeObservation: "",
 				isDoctorCompounding: false,
@@ -923,6 +929,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		npcTalkedToday,
 		fishing,
 		fishingProgress,
+		fishingMoveUnlocks,
 		isOrdering,
 		cafeObservation,
 		isDoctorCompounding,
@@ -1101,6 +1108,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setNpcTalkedToday = setForKey("npcTalkedToday");
 	const setFishing = setForKey("fishing");
 	const setFishingProgress = setForKey("fishingProgress");
+	const setFishingMoveUnlocks = setForKey("fishingMoveUnlocks");
 	const setIsOrdering = setForKey("isOrdering");
 	const setCafeObservation = setForKey("cafeObservation");
 	const setIsDoctorCompounding = setForKey("isDoctorCompounding");
@@ -1742,9 +1750,20 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const moveFishingSelection = (delta: number) => {
 		setFishing((prev) => {
 			if (!prev || prev.phase !== "player_turn") return prev;
-			const total = FISHING_PLAYER_MOVE_ORDER.length;
-			const nextIndex = (prev.selectedMoveIndex + delta + total) % total;
-			return { ...prev, selectedMoveIndex: nextIndex };
+			const unlockedMoves = FISHING_PLAYER_MOVE_ORDER.filter(
+				(moveId) => fishingMoveUnlocks[moveId],
+			);
+			if (unlockedMoves.length === 0) return prev;
+			const currentMoveId = FISHING_PLAYER_MOVE_ORDER[prev.selectedMoveIndex];
+			const currentUnlockedIndex = currentMoveId
+				? unlockedMoves.indexOf(currentMoveId)
+				: -1;
+			const baseIndex = currentUnlockedIndex >= 0 ? currentUnlockedIndex : 0;
+			const nextUnlockedIndex =
+				(baseIndex + delta + unlockedMoves.length) % unlockedMoves.length;
+			const nextMoveId = unlockedMoves[nextUnlockedIndex]!;
+			const nextIndex = FISHING_PLAYER_MOVE_ORDER.indexOf(nextMoveId);
+			return nextIndex >= 0 ? { ...prev, selectedMoveIndex: nextIndex } : prev;
 		});
 	};
 
@@ -1802,6 +1821,300 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		return `The ${fishName} used ${label}!`;
 	};
 
+	type FishingToastDraft = {
+		kind: "hp" | "stat";
+		text: string;
+		tone: "buff" | "debuff";
+	};
+	type FishingTurnToastDrafts = {
+		player: FishingToastDraft[];
+		fish: FishingToastDraft[];
+	};
+	const fishingStatIconByKey: Record<"attack" | "defense", string> = {
+		attack: GLYPH.crossedSwords,
+		defense: GLYPH.shield,
+	};
+	const stampFishingToasts = (
+		toasts: FishingToastDraft[],
+		durationMs?: number,
+	): FishingCombatToast[] =>
+		toasts.map((toast) => ({
+			id: ++fishingToastIdRef.current,
+			text: toast.text,
+			tone: toast.tone,
+			durationMs,
+		}));
+	const buildFishingTurnToastDrafts = (
+		before: FishingState,
+		after: FishingState,
+		playerStaminaDamage: number,
+	): FishingTurnToastDrafts => {
+		const player: FishingToastDraft[] = [];
+		const fish: FishingToastDraft[] = [];
+		if (playerStaminaDamage > 0) {
+			player.push({
+				kind: "hp",
+				text: `-${playerStaminaDamage} HP`,
+				tone: "debuff",
+			});
+		}
+		const fishHpDelta = after.fishHp - before.fishHp;
+		if (fishHpDelta < 0) {
+			fish.push({
+				kind: "hp",
+				text: `-${Math.abs(fishHpDelta)} HP`,
+				tone: "debuff",
+			});
+		}
+		(
+			[
+				["playerAttack", "attack", "player"],
+				["playerDefense", "defense", "player"],
+				["fishAttack", "attack", "fish"],
+				["fishDefense", "defense", "fish"],
+			] as const
+		).forEach(([field, stat, side]) => {
+			const delta = after[field] - before[field];
+			if (!delta) return;
+			const tone: "buff" | "debuff" = delta > 0 ? "buff" : "debuff";
+			const line: FishingToastDraft = {
+				kind: "stat",
+				text: `${delta > 0 ? "+" : "-"}${Math.abs(delta)} ${fishingStatIconByKey[stat]}`,
+				tone,
+			};
+			if (side === "player") {
+				player.push(line);
+				return;
+			}
+			fish.push(line);
+		});
+		return { player, fish };
+	};
+	const upsertPlayerPerTurnModifier = (
+		modifiers: PlayerPerTurnStatModifier[],
+		next: PlayerPerTurnStatModifier | undefined,
+	): PlayerPerTurnStatModifier[] => {
+		if (!next) return modifiers;
+		const existingIndex = modifiers.findIndex(
+			(modifier) => modifier.moveName === next.moveName,
+		);
+		if (existingIndex < 0) return [...modifiers, next];
+		return modifiers.map((modifier, index) =>
+			index !== existingIndex
+				? modifier
+				: {
+						...modifier,
+						stamina: modifier.stamina + next.stamina,
+						attack: modifier.attack + next.attack,
+						defense: modifier.defense + next.defense,
+						messages:
+							modifier.messages.length > 0 ? modifier.messages : next.messages,
+					},
+		);
+	};
+	const upsertFishPerTurnModifier = (
+		modifiers: FishPerTurnStatModifier[],
+		next: FishPerTurnStatModifier | undefined,
+	): FishPerTurnStatModifier[] => {
+		if (!next) return modifiers;
+		const existingIndex = modifiers.findIndex(
+			(modifier) => modifier.moveName === next.moveName,
+		);
+		if (existingIndex < 0) return [...modifiers, next];
+		return modifiers.map((modifier, index) =>
+			index !== existingIndex
+				? modifier
+				: {
+						...modifier,
+						hp: modifier.hp + next.hp,
+						attack: modifier.attack + next.attack,
+						defense: modifier.defense + next.defense,
+						messages:
+							modifier.messages.length > 0 ? modifier.messages : next.messages,
+					},
+		);
+	};
+	const pickStackingMessage = (modifier: { moveName: string; messages: string[] }) => {
+		if (modifier.messages.length === 0) return modifier.moveName;
+		return modifier.messages[randomInt(0, modifier.messages.length - 1)]!;
+	};
+	const wholeCombatValue = (value: number): number =>
+		value >= 0 ? Math.floor(value) : Math.ceil(value);
+	const runStackingEffects = (
+		baseFishing: FishingState,
+		baseStamina: number,
+		onComplete: (
+			nextFishing: FishingState,
+			nextStamina: number,
+			interrupted: "none" | "caught" | "escaped",
+		) => void,
+	) => {
+		type PendingEffect =
+			| { target: "player"; modifier: PlayerPerTurnStatModifier }
+			| { target: "fish"; modifier: FishPerTurnStatModifier };
+		const queue: PendingEffect[] = [
+			...baseFishing.playerPerTurnModifiers.map((modifier) => ({
+				target: "player" as const,
+				modifier,
+			})),
+			...baseFishing.fishPerTurnModifiers.map((modifier) => ({
+				target: "fish" as const,
+				modifier,
+			})),
+		];
+		if (queue.length === 0) {
+			onComplete(baseFishing, baseStamina, "none");
+			return;
+		}
+		let index = 0;
+		const step = (currentFishing: FishingState, currentStamina: number) => {
+			const effect = queue[index];
+			if (!effect) {
+				onComplete(currentFishing, currentStamina, "none");
+				return;
+			}
+			index += 1;
+			let nextFishing = currentFishing;
+			let nextStamina = currentStamina;
+			const playerToasts: FishingCombatToast[] = [];
+			const fishToasts: FishingCombatToast[] = [];
+			if (effect.target === "player") {
+				const modifier = effect.modifier;
+				const staminaDelta = wholeCombatValue(modifier.stamina);
+				const attackDelta = wholeCombatValue(modifier.attack);
+				const defenseDelta = wholeCombatValue(modifier.defense);
+				const appliedStamina =
+					Math.max(0, Math.min(staminaMax, nextStamina + staminaDelta)) -
+					nextStamina;
+				const appliedAttack =
+					Math.max(0, nextFishing.playerAttack + attackDelta) -
+					nextFishing.playerAttack;
+				const appliedDefense =
+					Math.max(0, nextFishing.playerDefense + defenseDelta) -
+					nextFishing.playerDefense;
+				nextStamina += appliedStamina;
+				nextFishing = {
+					...nextFishing,
+					playerAttack: nextFishing.playerAttack + appliedAttack,
+					playerDefense: nextFishing.playerDefense + appliedDefense,
+				};
+				const toastDrafts: FishingToastDraft[] = [];
+				if (appliedStamina !== 0) {
+					toastDrafts.push({
+						kind: "hp",
+						text: `${appliedStamina > 0 ? "+" : "-"}${Math.abs(appliedStamina)} STA`,
+						tone: appliedStamina > 0 ? "buff" : "debuff",
+					});
+				}
+				if (appliedAttack !== 0) {
+					toastDrafts.push({
+						kind: "stat",
+						text: `${appliedAttack > 0 ? "+" : "-"}${Math.abs(appliedAttack)} ${fishingStatIconByKey.attack}`,
+						tone: appliedAttack > 0 ? "buff" : "debuff",
+					});
+				}
+				if (appliedDefense !== 0) {
+					toastDrafts.push({
+						kind: "stat",
+						text: `${appliedDefense > 0 ? "+" : "-"}${Math.abs(appliedDefense)} ${fishingStatIconByKey.defense}`,
+						tone: appliedDefense > 0 ? "buff" : "debuff",
+					});
+				}
+				playerToasts.push(...stampFishingToasts(toastDrafts, 3000));
+			} else {
+				const modifier = effect.modifier;
+				const hpDelta = wholeCombatValue(modifier.hp);
+				const attackDelta = wholeCombatValue(modifier.attack);
+				const defenseDelta = wholeCombatValue(modifier.defense);
+				const appliedHp =
+					Math.max(0, Math.min(nextFishing.fishMaxHp, nextFishing.fishHp + hpDelta)) -
+					nextFishing.fishHp;
+				const appliedAttack =
+					Math.max(0, nextFishing.fishAttack + attackDelta) -
+					nextFishing.fishAttack;
+				const appliedDefense =
+					Math.max(0, nextFishing.fishDefense + defenseDelta) -
+					nextFishing.fishDefense;
+				nextFishing = {
+					...nextFishing,
+					fishHp: nextFishing.fishHp + appliedHp,
+					fishAttack: nextFishing.fishAttack + appliedAttack,
+					fishDefense: nextFishing.fishDefense + appliedDefense,
+				};
+				const toastDrafts: FishingToastDraft[] = [];
+				if (appliedHp !== 0) {
+					toastDrafts.push({
+						kind: "hp",
+						text: `${appliedHp > 0 ? "+" : "-"}${Math.abs(appliedHp)} HP`,
+						tone: appliedHp > 0 ? "buff" : "debuff",
+					});
+				}
+				if (appliedAttack !== 0) {
+					toastDrafts.push({
+						kind: "stat",
+						text: `${appliedAttack > 0 ? "+" : "-"}${Math.abs(appliedAttack)} ${fishingStatIconByKey.attack}`,
+						tone: appliedAttack > 0 ? "buff" : "debuff",
+					});
+				}
+				if (appliedDefense !== 0) {
+					toastDrafts.push({
+						kind: "stat",
+						text: `${appliedDefense > 0 ? "+" : "-"}${Math.abs(appliedDefense)} ${fishingStatIconByKey.defense}`,
+						tone: appliedDefense > 0 ? "buff" : "debuff",
+					});
+				}
+				fishToasts.push(...stampFishingToasts(toastDrafts, 3000));
+			}
+			const allToasts = [...playerToasts, ...fishToasts];
+			const hasDebuffToast = allToasts.some((toast) => toast.tone === "debuff");
+			const hasBuffToast = allToasts.some((toast) => toast.tone === "buff");
+			setStamina(nextStamina);
+			setFishing({
+				...nextFishing,
+				phase: "player_action",
+				showMenu: false,
+				openingStage: "ready",
+				message: pickStackingMessage(effect.modifier),
+				playerAnim: hasDebuffToast
+					? effect.target === "player"
+						? "squash"
+						: null
+					: hasBuffToast
+						? effect.target === "player"
+							? "stretch"
+							: null
+						: null,
+				fishAnim: hasDebuffToast
+					? effect.target === "fish"
+						? "squash"
+						: null
+					: hasBuffToast
+						? effect.target === "fish"
+							? "stretch"
+							: null
+						: null,
+				playerToasts,
+				fishToasts,
+				expBarLevelUpBurst: false,
+			});
+			if (nextStamina <= 0) playBad();
+			fishingResolveTimeoutRef.current = window.setTimeout(() => {
+				if (nextStamina <= 0) {
+					finishFishingEncounter("escaped");
+					onComplete(nextFishing, nextStamina, "escaped");
+					return;
+				}
+				if (nextFishing.fishHp <= 0) {
+					resolveCaughtEncounter(nextFishing);
+					onComplete(nextFishing, nextStamina, "caught");
+					return;
+				}
+				step(nextFishing, nextStamina);
+			}, 3000);
+		};
+		step(baseFishing, baseStamina);
+	};
+
 	const playFishingImpactSound = (sound: "hoe" | "water") => {
 		if (sound === "water") {
 			playWater();
@@ -1823,6 +2136,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			openingStage: "ready",
 			playerAnim: null,
 			fishAnim: "defeat",
+			playerToasts: [],
+			fishToasts: [],
+			expBarLevelUpBurst: false,
 			canChooseLevelUpBuff: false,
 		});
 
@@ -1830,6 +2146,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			const expGain = caughtFishing.fishExpGranted;
 			const expResult = applyFishingExpGain(fishingProgress, expGain);
 			setFishingProgress(expResult.progress);
+			if (expResult.progress.level >= 2) {
+				setFishingMoveUnlocks((prev) =>
+					prev.pull_rod ? prev : { ...prev, pull_rod: true },
+				);
+			}
 			playNotification();
 			setFishing((prev) =>
 				prev
@@ -1841,6 +2162,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 							openingStage: "ready",
 							playerAnim: null,
 							fishAnim: "defeat",
+							playerToasts: [],
+							fishToasts: [],
+							expBarLevelUpBurst: expResult.levelsGained > 0,
 							playerLevel: expResult.progress.level,
 							playerExp: expResult.progress.exp,
 						}
@@ -1864,6 +2188,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 									openingStage: "ready",
 									playerAnim: null,
 									fishAnim: "defeat",
+									playerToasts: [],
+									fishToasts: [],
+									expBarLevelUpBurst: false,
 									playerLevel: expResult.progress.level,
 									playerExp: expResult.progress.exp,
 									awaitingLevelUpBuffChoice: false,
@@ -1884,6 +2211,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 										openingStage: "ready",
 										playerAnim: null,
 										fishAnim: "defeat",
+										playerToasts: [],
+										fishToasts: [],
+										expBarLevelUpBurst: false,
 										playerLevel: expResult.progress.level,
 										playerExp: expResult.progress.exp,
 										awaitingLevelUpBuffChoice: true,
@@ -1912,6 +2242,24 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const runFishTurn = (baseFishing: FishingState, currentStamina: number) => {
 		const fishMoveId = rollFishMove(baseFishing.fishMovePool, randomRoll);
+		const fishTurn = resolveFishTurn({
+			fishing: baseFishing,
+			moveId: fishMoveId,
+			playerStamina: currentStamina,
+			playerStaminaMax: staminaMax,
+		});
+		const fishTurnToasts = buildFishingTurnToastDrafts(
+			baseFishing,
+			fishTurn.fishing,
+			fishTurn.staminaDamage,
+		);
+		const fishIntroToasts = stampFishingToasts(
+			fishTurnToasts.fish.filter((toast) => toast.kind === "stat"),
+		);
+		const fishImpactToasts = stampFishingToasts(
+			fishTurnToasts.fish.filter((toast) => toast.kind === "hp"),
+		);
+		const playerImpactToasts = stampFishingToasts(fishTurnToasts.player);
 		playNotification();
 		setFishing({
 			...baseFishing,
@@ -1921,24 +2269,33 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			openingStage: "ready",
 			playerAnim: null,
 			fishAnim: "stretch",
+			playerToasts: [],
+			fishToasts: fishIntroToasts,
 		});
 		fishingResolveTimeoutRef.current = window.setTimeout(() => {
-			const fishTurn = resolveFishTurn({
-				fishing: baseFishing,
-				moveId: fishMoveId,
-				playerStamina: currentStamina,
-				playerStaminaMax: staminaMax,
-			});
 			const nextStamina = Math.max(0, currentStamina - fishTurn.staminaDamage);
+			const postFishState: FishingState = {
+				...fishTurn.fishing,
+				playerPerTurnModifiers: upsertPlayerPerTurnModifier(
+					fishTurn.fishing.playerPerTurnModifiers,
+					fishTurn.addPlayerPerTurnModifier,
+				),
+				fishPerTurnModifiers: upsertFishPerTurnModifier(
+					fishTurn.fishing.fishPerTurnModifiers,
+					fishTurn.addFishPerTurnModifier,
+				),
+			};
 			setStamina(nextStamina);
 			setFishing({
-				...fishTurn.fishing,
+				...postFishState,
 				phase: "fish_turn",
 				message: fishTurn.message,
 				showMenu: false,
 				openingStage: "ready",
-				playerAnim: fishTurn.staminaDamage > 0 ? "squash" : null,
-				fishAnim: null,
+				playerAnim: playerImpactToasts.length > 0 ? "squash" : null,
+				fishAnim: fishImpactToasts.length > 0 ? "squash" : null,
+				playerToasts: playerImpactToasts,
+				fishToasts: fishImpactToasts,
 			});
 			if (fishTurn.staminaDamage > 0) {
 				playFishingImpactSound(FISHING_FISH_MOVE_IMPACT_SOUNDS[fishMoveId]);
@@ -1952,31 +2309,37 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					finishFishingEncounter("escaped");
 					return;
 				}
-				if (fishTurn.fishing.fishHp <= 0) {
-					resolveCaughtEncounter(fishTurn.fishing);
+				if (postFishState.fishHp <= 0) {
+					resolveCaughtEncounter(postFishState);
 					return;
 				}
-				setFishing((prev) =>
-					prev
-						? {
-								...prev,
-								phase: "player_turn",
-								showMenu: true,
-								openingStage: "ready",
-								playerAnim: null,
-								fishAnim: null,
-								message: "What would you like to do?",
-								awaitingLevelUpBuffChoice: false,
-								canChooseLevelUpBuff: false,
-							}
-						: prev,
-				);
+				runStackingEffects(postFishState, nextStamina, (stackedFishing, _stackedStamina, interrupted) => {
+					if (interrupted !== "none") return;
+					setFishing((prev) =>
+						prev
+							? {
+									...stackedFishing,
+									phase: "player_turn",
+									showMenu: true,
+									openingStage: "ready",
+									playerAnim: null,
+									fishAnim: null,
+									playerToasts: [],
+									fishToasts: [],
+									message: "What would you like to do?",
+									awaitingLevelUpBuffChoice: false,
+									canChooseLevelUpBuff: false,
+								}
+							: prev,
+					);
+				});
 			}, 2000);
 		}, 1000);
 	};
 
 	const selectFishingMoveById = (moveId: FishingPlayerMoveId) => {
 		if (!fishing || fishing.phase !== "player_turn") return;
+		if (!fishingMoveUnlocks[moveId]) return;
 		if (moveId === "cut_line") {
 			setFishing({
 				...fishing,
@@ -1986,6 +2349,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				openingStage: "ready",
 				playerAnim: null,
 				fishAnim: null,
+				playerToasts: [],
+				fishToasts: [],
 				awaitingLevelUpBuffChoice: false,
 				canChooseLevelUpBuff: false,
 			});
@@ -1993,6 +2358,31 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return;
 		}
 		const turnStart = fishing;
+		const playerTurn = resolvePlayerFishingMove({
+			moveId,
+			fishing: turnStart,
+			randomRoll,
+			fishingRodTierLevel: tools.fishingRod,
+		});
+		const postPlayerState: FishingState = {
+			...playerTurn.fishing,
+			playerPerTurnModifiers: upsertPlayerPerTurnModifier(
+				playerTurn.fishing.playerPerTurnModifiers,
+				playerTurn.addPlayerPerTurnModifier,
+			),
+			fishPerTurnModifiers: upsertFishPerTurnModifier(
+				playerTurn.fishing.fishPerTurnModifiers,
+				playerTurn.addFishPerTurnModifier,
+			),
+		};
+		const playerTurnToasts = buildFishingTurnToastDrafts(
+			turnStart,
+			postPlayerState,
+			0,
+		);
+		const playerIntroToasts = stampFishingToasts(playerTurnToasts.player);
+		const playerImpactToasts: FishingCombatToast[] = [];
+		const fishImpactToasts = stampFishingToasts(playerTurnToasts.fish);
 		playNotification();
 		setFishing({
 			...turnStart,
@@ -2002,25 +2392,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			openingStage: "ready",
 			playerAnim: "stretch",
 			fishAnim: null,
+			playerToasts: playerIntroToasts,
+			fishToasts: [],
 			awaitingLevelUpBuffChoice: false,
 			canChooseLevelUpBuff: false,
+			expBarLevelUpBurst: false,
 		});
 		fishingResolveTimeoutRef.current = window.setTimeout(() => {
-			const playerTurn = resolvePlayerFishingMove({
-				moveId,
-				fishing: turnStart,
-				randomRoll,
-				fishingRodTierLevel: tools.fishingRod,
-			});
-			const fishDamage = Math.max(0, turnStart.fishHp - playerTurn.fishing.fishHp);
+			const fishDamage = Math.max(0, turnStart.fishHp - postPlayerState.fishHp);
 			setFishing({
-				...playerTurn.fishing,
+				...postPlayerState,
 				phase: "player_action",
 				message: playerTurn.message,
 				showMenu: false,
 				openingStage: "ready",
-				playerAnim: null,
-				fishAnim: fishDamage > 0 ? "squash" : null,
+				playerAnim: playerImpactToasts.length > 0 ? "squash" : null,
+				fishAnim: fishImpactToasts.length > 0 ? "squash" : null,
+				playerToasts: playerImpactToasts,
+				fishToasts: fishImpactToasts,
+				expBarLevelUpBurst: false,
 			});
 			if (fishDamage > 0) {
 				playFishingImpactSound(FISHING_PLAYER_MOVE_IMPACT_SOUNDS[moveId]);
@@ -2028,18 +2418,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			addLog(playerTurn.message);
 			fishingResolveTimeoutRef.current = window.setTimeout(() => {
 				if (playerTurn.caught) {
-					resolveCaughtEncounter(playerTurn.fishing);
+					resolveCaughtEncounter(postPlayerState);
 					return;
 				}
-				runFishTurn(playerTurn.fishing, stamina);
+				runFishTurn(postPlayerState, stamina);
 			}, 2000);
 		}, 1000);
 	};
 
 	const selectFishingMove = () => {
 		if (!fishing || fishing.phase !== "player_turn") return;
-		const moveId = FISHING_PLAYER_MOVE_ORDER[fishing.selectedMoveIndex];
-		if (!moveId) return;
+		const unlockedMoves = FISHING_PLAYER_MOVE_ORDER.filter(
+			(move) => fishingMoveUnlocks[move],
+		);
+		if (unlockedMoves.length === 0) return;
+		const currentMoveId = FISHING_PLAYER_MOVE_ORDER[fishing.selectedMoveIndex];
+		const moveId =
+			currentMoveId && fishingMoveUnlocks[currentMoveId]
+				? currentMoveId
+				: unlockedMoves[0]!;
 		selectFishingMoveById(moveId);
 	};
 
@@ -2065,9 +2462,17 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			choiceIndex === undefined ? fishing.selectedMoveIndex : Math.max(0, Math.min(1, choiceIndex));
 		const choseAttack = pickedIndex <= 0;
 		const chosenAttribute = choseAttack ? "Attack" : "Defense";
+		const chosenStatKey: "attack" | "defense" = choseAttack ? "attack" : "defense";
 		const amount = choseAttack
 			? fishing.levelUpBuffAttackAmount
 			: fishing.levelUpBuffDefenseAmount;
+		const levelUpBuffToasts = stampFishingToasts([
+			{
+				kind: "stat",
+				text: `+${amount} ${fishingStatIconByKey[chosenStatKey]}`,
+				tone: "buff",
+			},
+		]);
 		setFishingProgress((prev) => ({
 			...prev,
 			attackBonus: prev.attackBonus + (choseAttack ? amount : 0),
@@ -2082,12 +2487,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						message: `Your ${chosenAttribute} rose by ${amount}!`,
 						showMenu: false,
 						openingStage: "ready",
-						playerAnim: null,
+						playerAnim: "stretch",
 						fishAnim: "defeat",
+						playerToasts: levelUpBuffToasts,
+						fishToasts: [],
 						awaitingLevelUpBuffChoice: false,
 						canChooseLevelUpBuff: false,
 						playerAttack: prev.playerAttack + (choseAttack ? amount : 0),
 						playerDefense: prev.playerDefense + (choseAttack ? 0 : amount),
+						expBarLevelUpBurst: false,
 					}
 				: prev,
 		);
@@ -2106,6 +2514,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 							openingStage: "ready",
 							playerAnim: null,
 							fishAnim: "defeat",
+							playerToasts: [],
+							fishToasts: [],
+							expBarLevelUpBurst: false,
 						}
 					: prev,
 			);
@@ -3658,6 +4069,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				const attackBonus = Math.max(0, rawProgress?.attackBonus ?? 0);
 				const defenseBonus = Math.max(0, rawProgress?.defenseBonus ?? 0);
 				return { level, exp, attackBonus, defenseBonus };
+			})(),
+			fishingMoveUnlocks: (() => {
+				const defaults = createInitialFishingMoveUnlocks();
+				const rawUnlocks = (rawState as Partial<GameState>).fishingMoveUnlocks;
+				const merged = { ...defaults, ...(rawUnlocks ?? {}) };
+				const level = Math.max(1, (rawState as Partial<GameState>).fishingProgress?.level ?? 1);
+				if (level >= 2) merged.pull_rod = true;
+				return merged;
 			})(),
 			unlockFlags: resolveUnlockFlags(
 				{
@@ -6112,6 +6531,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		cutFishingLine,
 		fishingMoveOrder: FISHING_PLAYER_MOVE_ORDER,
 		fishingMoveInfo: FISHING_PLAYER_MOVES,
+		fishingMoveUnlocks,
 		isDrivingTractor,
 		isBathing,
 		showTiredFace,

@@ -1067,6 +1067,7 @@ li {
 }
 
 .fishing-portrait-slot {
+	position: relative;
 	flex: 1;
 	display: flex;
 	align-items: center;
@@ -1089,9 +1090,42 @@ li {
 	-webkit-user-select: none;
 }
 
+.fishing-combat-toast-stack {
+	position: absolute;
+	top: 50%;
+	pointer-events: none;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.fishing-combat-toast-stack.player {
+	left: 10%;
+}
+
+.fishing-combat-toast-stack.fish {
+	right: 10%;
+	align-items: flex-end;
+}
+
+.fishing-combat-toast {
+	font-size: clamp(18px, 2.4vw, 32px);
+	font-weight: 900;
+	line-height: 1;
+	text-shadow: 0 3px 10px rgba(0, 0, 0, 0.65);
+}
+
+.fishing-combat-toast.buff {
+	color: #64ff98;
+}
+
+.fishing-combat-toast.debuff {
+	color: #ff6d6d;
+}
+
 .fishing-move-button {
 	display: grid;
-	grid-template-columns: 14px 120px 1fr;
+	grid-template-columns: 14px 1fr;
 	gap: 8px;
 	align-items: center;
 	text-align: left;
@@ -1132,10 +1166,32 @@ li {
 }
 
 .fishing-options-panel {
-	display: grid;
-	grid-template-columns: 1fr;
+	display: flex;
+	align-items: stretch;
 	gap: 8px;
 	padding: 10px;
+}
+
+.fishing-options-moves {
+	flex: 1 1 60%;
+	display: flex;
+	flex-wrap: wrap;
+	align-content: flex-start;
+	gap: 8px;
+}
+
+.fishing-options-moves .fishing-move-button {
+	width: calc(50% - 4px);
+}
+
+.fishing-options-description {
+	flex: 1 1 40%;
+	border: 1px solid #33516c;
+	background: rgba(5, 11, 16, 0.9);
+	padding: 10px;
+	display: flex;
+	align-items: center;
+	line-height: 1.35;
 }
 
 .fishing-panel-layer {
@@ -1167,6 +1223,14 @@ li {
 
 	.fishing-bottom-panel {
 		min-height: 220px;
+	}
+
+	.fishing-options-panel {
+		flex-direction: column;
+	}
+
+	.fishing-options-moves .fishing-move-button {
+		width: 100%;
 	}
 }
 
