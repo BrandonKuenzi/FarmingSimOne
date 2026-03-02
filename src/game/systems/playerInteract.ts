@@ -303,6 +303,8 @@ export type PlayerInteractContext = {
 	DOCTOR_POS: Point;
 	PET_VENDOR_POS: Point;
 	tileFx: TileFxApi;
+	aquariumCuratorTile: Point | null;
+	interactAquariumCurator: () => void;
 };
 
 export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
@@ -505,6 +507,8 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		DOCTOR_POS,
 		PET_VENDOR_POS,
 		tileFx,
+		aquariumCuratorTile,
+		interactAquariumCurator,
 	} = ctx;
 	if (modal || fishing || isOrdering || isDoctorCompounding || isDrivingTractor)
 		return;
@@ -524,6 +528,15 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		tileFx.at({ map: player.map, x: tx, y: ty }).toast(text);
 	};
 	const targetBaseTile = activeMapLayouts[player.map]?.[ty]?.[tx];
+	if (
+		player.map === "aquarium" &&
+		aquariumCuratorTile &&
+		tx === aquariumCuratorTile.x &&
+		ty === aquariumCuratorTile.y
+	) {
+		interactAquariumCurator();
+		return;
+	}
 	if (
 		player.map === "forest" &&
 		tx === forestEntranceDoorPos.x &&

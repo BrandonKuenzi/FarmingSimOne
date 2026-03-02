@@ -129,6 +129,8 @@ type MapViewportCtx = Pick<
 	| "aquariumBubbles"
 	| "aquariumSeaweedXs"
 	| "aquariumOceanSeaweedXs"
+	| "aquariumCuratorTile"
+	| "aquariumFishTiles"
 	| "activeMapLayouts"
 	| "unfedAnimalMap"
 	| "unfedAnimalTileKeys"
@@ -183,6 +185,8 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		aquariumBubbles,
 		aquariumSeaweedXs,
 		aquariumOceanSeaweedXs,
+		aquariumCuratorTile,
+		aquariumFishTiles,
 		unfedAnimalMap,
 		unfedAnimalTileKeys,
 		dayTransitionStarsState,
@@ -385,6 +389,26 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 			});
 		}
 
+		if (player.map === "aquarium") {
+			if (aquariumCuratorTile) {
+				entities.push({
+					id: "aquarium-curator",
+					x: aquariumCuratorTile.x,
+					y: aquariumCuratorTile.y,
+					glyph: "\u{1F913}",
+				});
+			}
+			aquariumFishTiles.forEach((fish) => {
+				entities.push({
+					id: `aquarium-fish-${fish.fishId}`,
+					x: fish.x,
+					y: fish.y,
+					glyph: fish.glyph,
+					flip: fish.facing < 0,
+				});
+			});
+		}
+
 		return entities;
 	}, [
 		player.map,
@@ -399,6 +423,8 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		townNpcTiles,
 		forestEnemies,
 		caveEnemies,
+		aquariumCuratorTile,
+		aquariumFishTiles,
 		animalsMap,
 		animals,
 		animalTiles,
@@ -502,8 +528,8 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 																				className:
 																					"tile-cave-path tile-cave-rubble",
 																			}
-																		: toVisual(effectiveCell)
-																	: toVisual(effectiveCell);
+																		: toVisual(effectiveCell, player.map)
+																	: toVisual(effectiveCell, player.map);
 						const withGround =
 							groundClass &&
 							!visual.className &&
@@ -850,7 +876,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		<div className='map-wrap'>
 			<div
 				ref={mapRef}
-				className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""} ${player.map === "bureaucracy_office" ? "map-bureaucracy" : ""}`}
+				className={`map ${player.map === "forest" ? "map-forest" : ""} ${player.map === "cave" ? "map-cave" : ""} ${player.map === "bureaucracy_office" ? "map-bureaucracy" : ""} ${player.map === "aquarium" ? "map-aquarium" : ""}`}
 				style={{
 					fontSize: `calc(${mapZoom} * clamp(13px, 1.48vw, 24px))`,
 					transition: `font-size ${POSITION_ANIMATION_MS}ms ${CAMERA_FOLLOW_ANIMATION_EASE}`,
@@ -1180,6 +1206,8 @@ const MemoMapViewport = React.memo(
 		prev.ctx.aquariumBubbles === next.ctx.aquariumBubbles &&
 		prev.ctx.aquariumSeaweedXs === next.ctx.aquariumSeaweedXs &&
 		prev.ctx.aquariumOceanSeaweedXs === next.ctx.aquariumOceanSeaweedXs &&
+		prev.ctx.aquariumCuratorTile === next.ctx.aquariumCuratorTile &&
+		prev.ctx.aquariumFishTiles === next.ctx.aquariumFishTiles &&
 		prev.ctx.unfedAnimalMap === next.ctx.unfedAnimalMap &&
 		prev.ctx.unfedAnimalTileKeys === next.ctx.unfedAnimalTileKeys &&
 		prev.ctx.dayTransitionStarsState === next.ctx.dayTransitionStarsState &&
@@ -1253,6 +1281,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		aquariumBubbles,
 		aquariumSeaweedXs,
 		aquariumOceanSeaweedXs,
+		aquariumCuratorTile,
+		aquariumFishTiles,
 		unfedAnimalMap,
 		unfedAnimalTileKeys,
 		marketRows,
@@ -1640,6 +1670,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 							aquariumBubbles,
 							aquariumSeaweedXs,
 							aquariumOceanSeaweedXs,
+							aquariumCuratorTile,
+							aquariumFishTiles,
 							unfedAnimalMap,
 							unfedAnimalTileKeys,
 							dayTransitionStarsState,

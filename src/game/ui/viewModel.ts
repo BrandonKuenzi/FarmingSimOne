@@ -114,6 +114,14 @@ export type GameRuntimeViewModel = {
 	aquariumBubbles: Array<{ x: number; y: number; tank: "fresh" | "salt" | "cave" }>;
 	aquariumSeaweedXs: number[];
 	aquariumOceanSeaweedXs: number[];
+	aquariumCuratorTile: { x: number; y: number } | null;
+	aquariumFishTiles: Array<{
+		fishId: string;
+		glyph: string;
+		x: number;
+		y: number;
+		facing: 1 | -1;
+	}>;
 	unfedAnimalMap: MapId | null;
 	unfedAnimalTileKeys: Record<string, boolean>;
 	marketRows: Array<{ id: string; name: string; price: number; trend: number }>;

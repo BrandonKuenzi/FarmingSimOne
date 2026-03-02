@@ -3,6 +3,7 @@ import type { NpcDailyAssignment } from "../../npcDialogue";
 import type { DayTransitionStar } from "../content/dayTransition";
 import type {
 	Animal,
+	AquariumDonationInventory,
 	BarnTier,
 	CloudSprite,
 	DayTransitionState,
@@ -70,6 +71,7 @@ export type GameState = {
 	staminaMax: number;
 	stamina: number;
 	inventory: Inventory;
+	aquariumDonations: AquariumDonationInventory;
 	plots: Record<string, Plot>;
 	animals: Animal[];
 	prices: PriceState;

@@ -5,6 +5,7 @@ import { getHoeShape } from "../systems/tools";
 import { keyForPos } from "../shared/coords";
 import { randomRoll } from "../shared/random";
 import type {
+	AquariumDonationInventory,
 	BarnTier,
 	CafeOrderItem,
 	Dir,
@@ -248,6 +249,9 @@ export const makeEmptyInventory = (): Inventory => ({
 	ruby: 0,
 	coral_fruit: 0,
 } as Inventory);
+
+export const makeEmptyAquariumInventory = (): AquariumDonationInventory =>
+	Object.fromEntries(fishItemIds.map((id) => [id, false]));
 
 export const initialPrices: PriceState = {
 	turnip_seed: cropDefs.turnip.buyPrice,

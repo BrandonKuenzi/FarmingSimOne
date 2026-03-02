@@ -87,7 +87,7 @@ import {
 	rareCowVariantTypes,
 	standardCropIds,
 } from "../content/catalog";
-import { getFishItemMetaById } from "../content/fishCatalog";
+import { fishItemCatalog, getFishItemMetaById } from "../content/fishCatalog";
 import { makeGaryBottleMessage } from "../content/garyBottle";
 import { rollBeachBottleSpawn, rollBeachShellDrops } from "../world/beach";
 import {
@@ -292,6 +292,7 @@ import type {
 	Animal,
 	AnimalDef,
 	AnimalType,
+	AquariumDonationInventory,
 	BarnTier,
 	CafeOrderItem,
 	CaveGenerationResult,
@@ -361,6 +362,7 @@ import {
 	initialFarmExpansionBlockers,
 	initialPriceTrends,
 	initialPrices,
+	makeEmptyAquariumInventory,
 	makeEmptyInventory,
 	priceItems,
 	purchasableFunnyLooks,
@@ -677,6 +679,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				staminaMax: STAMINA_MAX,
 				stamina: STAMINA_MAX,
 				inventory: makeEmptyInventory(),
+				aquariumDonations: makeEmptyAquariumInventory(),
 				plots: {},
 				animals: [],
 				prices: initialPrices,
@@ -827,6 +830,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const [aquariumOceanSeaweedXs, setAquariumOceanSeaweedXs] = useState<number[]>(
 		[],
 	);
+	const [aquariumCuratorTile, setAquariumCuratorTile] = useState<Point | null>(null);
+	const [aquariumFishTiles, setAquariumFishTiles] = useState<
+		Array<{ fishId: string; glyph: string; x: number; y: number; facing: 1 | -1 }>
+	>([]);
 	const {
 		player,
 		day,
@@ -863,6 +870,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		staminaMax,
 		stamina,
 		inventory,
+		aquariumDonations,
 		plots,
 		animals,
 		prices,
@@ -1042,6 +1050,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setStaminaMax = setForKey("staminaMax");
 	const setStamina = setForKey("stamina");
 	const setInventory = setForKey("inventory");
+	const setAquariumDonations = setForKey("aquariumDonations");
 	const setPlots = setForKey("plots");
 	const setAnimals = setForKey("animals");
 	const setPrices = setForKey("prices");
@@ -3063,6 +3072,198 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		};
 	}, [player.map, currentWeather]);
 
+	const AQUARIUM_TANK_TILE_BY_CATEGORY = {
+		freshwater: "\u0192",
+		saltwater: "\u00A2",
+		cavewater: "\u00A4",
+	} as const;
+	const AQUARIUM_CURATOR_ANCHOR: Point = { x: 20, y: 11 };
+
+	const isAquariumPathTile = (x: number, y: number) =>
+		activeMapLayouts.aquarium?.[y]?.[x] === "=";
+
+	const isAquariumFishTileForCategory = (
+		x: number,
+		y: number,
+		category: "freshwater" | "saltwater" | "cavewater",
+	) => activeMapLayouts.aquarium?.[y]?.[x] === AQUARIUM_TANK_TILE_BY_CATEGORY[category];
+
+	const isAquariumFishYAllowedForBehavior = (
+		y: number,
+		behavior: "simple_wander" | "fixed_bottom" | "wander_top" | "wander_bottom",
+	) => {
+		if (behavior === "fixed_bottom") return y === 7;
+		if (behavior === "wander_top") return y === 1 || y === 2;
+		if (behavior === "wander_bottom") return y === 6 || y === 7;
+		return true;
+	};
+
+	const pickRandomAquariumFishTile = (
+		category: "freshwater" | "saltwater" | "cavewater",
+		behavior: "simple_wander" | "fixed_bottom" | "wander_top" | "wander_bottom",
+		occupiedKeys: Set<string>,
+	) => {
+		const candidates: Point[] = [];
+		const rows = activeMapLayouts.aquarium;
+		for (let y = 0; y < rows.length; y += 1) {
+			for (let x = 0; x < (rows[0]?.length ?? 0); x += 1) {
+				if (!isAquariumFishTileForCategory(x, y, category)) continue;
+				if (!isAquariumFishYAllowedForBehavior(y, behavior)) continue;
+				const key = keyForPos(x, y);
+				if (occupiedKeys.has(key)) continue;
+				candidates.push({ x, y });
+			}
+		}
+		if (candidates.length <= 0) return null;
+		return candidates[randomInt(0, candidates.length - 1)]!;
+	};
+
+	useEffect(() => {
+		const donatedFishIds = fishItemCatalog
+			.filter((fish) => aquariumDonations[fish.itemId])
+			.map((fish) => fish.itemId);
+		setAquariumFishTiles((prev) => {
+			const occupied = new Set<string>();
+			const next: Array<{
+				fishId: string;
+				glyph: string;
+				x: number;
+				y: number;
+				facing: 1 | -1;
+			}> = [];
+			donatedFishIds.forEach((fishId) => {
+				const fishMeta = fishItemCatalog.find((fish) => fish.itemId === fishId);
+				if (!fishMeta) return;
+				const previous = prev.find((entry) => entry.fishId === fishId);
+				if (
+					previous &&
+					isAquariumFishTileForCategory(previous.x, previous.y, fishMeta.category) &&
+					isAquariumFishYAllowedForBehavior(
+						previous.y,
+						fishMeta.aquariumNpcBehavior,
+					) &&
+					!occupied.has(keyForPos(previous.x, previous.y))
+				) {
+					next.push(previous);
+					occupied.add(keyForPos(previous.x, previous.y));
+					return;
+				}
+				const randomTile = pickRandomAquariumFishTile(
+					fishMeta.category,
+					fishMeta.aquariumNpcBehavior,
+					occupied,
+				);
+				if (!randomTile) return;
+				next.push({ fishId, glyph: fishMeta.glyph, ...randomTile, facing: 1 });
+				occupied.add(keyForPos(randomTile.x, randomTile.y));
+			});
+			return next;
+		});
+	}, [aquariumDonations, activeMapLayouts.aquarium]);
+
+	useEffect(() => {
+		if (!aquariumCuratorTile || isAquariumPathTile(aquariumCuratorTile.x, aquariumCuratorTile.y))
+			return;
+		if (isAquariumPathTile(AQUARIUM_CURATOR_ANCHOR.x, AQUARIUM_CURATOR_ANCHOR.y)) {
+			setAquariumCuratorTile({ ...AQUARIUM_CURATOR_ANCHOR });
+			return;
+		}
+		const rows = activeMapLayouts.aquarium;
+		for (let y = 0; y < rows.length; y += 1) {
+			for (let x = 0; x < (rows[0]?.length ?? 0); x += 1) {
+				if (!isAquariumPathTile(x, y)) continue;
+				setAquariumCuratorTile({ x, y });
+				return;
+			}
+		}
+		setAquariumCuratorTile(null);
+	}, [aquariumCuratorTile, activeMapLayouts.aquarium]);
+
+	useEffect(() => {
+		if (player.map !== "aquarium") return;
+		if (!aquariumCuratorTile) {
+			setAquariumCuratorTile({ ...AQUARIUM_CURATOR_ANCHOR });
+		}
+	}, [player.map, aquariumCuratorTile]);
+
+	useEffect(() => {
+		if (player.map !== "aquarium") return;
+		const interval = window.setInterval(() => {
+			setAquariumFishTiles((prev) => {
+				if (prev.length <= 0) return prev;
+				const occupied = new Set(prev.map((fish) => keyForPos(fish.x, fish.y)));
+				let changed = false;
+				const next = prev.map((fish) => {
+					const fishMeta = fishItemCatalog.find((item) => item.itemId === fish.fishId);
+					if (!fishMeta) return fish;
+					if (fishMeta.aquariumNpcBehavior === "fixed_bottom") return fish;
+					if (randomRoll() < 0.55) return fish;
+					const deltas = Object.values(npcMoveDirections).sort(
+						() => randomRoll() - 0.5,
+					);
+					for (const delta of deltas) {
+						const nx = fish.x + delta.dx;
+						const ny = fish.y + delta.dy;
+						if (!isAquariumFishTileForCategory(nx, ny, fishMeta.category)) continue;
+						if (
+							!isAquariumFishYAllowedForBehavior(
+								ny,
+								fishMeta.aquariumNpcBehavior,
+							)
+						)
+							continue;
+						const nextKey = keyForPos(nx, ny);
+						if (
+							player.map === "aquarium" &&
+							player.x === nx &&
+							player.y === ny
+						)
+							continue;
+						if (occupied.has(nextKey)) continue;
+						occupied.delete(keyForPos(fish.x, fish.y));
+						occupied.add(nextKey);
+						changed = true;
+						return {
+							...fish,
+							x: nx,
+							y: ny,
+							facing: nx > fish.x ? -1 : nx < fish.x ? 1 : fish.facing,
+						};
+					}
+					return fish;
+				});
+				return changed ? next : prev;
+			});
+			setAquariumCuratorTile((prev) => {
+				if (!prev) return prev;
+				const deltas = Object.values(npcMoveDirections).sort(
+					() => randomRoll() - 0.5,
+				);
+				for (const delta of deltas) {
+					const nx = prev.x + delta.dx;
+					const ny = prev.y + delta.dy;
+					if (!isAquariumPathTile(nx, ny)) continue;
+					if (
+						Math.max(
+							Math.abs(nx - AQUARIUM_CURATOR_ANCHOR.x),
+							Math.abs(ny - AQUARIUM_CURATOR_ANCHOR.y),
+						) > 5
+					)
+						continue;
+					if (
+						player.map === "aquarium" &&
+						player.x === nx &&
+						player.y === ny
+					)
+						continue;
+					return { x: nx, y: ny };
+				}
+				return prev;
+			});
+		}, 1000);
+		return () => window.clearInterval(interval);
+	}, [player.map, player.x, player.y]);
+
 	useEffect(() => {
 		if (player.map !== "aquarium") {
 			setAquariumBubbles([]);
@@ -4219,6 +4420,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				}
 				return migratedInventory;
 			})(),
+			aquariumDonations: (() => {
+				const defaults = makeEmptyAquariumInventory();
+				const rawDonations = (rawState as Partial<GameState>).aquariumDonations as
+					| AquariumDonationInventory
+					| undefined;
+				if (!rawDonations) return defaults;
+				return { ...defaults, ...rawDonations };
+			})(),
 			prices: {
 				...initialPrices,
 				...((rawState as Partial<GameState>).prices ?? {}),
@@ -4632,6 +4841,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				(doctorVendorActive && x === DOCTOR_POS.x && y === DOCTOR_POS.y)
 			);
 		}
+		if (map === "aquarium") {
+			return !!aquariumCuratorTile && aquariumCuratorTile.x === x && aquariumCuratorTile.y === y;
+		}
 		if (map === "farm") {
 			return (
 				(animalsMap === "farm" &&
@@ -4996,6 +5208,166 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const canAfford = (value: number) => money >= value;
+
+	const openAquariumCategoryCompletePopup = (
+		category: "freshwater" | "saltwater" | "cavewater",
+		onDone?: () => void,
+	) => {
+		const categoryLabel =
+			category === "freshwater"
+				? "Freshwater"
+				: category === "saltwater"
+					? "Ocean"
+					: "Cave";
+		openMenu(
+			"Aquarium Curator",
+			[
+				`OH my! You got all ${categoryLabel} fish!`,
+				"Here is a special awward!",
+			],
+			[
+				{
+					label: "Thanks",
+					onSelect: () => {
+						closeMenu();
+						onDone?.();
+					},
+				},
+			],
+		);
+	};
+
+	const interactAquariumCurator = () => {
+		const undonatedFish = fishItemCatalog
+			.filter((fish) => inventory[fish.itemId] > 0 && !aquariumDonations[fish.itemId])
+			.map((fish) => ({ ...fish, quantity: inventory[fish.itemId] }));
+		if (undonatedFish.length <= 0) {
+			openMenu(
+				"Aquarium Curator",
+				[
+					"Greeeetings. If you catch a fish we dont have, I hope you will consider coming back and donating it!",
+				],
+				[{ label: "OK", onSelect: closeMenu }],
+			);
+			return;
+		}
+		openMenu(
+			"Aquarium Curator",
+			["Would you like to donate a fish?"],
+			[
+				...undonatedFish.map((fish) => ({
+					label: `${fish.name} (${fish.quantity})`,
+					info: ["Donate this fish to the aquarium collection."],
+					onSelect: () => {
+						if (aquariumDonations[fish.itemId] || inventory[fish.itemId] <= 0) {
+							closeMenu();
+							return;
+						}
+						const nextDonations = { ...aquariumDonations, [fish.itemId]: true };
+						const previousDonationCount = Object.values(aquariumDonations).filter(Boolean).length;
+						const donationNumber = previousDonationCount + 1;
+						const categories: Array<"freshwater" | "saltwater" | "cavewater"> = [
+							"freshwater",
+							"saltwater",
+							"cavewater",
+						];
+						const completedCategories = categories.filter((category) => {
+							const categoryFish = fishItemCatalog.filter(
+								(item) => item.category === category,
+							);
+							if (categoryFish.length <= 0) return false;
+							const wasComplete = categoryFish.every(
+								(item) => aquariumDonations[item.itemId],
+							);
+							const isNowComplete = categoryFish.every(
+								(item) => nextDonations[item.itemId],
+							);
+							return !wasComplete && isNowComplete;
+						});
+
+						updateInventory(fish.itemId, -1, { suppressToast: true });
+						setAquariumDonations(nextDonations);
+						addLog(`Donated ${fish.name} to the aquarium.`);
+						closeMenu();
+
+						const grantCollectionRewardsAndMaybeShowPopup = (
+							onDone?: () => void,
+						) => {
+							if (completedCategories.length <= 0) {
+								onDone?.();
+								return;
+							}
+							updateInventory("diamond", 1);
+							updateInventory("emerald", 1);
+							updateInventory("ruby", 1);
+							let index = 0;
+							const showNext = () => {
+								if (index >= completedCategories.length) {
+									onDone?.();
+									return;
+								}
+								const category = completedCategories[index++]!;
+								openAquariumCategoryCompletePopup(category, showNext);
+							};
+							showNext();
+						};
+
+						window.setTimeout(() => {
+							if (donationNumber % 5 !== 0) {
+								grantCollectionRewardsAndMaybeShowPopup();
+								return;
+							}
+							const unlockableMoves = FISHING_PLAYER_MOVE_ORDER.filter(
+								(moveId) => moveId !== "cut_line" && !fishingMoveUnlocks[moveId],
+							);
+							if (unlockableMoves.length <= 0) {
+								updateInventory("emerald", 1);
+								openMenu(
+									"Aquarium Curator",
+									[
+										"Thank you for donating so many fish! Just for that, let me teach you a new fishing tequnique",
+										"You already know every technique, so please accept this emerald instead.",
+									],
+									[
+										{
+											label: "Thanks",
+											onSelect: () => {
+												closeMenu();
+												grantCollectionRewardsAndMaybeShowPopup();
+											},
+										},
+									],
+								);
+								return;
+							}
+							openMenu(
+								"Aquarium Curator",
+								[
+									"Thank you for donating so many fish! Just for that, let me teach you a new fishing tequnique",
+								],
+								[
+									...unlockableMoves.map((moveId) => ({
+										label: FISHING_PLAYER_MOVES[moveId].label,
+										info: [FISHING_PLAYER_MOVES[moveId].description],
+										onSelect: () => {
+											setFishingMoveUnlocks((prev) => ({ ...prev, [moveId]: true }));
+											closeMenu();
+											playYaya();
+											tileFxBusRef.current.api
+												.actor("player")
+												.toast(`You learned ${FISHING_PLAYER_MOVES[moveId].label}!`, 6000);
+											grantCollectionRewardsAndMaybeShowPopup();
+										},
+									})),
+								],
+							);
+						}, 0);
+					},
+				})),
+				{ label: "Back", onSelect: closeMenu },
+			],
+		);
+	};
 
 	const trySpendStamina = (cost: number) => {
 		if (cost <= 0) return true;
@@ -5831,6 +6203,56 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const delta = dirDelta[dir];
 		const tx = player.x + delta.dx;
 		const ty = player.y + delta.dy;
+		if (player.map === "aquarium") {
+			const aquariumTile = activeMapLayouts.aquarium?.[ty]?.[tx] ?? "";
+			const aquariumCategoryForInteractTile = (() => {
+				if (
+					aquariumTile === "\u0192" ||
+					aquariumTile === "\u00B1" ||
+					aquariumTile === "\u00C6"
+				)
+					return "freshwater" as const;
+				if (
+					aquariumTile === "\u00A2" ||
+					aquariumTile === "\u00B5" ||
+					aquariumTile === "\u00C4"
+				)
+					return "saltwater" as const;
+				if (
+					aquariumTile === "\u00A4" ||
+					aquariumTile === "\u00C5" ||
+					aquariumTile === "<" ||
+					aquariumTile === ">" ||
+					aquariumTile === "*"
+				)
+					return "cavewater" as const;
+				return null;
+			})();
+			if (aquariumCategoryForInteractTile) {
+				const totalForCategory = fishItemCatalog.filter(
+					(fish) => fish.category === aquariumCategoryForInteractTile,
+				).length;
+				const donatedForCategory = fishItemCatalog.filter(
+					(fish) =>
+						fish.category === aquariumCategoryForInteractTile &&
+						!!aquariumDonations[fish.itemId],
+				).length;
+				const categoryLabel =
+					aquariumCategoryForInteractTile === "freshwater"
+						? "Freshwater"
+						: aquariumCategoryForInteractTile === "saltwater"
+							? "Ocean"
+							: "Cave";
+				openMenu(
+					"Aquarium Tank",
+					[
+						`You have donated ${donatedForCategory}/${totalForCategory} ${categoryLabel} fish.`,
+					],
+					[{ label: "OK", onSelect: closeMenu }],
+				);
+				return;
+			}
+		}
 		if (
 			player.map === "farm" &&
 			headlampLetterVisible &&
@@ -6084,6 +6506,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			playMunch,
 			speakNpcLine,
 			tileFx: tileFxBusRef.current.api,
+			aquariumCuratorTile,
+			interactAquariumCurator,
 		};
 		runInteract(interactCtx, dir);
 	};
@@ -6672,6 +7096,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		aquariumBubbles,
 		aquariumSeaweedXs,
 		aquariumOceanSeaweedXs,
+		aquariumCuratorTile,
+		aquariumFishTiles,
 		unfedAnimalMap: animalsMap,
 		unfedAnimalTileKeys,
 		getToolTierName,

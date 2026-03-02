@@ -78,6 +78,7 @@ export const createAreaMusicController = (
 	const getAreaMusicForMap = (mapId: MapId) => {
 		if (mapId === "farm") return farmMusicRef.current;
 		if (mapId === "town" || isShopMap(mapId)) return townMusicRef.current;
+		if (mapId === "aquarium") return bureaucracyMusicRef.current;
 		if (mapId === "forest") {
 			if (forestIsBonusLevel) return bureaucracyMusicRef.current;
 			return forestMusicRef.current;
