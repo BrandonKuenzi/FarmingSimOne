@@ -126,6 +126,10 @@ type MapViewportCtx = Pick<
 	| "clouds"
 	| "setClouds"
 	| "cloudOverlayVisible"
+	| "aquariumBubbles"
+	| "aquariumSeaweedXs"
+	| "aquariumOceanSeaweedXs"
+	| "activeMapLayouts"
 	| "unfedAnimalMap"
 	| "unfedAnimalTileKeys"
 	| "dayTransitionStarsState"
@@ -176,6 +180,9 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		clouds,
 		setClouds,
 		cloudOverlayVisible,
+		aquariumBubbles,
+		aquariumSeaweedXs,
+		aquariumOceanSeaweedXs,
 		unfedAnimalMap,
 		unfedAnimalTileKeys,
 		dayTransitionStarsState,
@@ -894,6 +901,79 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 						</div>
 					))}
 				</div>
+				{player.map === "aquarium" && (
+					<div className='aquarium-seaweed-overlay'>
+						{activeMapLayouts[player.map].map((row, y) => (
+							<div
+								key={`seaweed-row-${y}`}
+								className='map-row'
+							>
+								{row.split("").map((_, x) => {
+									const hasSeaweed =
+										y === 7 &&
+										((x >= 2 && x <= 11 && aquariumSeaweedXs.includes(x)) ||
+											(x >= 15 &&
+												x <= 24 &&
+												x !== 23 &&
+												aquariumOceanSeaweedXs.includes(x)));
+									return (
+										<span
+											key={`seaweed-${x}-${y}`}
+											className='tile aquarium-seaweed-overlay-item'
+										>
+											{hasSeaweed ? (
+												<span className='aquarium-seaweed-glyph'>|</span>
+											) : (
+												""
+											)}
+										</span>
+									);
+								})}
+							</div>
+						))}
+					</div>
+				)}
+				{player.map === "aquarium" && (
+					<div className='aquarium-bubble-overlay'>
+						{activeMapLayouts[player.map].map((row, y) => (
+							<div
+								key={`bubble-row-${y}`}
+								className='map-row'
+							>
+								{row.split("").map((_, x) => {
+									const hasBubble = aquariumBubbles.some(
+										(bubble) =>
+											bubble.x === x &&
+											bubble.y === y &&
+											((bubble.tank === "fresh" &&
+												bubble.x >= 2 &&
+												bubble.x <= 11 &&
+												bubble.y >= 1 &&
+												bubble.y <= 7) ||
+												(bubble.tank === "salt" &&
+													bubble.x >= 15 &&
+													bubble.x <= 24 &&
+													bubble.y >= 1 &&
+													bubble.y <= 7) ||
+												(bubble.tank === "cave" &&
+													bubble.x >= 28 &&
+													bubble.x <= 38 &&
+													bubble.y >= 1 &&
+													bubble.y <= 7)),
+									);
+									return (
+										<span
+											key={`bubble-${x}-${y}`}
+											className='tile aquarium-bubble-overlay-item tile-aquarium-bubble'
+										>
+											{hasBubble ? <span className='aquarium-bubble-glyph'>o</span> : ""}
+										</span>
+									);
+								})}
+							</div>
+						))}
+					</div>
+				)}
 				{mapTileRows}
 				{mapRowCount > 0 && mapColCount > 0 && (
 					<div
@@ -1097,6 +1177,9 @@ const MemoMapViewport = React.memo(
 		prev.ctx.showForestHit === next.ctx.showForestHit &&
 		prev.ctx.clouds === next.ctx.clouds &&
 		prev.ctx.cloudOverlayVisible === next.ctx.cloudOverlayVisible &&
+		prev.ctx.aquariumBubbles === next.ctx.aquariumBubbles &&
+		prev.ctx.aquariumSeaweedXs === next.ctx.aquariumSeaweedXs &&
+		prev.ctx.aquariumOceanSeaweedXs === next.ctx.aquariumOceanSeaweedXs &&
 		prev.ctx.unfedAnimalMap === next.ctx.unfedAnimalMap &&
 		prev.ctx.unfedAnimalTileKeys === next.ctx.unfedAnimalTileKeys &&
 		prev.ctx.dayTransitionStarsState === next.ctx.dayTransitionStarsState &&
@@ -1167,6 +1250,9 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		clouds,
 		setClouds,
 		cloudOverlayVisible,
+		aquariumBubbles,
+		aquariumSeaweedXs,
+		aquariumOceanSeaweedXs,
 		unfedAnimalMap,
 		unfedAnimalTileKeys,
 		marketRows,
@@ -1551,6 +1637,9 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 							clouds,
 							setClouds,
 							cloudOverlayVisible,
+							aquariumBubbles,
+							aquariumSeaweedXs,
+							aquariumOceanSeaweedXs,
 							unfedAnimalMap,
 							unfedAnimalTileKeys,
 							dayTransitionStarsState,

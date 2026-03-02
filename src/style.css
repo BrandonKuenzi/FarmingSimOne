@@ -307,6 +307,20 @@ body {
 	pointer-events: none;
 }
 
+.aquarium-bubble-overlay {
+	position: absolute;
+	left: 6px;
+	top: 6px;
+	z-index: 8;
+	pointer-events: none;
+}
+
+.aquarium-bubble-overlay-item {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
 .entity-overlay .tile-entity {
 	position: absolute;
 	left: 0;
@@ -525,6 +539,63 @@ body {
 	background: #2f84d0;
 }
 
+.tile-aquarium-fresh-water {
+	background: #66c4ff;
+}
+
+.tile-aquarium-salt-water {
+	background: #3f90d6;
+}
+
+.tile-aquarium-cave-water {
+	background: #1e4f87;
+}
+
+.tile-aquarium-bubble {
+	color: rgba(235, 247, 255, 0.8);
+	font-weight: 600;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	text-shadow: 0 0 0.2em rgba(255, 255, 255, 0.35);
+}
+
+.aquarium-bubble-glyph {
+	font-size: 0.5em;
+	line-height: 1;
+}
+
+.aquarium-seaweed-overlay {
+	position: absolute;
+	left: 6px;
+	top: 6px;
+	z-index: 7;
+	pointer-events: none;
+}
+
+.aquarium-seaweed-overlay-item {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	overflow: visible;
+}
+
+.aquarium-seaweed-glyph {
+	display: inline-block;
+	color: #38c85b;
+	transform-origin: 50% 100%;
+	animation: aquarium-seaweed-sway 3.8s ease-in-out infinite alternate;
+}
+
+@keyframes aquarium-seaweed-sway {
+	from {
+		transform: rotate(20deg);
+	}
+	to {
+		transform: rotate(-20deg);
+	}
+}
+
 .tile-earth-dim .emoji-glyph {
 	filter: brightness(0.7);
 }
@@ -539,6 +610,10 @@ body {
 
 .tile-roof-white {
 	background: #f4f7ff;
+}
+
+.tile-aquarium-roof-b {
+	background: #e8dbfc;
 }
 
 .tile-roof-gray {
@@ -985,7 +1060,12 @@ li {
 	flex-direction: column;
 	justify-content: space-between;
 	padding: 18px;
-	background: radial-gradient(circle at 50% 42%, #142334 0%, #080e16 45%, #000 90%);
+	background: radial-gradient(
+		circle at 50% 42%,
+		#142334 0%,
+		#080e16 45%,
+		#000 90%
+	);
 }
 
 .fishing-encounter-stage.wipe-only {
@@ -1141,7 +1221,9 @@ li {
 	min-height: 190px;
 	border: 1px solid #4f6378;
 	background: rgba(1, 4, 7, 0.88);
-	transition: border-color 180ms ease, background-color 180ms ease;
+	transition:
+		border-color 180ms ease,
+		background-color 180ms ease;
 }
 
 .fishing-bottom-panel.inactive {

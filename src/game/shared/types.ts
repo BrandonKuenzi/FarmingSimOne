@@ -3,6 +3,7 @@ export type MapId =
 	| "house"
 	| "barn"
 	| "town"
+	| "aquarium"
 	| "forest"
 	| "cave"
 	| "bureaucracy_office"

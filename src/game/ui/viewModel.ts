@@ -111,6 +111,9 @@ export type GameRuntimeViewModel = {
 	clouds: CloudSprite[];
 	setClouds: Dispatch<SetStateAction<CloudSprite[]>>;
 	cloudOverlayVisible: boolean;
+	aquariumBubbles: Array<{ x: number; y: number; tank: "fresh" | "salt" | "cave" }>;
+	aquariumSeaweedXs: number[];
+	aquariumOceanSeaweedXs: number[];
 	unfedAnimalMap: MapId | null;
 	unfedAnimalTileKeys: Record<string, boolean>;
 	marketRows: Array<{ id: string; name: string; price: number; trend: number }>;
