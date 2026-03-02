@@ -83,6 +83,7 @@ export const GLYPH = {
 	milk: "\u{1F95B}", // 🥛 U+1F95B
 	yarn: "\u{1F9F6}", // 🧶 U+1F9F6
 	fish: "\u{1F41F}", // 🐟 U+1F41F
+	tropicalFish: "\u{1F420}", // 🐠 U+1F420
 	diamond: "\u{1F48E}", // 💎 U+1F48E
 	greenCircle: "\u{1F7E2}", // 🟢 U+1F7E2
 	redCircle: "\u{1F534}", // 🔴 U+1F534
@@ -106,6 +107,7 @@ export const GLYPH = {
 	officeWorker: "\u{1F9D1}\u{200D}\u{1F4BC}", // 🧑‍💼 U+1F9D1 U+200D U+1F4BC
 	brownSquare: "\u{1F7EB}", // 🟫 U+1F7EB
 	fishingPole: "\u{1F3A3}", // 🎣 U+1F3A3
+	anchor: "\u{2693}", // ⚓ U+2693
 	yawn: "\u{1F971}", // 🥱 U+1F971
 	pouringLiquid: "\u{1FAD7}", // 🫗 U+1FAD7
 	chartUp: "\u{1F4C8}", // 📈 U+1F4C8
@@ -133,6 +135,8 @@ export const GLYPH = {
 	womanCurlyHair: "\u{1F469}\u{200D}\u{1F9B1}", // 👩‍🦱 U+1F469 U+200D U+1F9B1
 	womanWhiteHair: "\u{1F469}\u{200D}\u{1F9B3}", // 👩‍🦳 U+1F469 U+200D U+1F9B3
 	womanBald: "\u{1F469}\u{200D}\u{1F9B2}", // 👩‍🦲 U+1F469 U+200D U+1F9B2
+	merman: "\u{1F9DC}\u{200D}\u{2642}\u{FE0F}", // 🧜‍♂️ U+1F9DC U+200D U+2642 U+FE0F
+	merwoman: "\u{1F9DC}\u{200D}\u{2640}\u{FE0F}", // 🧜‍♀️ U+1F9DC U+200D U+2640 U+FE0F
 	frog: "\u{1F438}", // 🐸 U+1F438
 	ufo: "\u{1F6F8}", // 🛸 U+1F6F8
 	octopus: "\u{1F419}", // 🐙 U+1F419

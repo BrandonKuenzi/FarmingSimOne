@@ -820,6 +820,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const [directorInputLocked, setDirectorInputLocked] = useState(false);
 	const [cloudOverlayVisible, setCloudOverlayVisible] = useState(true);
 	const [isNewspaperPopupOpen, setIsNewspaperPopupOpen] = useState(false);
+	const [aquariumBubbles, setAquariumBubbles] = useState<
+		Array<{ x: number; y: number; tank: "fresh" | "salt" | "cave" }>
+	>([]);
+	const [aquariumSeaweedXs, setAquariumSeaweedXs] = useState<number[]>([]);
+	const [aquariumOceanSeaweedXs, setAquariumOceanSeaweedXs] = useState<number[]>(
+		[],
+	);
 	const {
 		player,
 		day,
@@ -3055,6 +3062,115 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			}
 		};
 	}, [player.map, currentWeather]);
+
+	useEffect(() => {
+		if (player.map !== "aquarium") {
+			setAquariumBubbles([]);
+			return;
+		}
+		const tankDefs = [
+			{ id: "fresh" as const, minX: 2, maxX: 11 },
+			{ id: "salt" as const, minX: 15, maxX: 24 },
+			{ id: "cave" as const, minX: 28, maxX: 38 },
+		];
+		const isValidWaterPos = (
+			x: number,
+			y: number,
+			tank: "fresh" | "salt" | "cave",
+		) => {
+			if (y < 1 || y > 7) return false;
+			const def = tankDefs.find((t) => t.id === tank);
+			if (!def) return false;
+			return x >= def.minX && x <= def.maxX;
+		};
+		const pickXForTank = (
+			tank: (typeof tankDefs)[number],
+			current: Array<{ x: number; y: number; tank: "fresh" | "salt" | "cave" }>,
+		) => {
+			const candidates: number[] = [];
+			for (let x = tank.minX; x <= tank.maxX; x += 1) {
+				if (tank.id === "salt" && x === 23) continue;
+				if (tank.id === "cave" && (x === 28 || x === 37 || x === 38)) continue;
+				if (!current.some((b) => b.x === x && b.y === 7 && b.tank === tank.id))
+					candidates.push(x);
+			}
+			const fallback: number[] = [];
+			for (let x = tank.minX; x <= tank.maxX; x += 1) {
+				if (tank.id === "salt" && x === 23) continue;
+				if (tank.id === "cave" && (x === 28 || x === 37 || x === 38)) continue;
+				fallback.push(x);
+			}
+			const pool = candidates.length > 0 ? candidates : fallback;
+			if (pool.length === 0) return null;
+			return pool[randomInt(0, pool.length - 1)]!;
+		};
+		const interval = window.setInterval(() => {
+			setAquariumBubbles((prev) => {
+				let next = prev
+					.map((bubble) => ({ ...bubble, y: bubble.y - 1 }))
+					.filter((bubble) => isValidWaterPos(bubble.x, bubble.y, bubble.tank));
+				tankDefs.forEach((tank) => {
+					const inTank = (b: {
+						x: number;
+						y: number;
+						tank: "fresh" | "salt" | "cave";
+					}) => b.tank === tank.id;
+					const tankBubbles = next.filter(inTank);
+					if (tankBubbles.length > 3) {
+						const overflow = tankBubbles.length - 3;
+						let removed = 0;
+						next = next.filter((b) => {
+							if (!inTank(b)) return true;
+							if (removed < overflow) {
+								removed += 1;
+								return false;
+							}
+							return true;
+						});
+					}
+					let count = next.filter(inTank).length;
+					while (count < 2) {
+						const x = pickXForTank(tank, next);
+						if (x === null) break;
+						next.push({ x, y: 7, tank: tank.id });
+						count += 1;
+					}
+					if (count < 3 && randomRoll() < 0.4) {
+						const x = pickXForTank(tank, next);
+						if (x !== null) next.push({ x, y: 7, tank: tank.id });
+					}
+				});
+				return next;
+			});
+		}, 1200);
+		return () => window.clearInterval(interval);
+	}, [player.map]);
+
+	useEffect(() => {
+		if (player.map !== "aquarium") {
+			setAquariumSeaweedXs([]);
+			setAquariumOceanSeaweedXs([]);
+			return;
+		}
+		const nextFresh: number[] = [];
+		for (let x = 2; x <= 11; x += 1) {
+			if (x === 3) continue;
+			if (randomRoll() < 0.5) nextFresh.push(x);
+		}
+		const oceanCandidates: number[] = [];
+		for (let x = 15; x <= 24; x += 1) {
+			if (x !== 23) oceanCandidates.push(x);
+		}
+		for (let i = oceanCandidates.length - 1; i > 0; i -= 1) {
+			const j = randomInt(0, i);
+			const tmp = oceanCandidates[i]!;
+			oceanCandidates[i] = oceanCandidates[j]!;
+			oceanCandidates[j] = tmp;
+		}
+		const nextOcean = oceanCandidates.slice(0, 3);
+		setAquariumSeaweedXs(nextFresh);
+		setAquariumOceanSeaweedXs(nextOcean);
+	}, [player.map]);
 
 	useEffect(() => {
 		const clearWindTimers = () => {
@@ -6553,6 +6669,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		clouds,
 		setClouds,
 		cloudOverlayVisible,
+		aquariumBubbles,
+		aquariumSeaweedXs,
+		aquariumOceanSeaweedXs,
 		unfedAnimalMap: animalsMap,
 		unfedAnimalTileKeys,
 		getToolTierName,

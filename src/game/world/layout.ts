@@ -272,6 +272,31 @@ export const buildTownLayout = (): string[] => {
 		});
 	}
 
+	// Placeholder aquarium exterior footprint.
+	// Upper-left: (48,10), bottom-right: (55,15) inclusive.
+	// Top 3 rows are striped roof (blue/aquarium-gray by column), lower 3 rows are roof-white walls.
+	for (let xx = 48; xx <= 55; xx += 1) {
+		const roofStripe = (xx - 48) % 2 === 0 ? "R" : "\u00A7";
+		for (let yy = 10; yy <= 12; yy += 1) {
+			grid[yy][xx] = roofStripe;
+		}
+	}
+	paintRect(grid, 48, 13, 8, 3, "W");
+
+	// Dock path for aquarium access.
+	// Vertical leg: (45,9) -> (45,16), horizontal leg: (45,16) -> (53,16).
+	for (let y = 9; y <= 16; y += 1) {
+		grid[y][45] = "=";
+	}
+	for (let x = 45; x <= 53; x += 1) {
+		grid[16][x] = "=";
+	}
+	grid[14][50] = "(";
+	grid[14][52] = "-";
+	grid[14][54] = '"';
+	grid[15][51] = "+";
+	grid[16][51] = "=";
+
 	return grid.map((row) => row.join(""));
 };
 
@@ -298,6 +323,43 @@ export const buildCafeShopLayout = (): string[] => [
 	"#......+......#",
 	"###############",
 ];
+
+export const buildAquariumLayout = (): string[] => {
+	const width = 41;
+	const height = 15;
+	const grid = Array.from({ length: height }, () =>
+		Array.from({ length: width }, () => "="),
+	);
+
+	for (let x = 0; x < width; x += 1) {
+		grid[0]![x] = "W";
+		grid[height - 1]![x] = "W";
+	}
+	for (let y = 0; y < height; y += 1) {
+		grid[y]![0] = "W";
+		grid[y]![width - 1] = "W";
+	}
+
+	// Three 10x8 tank footprints with 3-tile gaps across the upper wall.
+	paintRect(grid, 2, 1, 10, 8, "\u0192");
+	paintRect(grid, 15, 1, 10, 8, "\u00A2");
+	paintRect(grid, 28, 1, 11, 8, "\u00A4");
+	grid[7]![3] = "\u00C6";
+	grid[7]![23] = "\u00C4";
+	grid[7]![28] = "\u00C5";
+	grid[7]![37] = "\u00C5";
+	grid[7]![38] = "\u00C5";
+	paintRect(grid, 2, 8, 10, 1, "\u00B1");
+	paintRect(grid, 15, 8, 10, 1, "\u00B5");
+	const caveFloorTiles = ["<", ">", "*"] as const;
+	for (let x = 28; x <= 38; x += 1) {
+		grid[8]![x] = caveFloorTiles[Math.floor(randomRoll() * caveFloorTiles.length)]!;
+	}
+
+	grid[height - 1]![Math.floor(width / 2)] = "+";
+
+	return grid.map((row) => row.join(""));
+};
 
 const createSeededRng = (seed: number) => {
 	let state = seed >>> 0;
@@ -659,6 +721,7 @@ export const mapLayouts: Record<MapId, string[]> = {
 	],
 	barn: buildBarnLayout(1),
 	town: buildTownLayout(),
+	aquarium: buildAquariumLayout(),
 	forest: buildForestPlaceholderLayout(),
 	cave: buildCavePlaceholderLayout(),
 	bureaucracy_office: buildBureaucracyOfficeLayout(),
@@ -694,6 +757,22 @@ export const mapTiles: Record<MapId, Tile[][]> = Object.fromEntries(
 				if (c === ":") return sand;
 				if (c === ";") return soil;
 				if (c === "~") return water;
+				if (c === "\u0192")
+					return { icon: c, passable: false, label: "Aquarium Fresh Water" };
+				if (c === "\u00A2")
+					return { icon: c, passable: false, label: "Aquarium Salt Water" };
+				if (c === "\u00A4")
+					return { icon: c, passable: false, label: "Aquarium Cave Water" };
+				if (c === "\u00C4")
+					return { icon: c, passable: false, label: "Aquarium Anchor" };
+				if (c === "\u00C5")
+					return { icon: c, passable: false, label: "Aquarium Rock" };
+				if (c === "\u00C6")
+					return { icon: c, passable: false, label: "Aquarium Wood" };
+				if (c === "\u00B1")
+					return { icon: c, passable: false, label: "Aquarium Freshwater Floor" };
+				if (c === "\u00B5")
+					return { icon: c, passable: false, label: "Aquarium Saltwater Floor" };
 				if (c === "_") return { icon: "_", passable: true, label: "Gravel" };
 				if (c === "^")
 					return { icon: "^", passable: true, label: "Forest Gap" };
@@ -709,7 +788,15 @@ export const mapTiles: Record<MapId, Tile[][]> = Object.fromEntries(
 				if (c === "+") return { icon: "+", passable: true, label: "Door" };
 				if (c === "d") return { icon: "d", passable: false, label: "Bed" };
 				if (c === "w") return { icon: "w", passable: false, label: "Wardrobe" };
-				if (c === "R" || c === "W" || c === "g") {
+				if (
+					c === "R" ||
+					c === "W" ||
+					c === "g" ||
+					c === "(" ||
+					c === "-" ||
+					c === '"' ||
+					c === "\u00A7"
+				) {
 					return { icon: c, passable: false, label: "Roof" };
 				}
 				if (c === "l") return { icon: c, passable: false, label: "Window" };

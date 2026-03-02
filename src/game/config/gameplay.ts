@@ -95,7 +95,14 @@ export const allWardrobeLooks = [
 
 export const shopMaps: Exclude<
 	MapId,
-	"farm" | "house" | "barn" | "town" | "forest" | "cave" | "bureaucracy_office"
+	| "farm"
+	| "house"
+	| "barn"
+	| "town"
+	| "aquarium"
+	| "forest"
+	| "cave"
+	| "bureaucracy_office"
 >[] = [
 	"seed_shop",
 	"feed_shop",
@@ -109,7 +116,14 @@ export const shopMaps: Exclude<
 export const shopDecorForSaleItems: Record<
 	Exclude<
 		MapId,
-		"farm" | "house" | "barn" | "town" | "forest" | "cave" | "bureaucracy_office"
+		| "farm"
+		| "house"
+		| "barn"
+		| "town"
+		| "aquarium"
+		| "forest"
+		| "cave"
+		| "bureaucracy_office"
 	>,
 	string[]
 > = {

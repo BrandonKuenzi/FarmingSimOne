@@ -26,7 +26,14 @@ export const isShopMap = (
 	mapId: MapId,
 ): mapId is Exclude<
 	MapId,
-	"farm" | "house" | "barn" | "town" | "forest" | "cave" | "bureaucracy_office"
+	| "farm"
+	| "house"
+	| "barn"
+	| "town"
+	| "aquarium"
+	| "forest"
+	| "cave"
+	| "bureaucracy_office"
 > =>
 	mapId in vendorByShopMap;
 
@@ -127,7 +134,14 @@ export const doors: Record<MapId, Door[]> = {
 			target: { map: "market_shop", x: 7, y: 6 },
 			label: "Market",
 		},
+		{
+			x: 51,
+			y: 15,
+			target: { map: "aquarium", x: 19, y: 13 },
+			label: "Aquarium",
+		},
 	],
+	aquarium: [{ x: 20, y: 14, target: { map: "town", x: 51, y: 16 }, label: "Exit" }],
 	seed_shop: [{ x: 7, y: 7, target: { map: "town", x: 8, y: 8 }, label: "Exit" }],
 	feed_shop: [{ x: 7, y: 7, target: { map: "town", x: 15, y: 8 }, label: "Exit" }],
 	animal_shop: [{ x: 7, y: 7, target: { map: "town", x: 22, y: 8 }, label: "Exit" }],

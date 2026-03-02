@@ -10,6 +10,26 @@ const tileVisuals: Record<string, VisualCell> = {
 	")": { glyph: "", className: "tile-cave-path" },
 	".": { glyph: "", className: "tile-floor" },
 	"~": { glyph: "", className: "tile-water" },
+	"\u0192": { glyph: "", className: "tile-aquarium-fresh-water" },
+	"\u00A2": { glyph: "", className: "tile-aquarium-salt-water" },
+	"\u00A4": { glyph: "", className: "tile-aquarium-cave-water" },
+	"\u00C0": {
+		glyph: "o",
+		className: "tile-aquarium-fresh-water tile-aquarium-bubble",
+	},
+	"\u00C1": {
+		glyph: "o",
+		className: "tile-aquarium-salt-water tile-aquarium-bubble",
+	},
+	"\u00C2": {
+		glyph: "o",
+		className: "tile-aquarium-cave-water tile-aquarium-bubble",
+	},
+	"\u00C4": { glyph: GLYPH.anchor, className: "tile-aquarium-salt-water" },
+	"\u00C5": { glyph: GLYPH.rock, className: "tile-aquarium-cave-water" },
+	"\u00C6": { glyph: GLYPH.wood, className: "tile-aquarium-fresh-water" },
+	"\u00B1": { glyph: "", className: "tile-sand" },
+	"\u00B5": { glyph: "", className: "tile-sand" },
 	_: { glyph: "", className: "tile-gravel" },
 	"^": { glyph: "", className: "tile-forest-grass" },
 	"<": { glyph: "", className: "tile-cave-wall-dark" },
@@ -50,6 +70,8 @@ const tileVisuals: Record<string, VisualCell> = {
 	V: { glyph: GLYPH.personBathing },
 	j: { glyph: GLYPH.smile },
 	l: { glyph: GLYPH.window },
+	'"': { glyph: GLYPH.window, className: "tile-roof-white" },
+	"\u00A7": { glyph: "", className: "tile-aquarium-roof-b" },
 	x: { glyph: GLYPH.brownSquare },
 	h: { glyph: GLYPH.chair },
 	B: { glyph: "", className: "tile-barn-wall" },
@@ -93,6 +115,8 @@ const tileVisuals: Record<string, VisualCell> = {
 	W: { glyph: "", className: "tile-roof-white" },
 	g: { glyph: "", className: "tile-roof-gray" },
 	Q: { glyph: "", className: "tile-roof-red" },
+	"(": { glyph: GLYPH.tropicalFish, className: "tile-roof-white" },
+	"-": { glyph: GLYPH.merwoman, className: "tile-roof-white" },
 };
 
 const groundClassByTile: Partial<Record<string, string>> = {
@@ -117,7 +141,10 @@ export const toVisual = (tile: string): VisualCell => {
 	return { glyph: tile };
 };
 
-export const groundClassForTile = (tile: string, mapId?: MapId): string | undefined => {
+export const groundClassForTile = (
+	tile: string,
+	mapId?: MapId,
+): string | undefined => {
 	if (forestGroundBlendTiles.has(tile)) {
 		return mapId === "forest" ? "tile-forest-grass" : "tile-grass";
 	}
