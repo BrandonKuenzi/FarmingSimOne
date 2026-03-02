@@ -22,6 +22,7 @@ import {
 	traderSoldOutLines,
 } from "../content/dialog";
 import { animalDefs, isCowLikeAnimal, itemNames } from "../content/catalog";
+import { GLYPH } from "../config/glyphs";
 import {
 	DOCTOR_POS,
 	PET_VENDOR_POS,
@@ -52,6 +53,7 @@ import type {
 } from "../shared/types";
 
 export type InteractionsContext = {
+	playerEmoji: string;
 	playerMap: MapId;
 	tx: number;
 	ty: number;
@@ -102,6 +104,7 @@ export type InteractionsContext = {
 	setSketchyMerchantStock: (
 		updater: (prev: SketchyStockEntry[]) => SketchyStockEntry[],
 	) => void;
+	setSketchyMerchantActive: (updater: (prev: boolean) => boolean) => void;
 	setNpcTalkedToday: (
 		updater: (prev: Record<string, boolean>) => Record<string, boolean>,
 	) => void;
@@ -125,6 +128,7 @@ export const handleLateInteractionBlocks = (
 	ctx: InteractionsContext,
 ): boolean => {
 	const {
+		playerEmoji,
 		playerMap,
 		tx,
 		ty,
@@ -169,6 +173,7 @@ export const handleLateInteractionBlocks = (
 		setPendingPet,
 		setTraderTrades,
 		setSketchyMerchantStock,
+		setSketchyMerchantActive,
 		setNpcTalkedToday,
 		interactVendor,
 		interactBuilderVendor,
@@ -179,6 +184,12 @@ export const handleLateInteractionBlocks = (
 		randomInt,
 		tileFx,
 	} = ctx;
+
+	const copSketchyLines = [
+		"Hi officer. I was just leaving.",
+		"I'm just a peaceful citizen. Gotta go.",
+		"I'm innocent, I promise! Um... I've got an appointment.",
+	] as const;
 
 	const emoteTownTarget = (x: number, y: number, positive: boolean) => {
 		const kind = randomRoll() < (positive ? 0.75 : 0.25) ? "happy" : "sad";
@@ -560,6 +571,30 @@ export const handleLateInteractionBlocks = (
 			tx === SKETCHY_MERCHANT_POS.x &&
 			ty === SKETCHY_MERCHANT_POS.y
 		) {
+			if (playerEmoji === GLYPH.cop) {
+				const availableDrops = sketchyMerchantStock.filter((entry) => entry.qty > 0);
+				const dropped =
+					availableDrops[randomInt(0, Math.max(0, availableDrops.length - 1))];
+				const line = copSketchyLines[randomInt(0, copSketchyLines.length - 1)]!;
+				emoteTownTarget(tx, ty, false);
+				tileFx.at({ map: "town", x: tx, y: ty }).toast(line, 8000);
+				speakNpcLine(line);
+				if (dropped) {
+					window.setTimeout(() => {
+						setSketchyMerchantActive(() => false);
+						const dropLine = `The shady vendor dropped a ${itemNames[dropped.item]}.`;
+						tileFx.actor("player").toast(dropLine, 4000);
+						window.setTimeout(() => {
+							updateInventory(dropped.item, 1);
+						}, 4000);
+					}, 8000);
+				} else {
+					window.setTimeout(() => {
+						setSketchyMerchantActive(() => false);
+					}, 8000);
+				}
+				return true;
+			}
 			if (sketchyMerchantStock.length <= 0) {
 				emoteTownTarget(tx, ty, false);
 				const soldOutLine = "I aint got nothin more today";

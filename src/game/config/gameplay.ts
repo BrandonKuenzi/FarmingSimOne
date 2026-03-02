@@ -72,15 +72,11 @@ export const purchasableClassicLooks = [
 
 export const purchasableFunnyLooks = [
 	GLYPH.frog,
-	GLYPH.cow,
 	GLYPH.fish,
-	GLYPH.ufo,
-	GLYPH.octopus,
-	GLYPH.penguin,
-	GLYPH.fox,
-	GLYPH.monkey,
-	GLYPH.panda,
 	GLYPH.tRex,
+	GLYPH.toilet,
+	GLYPH.cop,
+	GLYPH.run,
 	GLYPH.bulb,
 ] as const;
 

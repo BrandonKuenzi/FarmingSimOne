@@ -32,7 +32,7 @@
 		"sellPrice": 180,
 		"spawnWeight": 10,
 		"stats": {
-			"maxHp": 16,
+			"maxHp": 12,
 			"attack": 5,
 			"defense": 3
 		},
@@ -64,7 +64,7 @@
 			"attack": 9,
 			"defense": 7
 		},
-		"expGranted": 48,
+		"expGranted": 32,
 		"movePool": [
 			{
 				"moveId": "wrap_line",
@@ -88,11 +88,11 @@
 		"sellPrice": 650,
 		"spawnWeight": 7,
 		"stats": {
-			"maxHp": 40,
+			"maxHp": 80,
 			"attack": 7,
 			"defense": 14
 		},
-		"expGranted": 70,
+		"expGranted": 42,
 		"movePool": [
 			{
 				"moveId": "wrap_line",
@@ -120,7 +120,7 @@
 			"attack": 34,
 			"defense": 30
 		},
-		"expGranted": 520,
+		"expGranted": 500,
 		"movePool": [
 			{
 				"moveId": "dive_deep",

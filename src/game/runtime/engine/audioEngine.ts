@@ -45,6 +45,12 @@ type AudioSources = {
 	sighSoundSrc: string;
 	whooshSoundSrc: string;
 	battleMusicSrc: string;
+	badWater1SoundSrc: string;
+	badWater2SoundSrc: string;
+	badWater3SoundSrc: string;
+	badWater4SoundSrc: string;
+	badWater5SoundSrc: string;
+	badWater6SoundSrc: string;
 };
 
 type AudioRefs = {
@@ -78,6 +84,12 @@ type AudioRefs = {
 	sighSoundRef: AudioRef;
 	whooshSoundRef: AudioRef;
 	battleMusicRef: AudioRef;
+	badWater1SoundRef: AudioRef;
+	badWater2SoundRef: AudioRef;
+	badWater3SoundRef: AudioRef;
+	badWater4SoundRef: AudioRef;
+	badWater5SoundRef: AudioRef;
+	badWater6SoundRef: AudioRef;
 	cafeOrderMusicRef: AudioRef;
 	currentAreaMusicRef: AudioRef;
 	ttsReadyRef: MutableRefObject<boolean>;
@@ -169,6 +181,18 @@ export const initializeAudioEngine = ({
 	refs.battleMusicRef.current = new Audio(sources.battleMusicSrc);
 	refs.battleMusicRef.current.preload = "auto";
 	refs.battleMusicRef.current.loop = true;
+	refs.badWater1SoundRef.current = new Audio(sources.badWater1SoundSrc);
+	refs.badWater1SoundRef.current.preload = "auto";
+	refs.badWater2SoundRef.current = new Audio(sources.badWater2SoundSrc);
+	refs.badWater2SoundRef.current.preload = "auto";
+	refs.badWater3SoundRef.current = new Audio(sources.badWater3SoundSrc);
+	refs.badWater3SoundRef.current.preload = "auto";
+	refs.badWater4SoundRef.current = new Audio(sources.badWater4SoundSrc);
+	refs.badWater4SoundRef.current.preload = "auto";
+	refs.badWater5SoundRef.current = new Audio(sources.badWater5SoundSrc);
+	refs.badWater5SoundRef.current.preload = "auto";
+	refs.badWater6SoundRef.current = new Audio(sources.badWater6SoundSrc);
+	refs.badWater6SoundRef.current.preload = "auto";
 	initializeSharedAudioGraph([
 		refs.notificationRef.current,
 		refs.farmMusicRef.current,
@@ -201,6 +225,12 @@ export const initializeAudioEngine = ({
 		refs.whooshSoundRef.current,
 		refs.cafeOrderMusicRef.current,
 		refs.battleMusicRef.current,
+		refs.badWater1SoundRef.current,
+		refs.badWater2SoundRef.current,
+		refs.badWater3SoundRef.current,
+		refs.badWater4SoundRef.current,
+		refs.badWater5SoundRef.current,
+		refs.badWater6SoundRef.current,
 	]);
 	refs.ttsReadyRef.current =
 		typeof window !== "undefined" && "speechSynthesis" in window;
@@ -343,6 +373,38 @@ export const createAudioActions = ({
 		playOneShot(refs.whooshSoundRef.current);
 	};
 
+	const playBadWaterSound = (
+		soundId:
+			| "badWater1"
+			| "badWater2"
+			| "badWater3"
+			| "badWater4"
+			| "badWater5"
+			| "badWater6",
+	) => {
+		if (soundId === "badWater1") {
+			playOneShot(refs.badWater1SoundRef.current);
+			return;
+		}
+		if (soundId === "badWater2") {
+			playOneShot(refs.badWater2SoundRef.current);
+			return;
+		}
+		if (soundId === "badWater3") {
+			playOneShot(refs.badWater3SoundRef.current);
+			return;
+		}
+		if (soundId === "badWater4") {
+			playOneShot(refs.badWater4SoundRef.current);
+			return;
+		}
+		if (soundId === "badWater5") {
+			playOneShot(refs.badWater5SoundRef.current);
+			return;
+		}
+		playOneShot(refs.badWater6SoundRef.current);
+	};
+
 	const startBattleMusicLoop = () => {
 		startLoopSound(refs.battleMusicRef.current, 0.7);
 	};
@@ -378,6 +440,7 @@ export const createAudioActions = ({
 		stopTractorLoop,
 		playSigh,
 		playWhoosh,
+		playBadWaterSound,
 		startBattleMusicLoop,
 		stopBattleMusicLoop,
 		speakNpcLine,

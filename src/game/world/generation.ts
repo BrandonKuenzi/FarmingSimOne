@@ -663,6 +663,29 @@ const generateBonusCaveState = (cfg?: ForestGenConfig): CaveGenerationResult => 
 		}
 	}
 
+	const pondGroupCount = randomInt(1, 3);
+	for (let i = 0; i < pondGroupCount; i += 1) {
+		const cx = randomInt(Math.max(2, centerX - rx + 2), Math.min(FARM_WIDTH - 3, centerX + rx - 2));
+		const cy = randomInt(Math.max(2, centerY - ry + 2), Math.min(FARM_HEIGHT - 3, centerY + ry - 2));
+		const blobCount = randomInt(2, 4);
+		for (let b = 0; b < blobCount; b += 1) {
+			const ox = cx + randomInt(-3, 3);
+			const oy = cy + randomInt(-2, 2);
+			const brx = randomInt(1, 3);
+			const bry = randomInt(1, 2);
+			for (let y = oy - bry - 1; y <= oy + bry + 1; y += 1) {
+				for (let x = ox - brx - 1; x <= ox + brx + 1; x += 1) {
+					if (x <= 0 || y <= 0 || x >= FARM_WIDTH - 1 || y >= FARM_HEIGHT - 1)
+						continue;
+					const nx = (x - ox) / brx;
+					const ny = (y - oy) / bry;
+					if (nx * nx + ny * ny > 1.15) continue;
+					if (grid[y]![x] === ")") grid[y]![x] = "~";
+				}
+			}
+		}
+	}
+
 	// Always route through the chamber center so entrance/exit paths
 	// intersect the bonus-room floor and never bypass the loot chamber.
 	carveCaveLine(
@@ -890,6 +913,29 @@ export const generateCaveState = (cfg?: ForestGenConfig): CaveGenerationResult =
 		const x = randomInt(1, FARM_WIDTH - w - 2);
 		const y = randomInt(1, FARM_HEIGHT - h - 2);
 		carveRoom(x, y, w, h);
+	}
+
+	const pondCount = randomInt(0, 3);
+	for (let i = 0; i < pondCount; i += 1) {
+		const cx = randomInt(2, FARM_WIDTH - 3);
+		const cy = randomInt(2, FARM_HEIGHT - 3);
+		const blobCount = randomInt(2, 4);
+		for (let b = 0; b < blobCount; b += 1) {
+			const ox = cx + randomInt(-3, 3);
+			const oy = cy + randomInt(-2, 2);
+			const rx = randomInt(1, 3);
+			const ry = randomInt(1, 3);
+			for (let y = oy - ry - 1; y <= oy + ry + 1; y += 1) {
+				for (let x = ox - rx - 1; x <= ox + rx + 1; x += 1) {
+					if (x <= 0 || y <= 0 || x >= FARM_WIDTH - 1 || y >= FARM_HEIGHT - 1)
+						continue;
+					const nx = (x - ox) / rx;
+					const ny = (y - oy) / ry;
+					if (nx * nx + ny * ny > 1.15) continue;
+					if (grid[y]![x] === ")") grid[y]![x] = "~";
+				}
+			}
+		}
 	}
 
 	const levelOneExitInside = { x: -1, y: -1 };

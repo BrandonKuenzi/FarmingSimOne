@@ -62,6 +62,17 @@ const OUTFIT_COMPLIMENTS: string[] = [
 	"Absolutely on point",
 ];
 
+const FUNNY_LOOK_BENEFIT_BY_LOOK: Record<string, string> = {
+	[GLYPH.frog]: "Special: You can walk on water tiles.",
+	[GLYPH.fish]: "Special: Your watering can is always full.",
+	[GLYPH.tRex]:
+		"Special: You move extra slow, but nearby enemies fear your reign!",
+	[GLYPH.toilet]: "Special: You can go poo hunting for treasure!",
+	[GLYPH.cop]: "Special: Makes cleaning up the riff-raft around town easier.",
+	[GLYPH.run]: "Special: Gotta go fast!",
+	[GLYPH.bulb]: "Special: Better visibility in dark areas.",
+};
+
 export type PlayerInteractContext = {
 	modal: unknown;
 	beachBottlePos: Point | null;
@@ -277,12 +288,14 @@ export type PlayerInteractContext = {
 	setTraderTrades: Dispatch<SetStateAction<TraderTradeEntry[]>>;
 	traderAfterSaleLines: readonly string[];
 	sketchyMerchantActive: boolean;
+	playerEmoji: string;
 	sketchyMerchantStock: SketchyStockEntry[];
 	SKETCHY_CRATE_POS: Point;
 	dontTouchSketchy: readonly string[];
 	SKETCHY_MERCHANT_POS: Point;
 	sketchyMerchantIntro: readonly string[];
 	setSketchyMerchantStock: Dispatch<SetStateAction<SketchyStockEntry[]>>;
+	setSketchyMerchantActive: Dispatch<SetStateAction<boolean>>;
 	sketchyVendorSales: readonly string[];
 	boatTiles: Record<string, Point>;
 	boatDialogArray: readonly string[];
@@ -486,12 +499,14 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		setTraderTrades,
 		traderAfterSaleLines,
 		sketchyMerchantActive,
+		playerEmoji,
 		sketchyMerchantStock,
 		SKETCHY_CRATE_POS,
 		dontTouchSketchy,
 		SKETCHY_MERCHANT_POS,
 		sketchyMerchantIntro,
 		setSketchyMerchantStock,
+		setSketchyMerchantActive,
 		sketchyVendorSales,
 		boatTiles,
 		boatDialogArray,
@@ -960,18 +975,13 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			);
 			playHoe();
 			if (nextHitsRemaining > 0) {
-				const swingsLeft = Math.ceil(nextHitsRemaining / damage);
-				addLog(
-					`You chip the rock. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`,
-				);
+				const interactionsLeft = Math.ceil(nextHitsRemaining / damage);
+				toastAtTarget(`${interactionsLeft} hits left`);
 			} else {
 				if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 					updateInventory("iron", 1);
 					toastAtTarget(`+1 ${GLYPH.rock}`);
 					playYaya();
-					addLog("You broke the rock and found Iron +1.");
-				} else {
-					addLog("You broke the rock.");
 				}
 			}
 			return;
@@ -995,7 +1005,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		if (obstacle?.type === "torch") {
 			if (waterLevel <= 0) {
 				playBad();
-				addLog("You have no water.");
+				toastAtTarget("You have no water");
 				return;
 			}
 			setWaterLevel((prev) => Math.max(0, prev - 1));
@@ -1035,38 +1045,30 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			);
 			playHoe();
 			if (nextHitsRemaining > 0) {
-				const swingsLeft = Math.ceil(nextHitsRemaining / damage);
-				addLog(
-					`You chip the cave rock. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`,
-				);
+				const interactionsLeft = Math.ceil(nextHitsRemaining / damage);
+				toastAtTarget(`${interactionsLeft} hits left`);
 			} else {
 				let foundGem = false;
 				if (caveLevel >= 10 && randomRoll() < 1 / 40) {
 					updateInventory("diamond", 1);
 					toastAtTarget(`+1 ${GLYPH.diamond}`);
 					playYaya();
-					addLog("You found a Diamond! (+1)");
 					foundGem = true;
 				} else if (caveLevel >= 5 && randomRoll() < 1 / 30) {
 					updateInventory("emerald", 1);
 					toastAtTarget(`+1 ${GLYPH.greenCircle}`);
 					playYaya();
-					addLog("You found an Emerald! (+1)");
 					foundGem = true;
 				} else if (randomRoll() < 1 / 10) {
 					updateInventory("ruby", 1);
 					toastAtTarget(`+1 ${GLYPH.redCircle}`);
 					playYaya();
-					addLog("You found a Ruby! (+1)");
 					foundGem = true;
 				}
 				if (!foundGem && randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 					updateInventory("iron", 1);
 					toastAtTarget(`+1 ${GLYPH.rock}`);
 					playYaya();
-					addLog("You broke the cave rock and found Iron +1.");
-				} else if (!foundGem) {
-					addLog("You broke the cave rock.");
 				}
 				if (!caveLadderPos) {
 					const remainingRocks = caveObstacles.filter(
@@ -1130,18 +1132,13 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		});
 		playHoe();
 		if (nextHitsRemaining > 0) {
-			const swingsLeft = Math.ceil(nextHitsRemaining / damage);
-			addLog(
-				`You chip the rock. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`,
-			);
+			const interactionsLeft = Math.ceil(nextHitsRemaining / damage);
+			toastAtTarget(`${interactionsLeft} hits left`);
 		} else {
 			if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 				updateInventory("iron", 1);
 				toastAtTarget(`+1 ${GLYPH.rock}`);
 				playYaya();
-				addLog("You smashed the rock and found Iron +1.");
-			} else {
-				addLog("You smashed the rock.");
 			}
 		}
 		return;
@@ -1429,8 +1426,9 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 							: purchasableFunnyLooks.includes(
 										look as (typeof purchasableFunnyLooks)[number],
 								  )
-								? "A very fancy costume you bought for a pretty penny"
-								: "An outfit you bought from town",
+								? (FUNNY_LOOK_BENEFIT_BY_LOOK[look] ??
+									"A very fancy costume with a special effect.")
+								: "An nice outfit to change up your look.",
 						...(hasMoreToPurchase
 							? ["", "", "More outfits can be purchased in town."]
 							: []),
@@ -1483,6 +1481,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			doctorUsedToday,
 			traderActive,
 			sketchyMerchantActive,
+			playerEmoji,
 			playPluck,
 			playBad,
 			playMunch,
@@ -1496,6 +1495,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			setPendingPet,
 			setTraderTrades,
 			setSketchyMerchantStock,
+			setSketchyMerchantActive: (updater) => setSketchyMerchantActive(updater),
 			setNpcTalkedToday,
 			interactVendor,
 			interactBuilderVendor,

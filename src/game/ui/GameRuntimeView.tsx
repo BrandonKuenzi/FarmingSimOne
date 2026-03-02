@@ -217,6 +217,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		x: player.x,
 		y: player.y,
 	});
+	const [playerFacing, setPlayerFacing] = useState<1 | -1>(1);
 	const [isZoomAnchoring, setIsZoomAnchoring] = useState(false);
 	const [cloudWhooshById, setCloudWhooshById] = useState<
 		Record<number, { x: number; y: number }>
@@ -302,7 +303,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 				x: player.x,
 				y: player.y,
 				glyph: resolvePlayerGlyph(),
-				flip: isDrivingTractor && tractorFacing < 0,
+				flip: isDrivingTractor ? tractorFacing < 0 : playerFacing < 0,
 				isPlayer: true,
 			});
 		}
@@ -419,6 +420,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		isDrivingTractor,
 		isBathing,
 		tractorFacing,
+		playerFacing,
 		fishing,
 		townNpcTiles,
 		forestEnemies,
@@ -664,6 +666,8 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 				(prevPlayerTile.x !== player.x || prevPlayerTile.y !== player.y);
 			const dx = player.x - prevPlayerTile.x;
 			const dy = player.y - prevPlayerTile.y;
+			if (movedOnSameMap && dx > 0) setPlayerFacing(-1);
+			else if (movedOnSameMap && dx < 0) setPlayerFacing(1);
 			prevPlayerTileRef.current = { map: player.map, x: player.x, y: player.y };
 			const explicitCameraTarget =
 				cameraTarget && cameraTarget.map === player.map ? cameraTarget : null;
