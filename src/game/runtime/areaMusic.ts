@@ -15,7 +15,11 @@ export type AreaMusicController = {
 		durationMs?: number,
 	) => void;
 	fadeOutCurrentAreaMusic: (durationMs?: number) => void;
-	switchAreaMusic: (target: HTMLAudioElement | null, instant?: boolean) => void;
+	switchAreaMusic: (
+		target: HTMLAudioElement | null,
+		instant?: boolean,
+		allowDuringSideViewCutscene?: boolean,
+	) => void;
 	crossFadeEndOfDayTo: (target: HTMLAudioElement | null, durationMs?: number) => void;
 	stopEndOfDaySong: () => void;
 };
@@ -29,6 +33,7 @@ type AreaMusicControllerInput = {
 	isOrdering: boolean;
 	isDoctorCompounding: boolean;
 	isFishing: boolean;
+	sideViewCutsceneActiveRef: MutableRefObject<boolean>;
 	farmMusicRef: AudioRef;
 	townMusicRef: AudioRef;
 	beachAmbienceRef: AudioRef;
@@ -59,7 +64,8 @@ export const createAreaMusicController = (
 		isOrdering,
 		isDoctorCompounding,
 		isFishing,
-		farmMusicRef,
+		sideViewCutsceneActiveRef,
+	farmMusicRef,
 		townMusicRef,
 		beachAmbienceRef,
 		houseMusicRef,
@@ -76,6 +82,16 @@ export const createAreaMusicController = (
 		bgMusicTransitionUntilRef,
 		townBeachFadeIntervalRef,
 	} = input;
+
+	const playTrackNow = (track: HTMLAudioElement | null) => {
+		if (!track) return;
+		track.muted = false;
+		void track.play().catch(() => {
+			window.setTimeout(() => {
+				void track.play().catch(() => undefined);
+			}, 120);
+		});
+	};
 
 	const getAreaMusicForMap = (mapId: MapId) => {
 		if (mapId === "farm") return farmMusicRef.current;
@@ -149,6 +165,8 @@ export const createAreaMusicController = (
 				!!cafeOrderMusicRef.current)
 		) {
 			if (cafeOrderMusicRef.current) allowed.add(cafeOrderMusicRef.current);
+		} else if (sideViewCutsceneActiveRef.current) {
+			if (currentAreaMusicRef.current) allowed.add(currentAreaMusicRef.current);
 		} else if (!isFishing) {
 			const intended = getAreaMusicForMap(playerRef.current.map);
 			if (intended) allowed.add(intended);
@@ -165,10 +183,14 @@ export const createAreaMusicController = (
 		areaTracks.forEach((track) => {
 			if (allowed.has(track)) return;
 			if (withinTransitionWindow) return;
-			if (!track.paused) {
+			const wasPlaying = !track.paused;
+			const hadTime = track.currentTime > 0;
+			if (wasPlaying) {
 				track.pause();
 			}
-			track.currentTime = 0;
+			if (hadTime) {
+				track.currentTime = 0;
+			}
 			track.volume = getDesiredVolumeForTrack(track);
 		});
 	};
@@ -206,8 +228,14 @@ export const createAreaMusicController = (
 		if (!track) return;
 		track.volume = 1;
 		track.loop = false;
-		track.pause();
-		track.currentTime = 0;
+		const wasPlaying = !track.paused;
+		const hadTime = track.currentTime > 0;
+		if (wasPlaying) {
+			track.pause();
+		}
+		if (hadTime) {
+			track.currentTime = 0;
+		}
 		track.load();
 		track.loop = true;
 	};
@@ -239,24 +267,38 @@ export const createAreaMusicController = (
 	const switchAreaMusic = (
 		target: HTMLAudioElement | null,
 		instant = false,
+		allowDuringSideViewCutscene = false,
 	) => {
 		if (!target) return;
+		if (
+			sideViewCutsceneActiveRef.current &&
+			!allowDuringSideViewCutscene &&
+			currentAreaMusicRef.current !== target
+		) {
+			return;
+		}
 		stopAreaFade();
 		stopEndOfDaySong();
 
 		const current = currentAreaMusicRef.current;
 		if (!current) {
 			target.volume = getDesiredVolumeForTrack(target);
-			void target.play().catch(() => undefined);
+			playTrackNow(target);
 			currentAreaMusicRef.current = target;
 			stopStaleBackgroundTracks();
 			return;
 		}
 
 		if (current === target) {
+			current.volume = getDesiredVolumeForTrack(current);
+			if (instant && allowDuringSideViewCutscene) {
+				current.currentTime = 0;
+				playTrackNow(current);
+				stopStaleBackgroundTracks();
+				return;
+			}
 			if (current.paused) {
-				current.volume = getDesiredVolumeForTrack(current);
-				void current.play().catch(() => undefined);
+				playTrackNow(current);
 			}
 			stopStaleBackgroundTracks();
 			return;
@@ -266,14 +308,15 @@ export const createAreaMusicController = (
 			current.pause();
 			current.currentTime = 0;
 			target.volume = getDesiredVolumeForTrack(target);
-			void target.play().catch(() => undefined);
+			target.currentTime = 0;
+			playTrackNow(target);
 			currentAreaMusicRef.current = target;
 			stopStaleBackgroundTracks();
 			return;
 		}
 
 		target.volume = 0;
-		void target.play().catch(() => undefined);
+		playTrackNow(target);
 		const durationMs = 2000;
 		musicFadeFromRef.current = current;
 		musicFadeToRef.current = target;
@@ -306,13 +349,13 @@ export const createAreaMusicController = (
 		}
 		if (!endTrack) {
 			target.volume = targetVolume;
-			void target.play().catch(() => undefined);
+			playTrackNow(target);
 			currentAreaMusicRef.current = target;
 			return;
 		}
 		stopAreaFade();
 		target.volume = 0;
-		void target.play().catch(() => undefined);
+		playTrackNow(target);
 		musicFadeFromRef.current = endTrack;
 		musicFadeToRef.current = target;
 		markBgMusicTransition(durationMs);
@@ -347,3 +390,6 @@ export const createAreaMusicController = (
 		stopEndOfDaySong,
 	};
 };
+
+
+

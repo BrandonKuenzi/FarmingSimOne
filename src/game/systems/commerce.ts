@@ -1,6 +1,5 @@
 import { randomInt, randomRoll } from "../shared/random";
 import type { ItemId, PriceState, SketchyStockEntry, TraderTradeEntry } from "../shared/types";
-import { fishItemIds } from "../content/fishCatalog";
 
 export type DealBadge =
 	| {
@@ -64,7 +63,6 @@ const sketchyItemPool: ItemId[] = [
 	"milk",
 	"wool",
 	"egg",
-	...fishItemIds,
 	"iron",
 	"shell",
 	"diamond",
@@ -100,7 +98,6 @@ const traderItemPool: ItemId[] = [
 	"milk",
 	"wool",
 	"egg",
-	...fishItemIds,
 	"iron",
 	"shell",
 	"coral_fruit",

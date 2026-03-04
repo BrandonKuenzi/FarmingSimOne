@@ -14,6 +14,7 @@ import { BUREAUCRACY_EXIT_POS } from "../world/layout";
 import { GLYPH } from "../config/glyphs";
 import { AnimatedEmojiTile } from "./AnimatedEmojiTile";
 import { CurrentMarket } from "./CurrentMarket";
+import { SideViewCutsceneOverlay } from "./SideViewCutsceneOverlay";
 import { StoneUI } from "./StoneUI";
 import {
 	CAMERA_FOLLOW_ANIMATION_EASE,
@@ -1431,6 +1432,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		onBlur,
 		shellRef,
 		day,
+		playerName,
 		player,
 		townNpcTiles,
 		forestEnemies,
@@ -1558,6 +1560,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		zoomIn,
 		directorPopup,
 		confirmDirectorPopup,
+		sideViewCutscene,
+		sideViewCutscenePending,
 		tileFxBus,
 	} = ctx;
 	const newspaperSections = newspaper
@@ -1724,6 +1728,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 				>
 					{GLYPH.burger}
 				</button>
+				<div>{playerName}</div>
 				<div>Day: {day}</div>
 				<div>Location: {player.map}</div>
 				<div>
@@ -2725,6 +2730,10 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					</div>
 				</div>
 			)}
+			{sideViewCutscenePending && !sideViewCutscene && (
+				<div className='sideview-cutscene-backdrop' />
+			)}
+			<SideViewCutsceneOverlay scene={sideViewCutscene} />
 		</div>
 	);
 };

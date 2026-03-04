@@ -29,7 +29,6 @@ import {
 	petOptions,
 	SKETCHY_CRATE_POS,
 	SKETCHY_MERCHANT_POS,
-	townNpcNames,
 	TRADER_BOX_POS,
 	TRADER_HELI_POS,
 	TRADER_POS,
@@ -55,6 +54,7 @@ import type {
 
 export type InteractionsContext = {
 	playerEmoji: string;
+	playerName: string;
 	playerMap: MapId;
 	tx: number;
 	ty: number;
@@ -79,6 +79,7 @@ export type InteractionsContext = {
 	sketchyMerchantStock: SketchyStockEntry[];
 	boatTiles: Record<string, Point>;
 	townNpcTiles: Record<string, Point>;
+	townNpcNames: Record<string, string>;
 	npcDailyAssignments: Record<string, NpcDailyAssignment>;
 	npcTalkedToday: Record<string, boolean>;
 	petVendorActive: boolean;
@@ -131,6 +132,7 @@ export const handleLateInteractionBlocks = (
 ): boolean => {
 	const {
 		playerEmoji,
+		playerName,
 		playerMap,
 		tx,
 		ty,
@@ -153,6 +155,7 @@ export const handleLateInteractionBlocks = (
 		sketchyMerchantStock,
 		boatTiles,
 		townNpcTiles,
+		townNpcNames,
 		npcDailyAssignments,
 		npcTalkedToday,
 		petVendorActive,
@@ -719,7 +722,7 @@ export const handleLateInteractionBlocks = (
 			const tipText = townTips[randomInt(0, townTips.length - 1)]!;
 			const isTip = !firstTalkToday && randomRoll() < 0.5;
 			const line = firstTalkToday
-				? generateNpcGreetingLine(assignment)
+				? generateNpcGreetingLine(assignment, playerName)
 				: isTip
 					? `TIP: ${tipText}`
 					: generateNpcDialogLine(assignment);
