@@ -88,9 +88,9 @@
 		"sellPrice": 650,
 		"spawnWeight": 7,
 		"stats": {
-			"maxHp": 80,
+			"maxHp": 120,
 			"attack": 7,
-			"defense": 14
+			"defense": 18
 		},
 		"expGranted": 42,
 		"movePool": [
@@ -114,9 +114,9 @@
 		"glyph": "🐉",
 		"category": "freshwater",
 		"sellPrice": 5000,
-		"spawnWeight": 1,
+		"spawnWeight": 3,
 		"stats": {
-			"maxHp": 120,
+			"maxHp": 320,
 			"attack": 34,
 			"defense": 30
 		},
@@ -149,9 +149,9 @@
 		"sellPrice": 120,
 		"spawnWeight": 30,
 		"stats": {
-			"maxHp": 14,
+			"maxHp": 30,
 			"attack": 3,
-			"defense": 6
+			"defense": 20
 		},
 		"expGranted": 18,
 		"movePool": [
@@ -181,7 +181,7 @@
 		"sellPrice": 280,
 		"spawnWeight": 30,
 		"stats": {
-			"maxHp": 24,
+			"maxHp": 44,
 			"attack": 8,
 			"defense": 7
 		},
@@ -210,9 +210,9 @@
 		"sellPrice": 420,
 		"spawnWeight": 30,
 		"stats": {
-			"maxHp": 30,
+			"maxHp": 50,
 			"attack": 9,
-			"defense": 12
+			"defense": 20
 		},
 		"expGranted": 64,
 		"movePool": [
@@ -246,8 +246,8 @@
 		"sellPrice": 650,
 		"spawnWeight": 30,
 		"stats": {
-			"maxHp": 34,
-			"attack": 12,
+			"maxHp": 44,
+			"attack": 32,
 			"defense": 10
 		},
 		"expGranted": 82,
@@ -282,8 +282,8 @@
 		"sellPrice": 950,
 		"spawnWeight": 20,
 		"stats": {
-			"maxHp": 42,
-			"attack": 14,
+			"maxHp": 150,
+			"attack": 24,
 			"defense": 12
 		},
 		"expGranted": 110,
@@ -318,8 +318,8 @@
 		"sellPrice": 1300,
 		"spawnWeight": 16,
 		"stats": {
-			"maxHp": 52,
-			"attack": 16,
+			"maxHp": 152,
+			"attack": 26,
 			"defense": 16
 		},
 		"expGranted": 140,
@@ -350,8 +350,8 @@
 		"sellPrice": 2000,
 		"spawnWeight": 16,
 		"stats": {
-			"maxHp": 64,
-			"attack": 22,
+			"maxHp": 200,
+			"attack": 32,
 			"defense": 10
 		},
 		"expGranted": 190,
@@ -379,8 +379,8 @@
 		"sellPrice": 3200,
 		"spawnWeight": 16,
 		"stats": {
-			"maxHp": 78,
-			"attack": 14,
+			"maxHp": 200,
+			"attack": 10,
 			"defense": 24
 		},
 		"expGranted": 230,
@@ -408,7 +408,7 @@
 		"sellPrice": 260,
 		"spawnWeight": 16,
 		"stats": {
-			"maxHp": 200,
+			"maxHp": 300,
 			"attack": 5,
 			"defense": 6
 		},
@@ -434,9 +434,9 @@
 		"glyph": "🧜‍♀️",
 		"category": "saltwater",
 		"sellPrice": 5000,
-		"spawnWeight": 2,
+		"spawnWeight": 5,
 		"stats": {
-			"maxHp": 300,
+			"maxHp": 500,
 			"attack": 38,
 			"defense": 32
 		},
@@ -488,7 +488,7 @@
 		"sellPrice": 1100,
 		"spawnWeight": 18,
 		"stats": {
-			"maxHp": 60,
+			"maxHp": 160,
 			"attack": 14,
 			"defense": 14
 		},
@@ -521,7 +521,7 @@
 		"sellPrice": 1600,
 		"spawnWeight": 10,
 		"stats": {
-			"maxHp": 54,
+			"maxHp": 204,
 			"attack": 26,
 			"defense": 8
 		},
@@ -558,9 +558,9 @@
 		"sellPrice": 1400,
 		"spawnWeight": 10,
 		"stats": {
-			"maxHp": 150,
+			"maxHp": 350,
 			"attack": 10,
-			"defense": 26
+			"defense": 46
 		},
 		"expGranted": 240,
 		"movePool": [
@@ -588,9 +588,9 @@
 		"glyph": "🧜‍♂️",
 		"category": "cavewater",
 		"sellPrice": 5000,
-		"spawnWeight": 1,
+		"spawnWeight": 3,
 		"stats": {
-			"maxHp": 300,
+			"maxHp": 500,
 			"attack": 42,
 			"defense": 36
 		},

@@ -15,6 +15,7 @@ export type GameInputCommand =
 	| "ZOOM_OUT"
 	| "DEBUG_GRANT_RESOURCES"
 	| "DEBUG_SPAWN_BARN_ANIMALS"
+	| "DEBUG_OPEN_CUTSCENE_MENU"
 	| "KEY_PRESS";
 
 export type GameInputMeta = {

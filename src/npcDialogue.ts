@@ -434,8 +434,13 @@ export const generateNpcDialogLine = (
 
 export const generateNpcGreetingLine = (
 	assignment: NpcDailyAssignment,
+	playerName = "Player",
 ): string => {
-	const a = replacePlaceholders(pick([...greetingPartA]), assignment);
+	const trimmedPlayerName = playerName.trim() || "Player";
+	const usePlayerGreeting = randomRoll() < 0.5;
+	const a = usePlayerGreeting
+		? `Hi ${trimmedPlayerName}!`
+		: replacePlaceholders(pick([...greetingPartA]), assignment);
 	const b = replacePlaceholders(pick([...greetingPartB]), assignment);
 	return `${a} ${b}`;
 };

@@ -1,12 +1,32 @@
 import { TOWN_OCEAN_START_Y, TOWN_WIDTH } from "./layout";
 import type { PetEmoji } from "../shared/types";
 import { GLYPH } from "../config/glyphs";
+import { generateName } from "../systems/generateName";
 
-export const townNpcNames: Record<string, string> = {
+export const defaultTownNpcNames: Record<string, string> = {
 	neighbor_1: "Nora",
 	neighbor_2: "Milo",
 	neighbor_3: "Rhea",
 	neighbor_4: "Gus",
+};
+
+export const createGeneratedTownNpcNames = (
+	rng: () => number = Math.random,
+): Record<string, string> => {
+	const keys = Object.keys(defaultTownNpcNames);
+	const used = new Set<string>();
+	const out: Record<string, string> = {};
+	keys.forEach((key) => {
+		let next = generateName(rng);
+		let attempts = 0;
+		while (used.has(next) && attempts < 8) {
+			next = generateName(rng);
+			attempts += 1;
+		}
+		used.add(next);
+		out[key] = next;
+	});
+	return out;
 };
 
 export const townNpcAnchors: Record<string, { x: number; y: number }> = {

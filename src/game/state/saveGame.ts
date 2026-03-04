@@ -2,6 +2,7 @@ import type { GameState } from "./gameState";
 import { makeEmptyProgressAlgorithmCounts } from "../progression/progressStonesAlgorithmic";
 import { makeEmptyProgressTargetCounts } from "../progression/progressStonesTarget";
 import { makeEmptyProgressLoadoutRows } from "../progression/progressMonitor";
+import { defaultTownNpcNames } from "../world/npcs";
 
 export const SAVE_GAME_VERSION = 2;
 
@@ -18,10 +19,14 @@ export const toSaveGameData = (gameState: GameState): SaveGameData => {
 };
 
 export const fromSaveGameData = (save: SaveGameData): GameState => {
-	if (save.version === SAVE_GAME_VERSION) return save.gameState;
 	const state = save.gameState as Partial<GameState>;
 	const migrated = {
 		...state,
+		playerName: state.playerName?.trim() || "Player",
+		townNpcNames: {
+			...defaultTownNpcNames,
+			...(state.townNpcNames ?? {}),
+		},
 		progressPercent: Math.max(0, Math.min(1000, state.progressPercent ?? 0)),
 		progressWon: state.progressWon ?? false,
 		progressWinPopupShown: state.progressWinPopupShown ?? false,

@@ -5,9 +5,18 @@ import {
 	highValueChestAnimalTypes,
 	standardCropIds,
 } from "../content/catalog";
+import { progressAlgorithmStones } from "../progression/progressStonesAlgorithmic";
+import { progressTargetStones } from "../progression/progressStonesTarget";
 import { getRandomCropId, toolNames, TOOL_MAX_LEVEL } from "./tools";
 import { randomRoll } from "../shared/random";
-import type { AnimalType, ItemId, ToolId, ToolLevels } from "../shared/types";
+import type {
+	AnimalType,
+	ItemId,
+	ProgressAlgorithmId,
+	ProgressTargetId,
+	ToolId,
+	ToolLevels,
+} from "../shared/types";
 
 type RewardContext = {
 	randomInt: (min: number, max: number) => number;
@@ -189,6 +198,11 @@ export const rollBeachBottleReward = (ctx: {
 	setStamina: (updater: (value: number) => number) => void;
 	setOwnedWardrobeLooks: (updater: (prev: string[]) => string[]) => void;
 	spawnAnimalInBarn: (type: AnimalType) => boolean;
+	grantProgressStone?: (
+		kind: "target" | "algorithm",
+		stoneId: ProgressTargetId | ProgressAlgorithmId,
+		label: string,
+	) => void;
 }): string => {
 	const canRewardFood = ctx.stamina < ctx.staminaMax;
 	const canGrantAnimalReward =
@@ -213,6 +227,21 @@ export const rollBeachBottleReward = (ctx: {
 	if (gemRoll < 6) {
 		ctx.updateInventory("emerald", 1);
 		return "Emerald";
+	}
+	const stoneRoll = randomRoll() * 100;
+	if (stoneRoll < 8) {
+		const stone =
+			progressTargetStones[ctx.randomInt(0, progressTargetStones.length - 1)]!;
+		ctx.grantProgressStone?.("target", stone.id, stone.name);
+		return `${stone.name} (Target Stone)`;
+	}
+	if (stoneRoll < 14) {
+		const stone =
+			progressAlgorithmStones[
+				ctx.randomInt(0, progressAlgorithmStones.length - 1)
+			]!;
+		ctx.grantProgressStone?.("algorithm", stone.id, stone.name);
+		return `${stone.name} (Algorithm Stone)`;
 	}
 	if (roll < 25) {
 		const amount = ctx.randomInt(100, 1000);

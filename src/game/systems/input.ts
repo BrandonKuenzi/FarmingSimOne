@@ -132,6 +132,13 @@ export type GameKeyDownContext = {
 	confirmDirectorDialog: () => void;
 	isNewspaperOpen: boolean;
 	closeNewspaperPopup: () => void;
+	openCutsceneDebugMenu: () => void;
+	sideViewCutsceneActive: boolean;
+	sideViewCutsceneInputUnlockAtMs: number;
+	sideViewCutsceneContentDone: boolean;
+	sideViewCutsceneCurrentFrameAutoProgress: boolean;
+	advanceSideViewCutscene: () => void;
+	fastForwardSideViewCutscene: () => void;
 };
 
 export const handleGameInputCommand = (
@@ -218,6 +225,22 @@ export const handleGameInputCommand = (
 		if (command === "OK" || command === "CANCEL") {
 			ctx.closeNewspaperPopup();
 		}
+		return consume();
+	}
+
+	if (command === "DEBUG_OPEN_CUTSCENE_MENU") {
+		ctx.openCutsceneDebugMenu();
+		return consume();
+	}
+
+	if (ctx.sideViewCutsceneActive) {
+		if (command !== "OK") return consume();
+		if (Date.now() < ctx.sideViewCutsceneInputUnlockAtMs) return consume();
+		if (!ctx.sideViewCutsceneContentDone) {
+			if (ctx.sideViewCutsceneCurrentFrameAutoProgress) return consume();
+			ctx.fastForwardSideViewCutscene();
+		}
+		ctx.advanceSideViewCutscene();
 		return consume();
 	}
 

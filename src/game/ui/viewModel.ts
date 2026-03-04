@@ -27,6 +27,7 @@ import type {
 	TileFxApi,
 } from "../shared/types";
 import type { TileFxBus } from "./tileFxBus";
+import type { SideViewSceneRuntime } from "../cutscenes";
 
 type DealBadge = {
 	label: string;
@@ -40,6 +41,7 @@ export type GameRuntimeViewModel = {
 	onBlur: () => void;
 	shellRef: MutableRefObject<HTMLDivElement | null>;
 	day: number;
+	playerName: string;
 	player: Position;
 	townNpcTiles: Record<string, { x: number; y: number }>;
 	forestEnemies: ForestEnemy[];
@@ -191,6 +193,8 @@ export type GameRuntimeViewModel = {
 	zoomIn: () => void;
 	directorPopup: { message: string } | null;
 	confirmDirectorPopup: () => void;
+	sideViewCutscene: SideViewSceneRuntime | null;
+	sideViewCutscenePending: boolean;
 	tileFx: TileFxApi;
 	tileFxBus: TileFxBus;
 };

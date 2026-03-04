@@ -30,6 +30,8 @@ import type {
 	WeatherId,
 	TileFxApi,
 	ProgressEventPayload,
+	ProgressTargetId,
+	ProgressAlgorithmId,
 } from "../shared/types";
 
 type QuantityPromptConfig = {
@@ -76,6 +78,7 @@ const FUNNY_LOOK_BENEFIT_BY_LOOK: Record<string, string> = {
 
 export type PlayerInteractContext = {
 	modal: unknown;
+	playerName: string;
 	beachBottlePos: Point | null;
 	playHoe: () => void;
 	playYaya: () => void;
@@ -143,6 +146,11 @@ export type PlayerInteractContext = {
 		setStamina: Dispatch<SetStateAction<number>>;
 		setOwnedWardrobeLooks: Dispatch<SetStateAction<string[]>>;
 		spawnAnimalInBarn: (type: AnimalType) => boolean;
+		grantProgressStone?: (
+			kind: "target" | "algorithm",
+			stoneId: ProgressTargetId | ProgressAlgorithmId,
+			label: string,
+		) => void;
 	}) => string;
 	randomInt: (min: number, max: number) => number;
 	stamina: number;
@@ -322,11 +330,17 @@ export type PlayerInteractContext = {
 	interactAquariumCurator: () => void;
 	onProgressEvent?: (event: ProgressEventPayload) => void;
 	maybeGrantChestProgressStone?: (kind: "forest" | "cave", depth: number) => void;
+	grantProgressStone?: (
+		kind: "target" | "algorithm",
+		stoneId: ProgressTargetId | ProgressAlgorithmId,
+		label: string,
+	) => void;
 };
 
 export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 	const {
 		modal,
+		playerName,
 		beachBottlePos,
 		playHoe,
 		playYaya,
@@ -531,6 +545,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		interactAquariumCurator,
 		onProgressEvent,
 		maybeGrantChestProgressStone,
+		grantProgressStone,
 	} = ctx;
 	if (modal || fishing || isOrdering || isDoctorCompounding || isDrivingTractor)
 		return;
@@ -769,6 +784,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			setStamina,
 			setOwnedWardrobeLooks,
 			spawnAnimalInBarn,
+			grantProgressStone,
 		});
 		const garyMessage = makeGaryBottleMessage(rewardName, randomInt);
 		addLog(garyMessage);
@@ -1467,6 +1483,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 
 	if (
 		handleLateInteractionBlocks({
+			playerName,
 			playerMap: player.map,
 			tx,
 			ty,
@@ -1489,6 +1506,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			sketchyMerchantStock,
 			boatTiles,
 			townNpcTiles,
+			townNpcNames,
 			npcDailyAssignments,
 			npcTalkedToday,
 			petVendorActive,

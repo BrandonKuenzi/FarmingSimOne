@@ -1,5 +1,6 @@
 import {
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useReducer,
 	useRef,
@@ -149,8 +150,9 @@ import {
 	SKETCHY_CRATE_POS,
 	SKETCHY_MERCHANT_POS,
 	TOWN_NPC_GRASS_ROW_Y,
+	defaultTownNpcNames,
+	createGeneratedTownNpcNames,
 	townNpcAnchors,
-	townNpcNames,
 	TRADER_BOX_POS,
 	TRADER_HELI_POS,
 	TRADER_POS,
@@ -274,6 +276,22 @@ import {
 	PC_KEYBOARD_PRESET,
 } from "../systems/inputCommands";
 import { useWorldSimulation } from "./worldSimulation";
+import {
+	applyFrameActionsToRuntime,
+	buildBackgroundExampleCutscene,
+	buildEndGameSummaryCutscene,
+	buildMidGameBonusCutscene,
+	buildNewGameRulesCutscene,
+	collectRemainingFrameRewards,
+	compileSideViewCutscene,
+	createInitialRuntimeActors,
+	type SideViewBgmId,
+	type SideViewCutscene,
+	type SideViewFrame,
+	type SideViewReward,
+	type SideViewSceneRuntime,
+	type SideViewSfxId,
+} from "../cutscenes";
 import {
 	STAMINA_MAX,
 	TOOL_MAX_LEVEL,
@@ -418,6 +436,7 @@ import {
 	toSaveGameData,
 } from "../state/saveGame";
 import { stopAllBufferedAudio } from "../systems/sound";
+import { generateName } from "../systems/generateName";
 
 const BUREAUCRACY_SPAWN = {
 	map: "bureaucracy_office" as const,
@@ -444,7 +463,8 @@ const detectDefaultControlMode = (): "pc" | "mobile" => {
 	if (typeof window === "undefined" || typeof navigator === "undefined") {
 		return "pc";
 	}
-	const hasCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+	const hasCoarsePointer =
+		window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
 	const hasTouchPoints = navigator.maxTouchPoints > 0;
 	return hasCoarsePointer || hasTouchPoints ? "mobile" : "pc";
 };
@@ -571,9 +591,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const tiredFaceTimeoutRef = useRef<number | null>(null);
 	const petRunoverBadTimeoutRef = useRef<number | null>(null);
 	const forestHitTimeoutRef = useRef<number | null>(null);
-	const lastStoneHintPlayerPosRef = useRef<{ map: MapId; x: number; y: number } | null>(
-		null,
-	);
+	const lastStoneHintPlayerPosRef = useRef<{
+		map: MapId;
+		x: number;
+		y: number;
+	} | null>(null);
 	const orderMidTimeoutRef = useRef<number | null>(null);
 	const orderCompleteTimeoutRef = useRef<number | null>(null);
 	const orderRewardTimeoutRef = useRef<number | null>(null);
@@ -640,6 +662,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				),
 				...initialFarmExpansionBlockers.stone,
 			};
+			const generatedTownNpcNames = createGeneratedTownNpcNames();
 			return {
 				player: bootSaveJson
 					? { ...BUREAUCRACY_SPAWN }
@@ -735,6 +758,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				currentDayEarned: 0,
 				previousDayEarned: 0,
 				totalEarned: 0,
+				playerName: "Player",
 				playerEmoji: starterWardrobeLooks[0],
 				showTiredFace: false,
 				showForestHit: false,
@@ -788,10 +812,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				petTile: null,
 				petFacing: 1,
 				petHeartTile: null,
+				townNpcNames: generatedTownNpcNames,
 				townNpcTiles: townNpcAnchors,
 				boatTiles: initialBoatTiles,
 				npcDailyAssignments: generateDailyAssignmentsForNpcs(
-					Object.keys(townNpcNames),
+					Object.keys(generatedTownNpcNames),
 				),
 				npcTalkedToday: {},
 				fishing: null,
@@ -847,10 +872,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			x: number;
 			y: number;
 		} | null>(null);
-	const [mobileInteractJoystickThumb, setMobileInteractJoystickThumb] = useState<{
-		x: number;
-		y: number;
-	} | null>(null);
+	const [mobileInteractJoystickThumb, setMobileInteractJoystickThumb] =
+		useState<{
+			x: number;
+			y: number;
+		} | null>(null);
 	const [mapZoom, setMapZoom] = useState(DEFAULT_MAP_ZOOM);
 	const [cameraTarget, setCameraTarget] = useState<{
 		map: MapId;
@@ -862,6 +888,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const [directorPopup, setDirectorPopup] = useState<{
 		message: string;
 	} | null>(null);
+	const [sideViewCutscene, setSideViewCutscene] =
+		useState<SideViewSceneRuntime | null>(null);
+	const [sideViewCutscenePending, setSideViewCutscenePending] = useState(false);
 	const [directorInputLocked, setDirectorInputLocked] = useState(false);
 	const [cloudOverlayVisible, setCloudOverlayVisible] = useState(true);
 	const [isNewspaperPopupOpen, setIsNewspaperPopupOpen] = useState(false);
@@ -869,16 +898,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		Array<{ x: number; y: number; tank: "fresh" | "salt" | "cave" }>
 	>([]);
 	const [aquariumSeaweedXs, setAquariumSeaweedXs] = useState<number[]>([]);
-	const [aquariumOceanSeaweedXs, setAquariumOceanSeaweedXs] = useState<number[]>(
-		[],
+	const [aquariumOceanSeaweedXs, setAquariumOceanSeaweedXs] = useState<
+		number[]
+	>([]);
+	const [aquariumCuratorTile, setAquariumCuratorTile] = useState<Point | null>(
+		null,
 	);
-	const [aquariumCuratorTile, setAquariumCuratorTile] = useState<Point | null>(null);
 	const [aquariumFishTiles, setAquariumFishTiles] = useState<
-		Array<{ fishId: string; glyph: string; x: number; y: number; facing: 1 | -1 }>
+		Array<{
+			fishId: string;
+			glyph: string;
+			x: number;
+			y: number;
+			facing: 1 | -1;
+		}>
 	>([]);
 	const {
 		player,
 		day,
+		playerName,
 		forestLayout,
 		forestEnemies,
 		forestObstacles,
@@ -980,6 +1018,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		petTile,
 		petFacing,
 		petHeartTile,
+		townNpcNames,
 		townNpcTiles,
 		boatTiles,
 		npcDailyAssignments,
@@ -1021,9 +1060,29 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const petHeartTimeoutRef = useRef<number | null>(null);
 	const savarioLineIndexRef = useRef(0);
 	const bootSaveHandledRef = useRef(false);
+	const audioEngineInitializedRef = useRef(false);
 	const directorRunningRef = useRef(false);
 	const directorConfirmRef = useRef<(() => void) | null>(null);
 	const directorTimersRef = useRef<number[]>([]);
+	const sideViewFrameTimeoutRef = useRef<number | null>(null);
+	const sideViewFrameStartRafRef = useRef<number | null>(null);
+	const sideViewInputUnlockTimeoutRef = useRef<number | null>(null);
+	const sideViewToastTimersRef = useRef<number[]>([]);
+	const sideViewAudioActiveRef = useRef(false);
+	const sideViewFrameIndexRef = useRef(0);
+	const sideViewRuntimeRef = useRef<SideViewSceneRuntime | null>(null);
+	const sideViewQueueRef = useRef<
+		Array<ReturnType<typeof compileSideViewCutscene>>
+	>([]);
+	const sideViewResolvedRewardsRef = useRef<SideViewReward[]>([]);
+	const sideViewRewardToastQueueRef = useRef<string[]>([]);
+	const sideViewResolvedCutsceneRef = useRef<ReturnType<
+		typeof compileSideViewCutscene
+	> | null>(null);
+	const sideViewNextToastIdRef = useRef(1);
+	const sideViewIntroQueuedRef = useRef(false);
+	const sideViewEndQueuedRef = useRef(false);
+	const sideViewLastBonusDayRef = useRef(0);
 	const gameStateRef = useRef(gameState);
 	const playerRef = useRef(player);
 	const playerMoveUnlockAtRef = useRef(0);
@@ -1123,6 +1182,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setCurrentDayEarned = setForKey("currentDayEarned");
 	const setPreviousDayEarned = setForKey("previousDayEarned");
 	const setTotalEarned = setForKey("totalEarned");
+	const setPlayerName = setForKey("playerName");
 	const setPlayerEmoji = setForKey("playerEmoji");
 	const setShowTiredFace = setForKey("showTiredFace");
 	const setShowForestHit = setForKey("showForestHit");
@@ -1135,9 +1195,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setPendingBathInstall = setForKey("pendingBathInstall");
 	const setHasWardrobe = setForKey("hasWardrobe");
 	const setPendingWardrobeInstall = setForKey("pendingWardrobeInstall");
-	const setClothingShopOpeningAnnounced = setForKey("clothingShopOpeningAnnounced");
+	const setClothingShopOpeningAnnounced = setForKey(
+		"clothingShopOpeningAnnounced",
+	);
 	const setHasAutoCollector = setForKey("hasAutoCollector");
-	const setPendingAutoCollectorInstall = setForKey("pendingAutoCollectorInstall");
+	const setPendingAutoCollectorInstall = setForKey(
+		"pendingAutoCollectorInstall",
+	);
 	const setHasAutoFeeder = setForKey("hasAutoFeeder");
 	const setPendingAutoFeederInstall = setForKey("pendingAutoFeederInstall");
 	const setHasTractor = setForKey("hasTractor");
@@ -1195,7 +1259,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setProgressWon = setForKey("progressWon");
 	const setProgressWinPopupShown = setForKey("progressWinPopupShown");
 	const setProgressStoneTargetCounts = setForKey("progressStoneTargetCounts");
-	const setProgressStoneAlgorithmCounts = setForKey("progressStoneAlgorithmCounts");
+	const setProgressStoneAlgorithmCounts = setForKey(
+		"progressStoneAlgorithmCounts",
+	);
 	const setProgressLoadoutRows = setForKey("progressLoadoutRows");
 	const setHighestForestLevelReached = setForKey("highestForestLevelReached");
 	const setHighestCaveLevelReached = setForKey("highestCaveLevelReached");
@@ -1259,10 +1325,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return isPassableChar(tile);
 		};
 		const isInBounds = (x: number, y: number) =>
-			x >= 0 &&
-			y >= 0 &&
-			y < rows.length &&
-			x < (rows[0]?.length ?? 0);
+			x >= 0 && y >= 0 && y < rows.length && x < (rows[0]?.length ?? 0);
 		const hasWalkableNeighbor = (x: number, y: number) =>
 			isWalkableTile(x + 1, y) ||
 			isWalkableTile(x - 1, y) ||
@@ -1295,10 +1358,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const barnAutoFeederPos = useMemo(() => {
 		const rows = activeMapLayouts.barn;
 		const isInBounds = (x: number, y: number) =>
-			x >= 0 &&
-			y >= 0 &&
-			y < rows.length &&
-			x < (rows[0]?.length ?? 0);
+			x >= 0 && y >= 0 && y < rows.length && x < (rows[0]?.length ?? 0);
 		if (barnTier <= 3) {
 			return { x: 16, y: 7 };
 		}
@@ -1374,6 +1434,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	}, [barnTier, barnSpawnPoint, activeMapLayouts.barn]);
 
 	useEffect(() => {
+		if (audioEngineInitializedRef.current) return;
+		audioEngineInitializedRef.current = true;
 		initializeAudioEngine({
 			shellRef,
 			refs: {
@@ -1800,6 +1862,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		isOrdering,
 		isDoctorCompounding,
 		isFishing: !!fishing,
+		sideViewCutsceneActiveRef: sideViewAudioActiveRef,
 		farmMusicRef,
 		townMusicRef,
 		beachAmbienceRef,
@@ -1870,7 +1933,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 	};
 
-	const finishFishingEncounter = (outcome: "caught" | "escaped" | "cut_line") => {
+	const finishFishingEncounter = (
+		outcome: "caught" | "escaped" | "cut_line",
+	) => {
 		if (fishingResolveTimeoutRef.current !== null) {
 			window.clearTimeout(fishingResolveTimeoutRef.current);
 		}
@@ -1895,16 +1960,21 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				fishAnim: outcome === "caught" ? "defeat" : null,
 			};
 		});
-		fishingResolveTimeoutRef.current = window.setTimeout(() => {
-			endFishing();
-		}, outcome === "caught" ? 2000 : 900);
+		fishingResolveTimeoutRef.current = window.setTimeout(
+			() => {
+				endFishing();
+			},
+			outcome === "caught" ? 2000 : 900,
+		);
 	};
 
 	const queueFishingReward = (encounter: FishingState) => {
 		const fishMeta = getFishItemMetaById(encounter.fishId);
 		if (!fishMeta) {
 			pendingFishingRewardRef.current = null;
-			addLog(`Caught ${encounter.fishName}, but inventory item mapping is missing.`);
+			addLog(
+				`Caught ${encounter.fishName}, but inventory item mapping is missing.`,
+			);
 			return;
 		}
 		pendingFishingRewardRef.current = {
@@ -1919,7 +1989,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		return `You used ${label}.`;
 	};
 
-	const buildFishActionIntroText = (fishName: string, moveId: FishingFishMoveId) => {
+	const buildFishActionIntroText = (
+		fishName: string,
+		moveId: FishingFishMoveId,
+	) => {
 		const label = moveId.replace(/_/g, " ");
 		return `The ${fishName} used ${label}!`;
 	};
@@ -1994,7 +2067,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 		if (attemptedPlayerDebuffStat) {
 			const field =
-				attemptedPlayerDebuffStat === "attack" ? "playerAttack" : "playerDefense";
+				attemptedPlayerDebuffStat === "attack"
+					? "playerAttack"
+					: "playerDefense";
 			const delta = after[field] - before[field];
 			const hasDebuffToastForStat = player.some(
 				(toast) =>
@@ -2056,7 +2131,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					},
 		);
 	};
-	const pickStackingMessage = (modifier: { moveName: string; messages: string[] }) => {
+	const pickStackingMessage = (modifier: {
+		moveName: string;
+		messages: string[];
+	}) => {
 		if (modifier.messages.length === 0) return modifier.moveName;
 		return modifier.messages[randomInt(0, modifier.messages.length - 1)]!;
 	};
@@ -2149,8 +2227,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				const attackDelta = wholeCombatValue(modifier.attack);
 				const defenseDelta = wholeCombatValue(modifier.defense);
 				const appliedHp =
-					Math.max(0, Math.min(nextFishing.fishMaxHp, nextFishing.fishHp + hpDelta)) -
-					nextFishing.fishHp;
+					Math.max(
+						0,
+						Math.min(nextFishing.fishMaxHp, nextFishing.fishHp + hpDelta),
+					) - nextFishing.fishHp;
 				const appliedAttack =
 					Math.max(0, nextFishing.fishAttack + attackDelta) -
 					nextFishing.fishAttack;
@@ -2331,8 +2411,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				addLog(`Fishing Level Up! Level ${expResult.progress.level}.`);
 				fishingResolveTimeoutRef.current = window.setTimeout(() => {
 					playYaya();
-					const attackBuffAmount = rollFishingLevelUpAttackBuffAmount(randomInt);
-					const defenseBuffAmount = rollFishingLevelUpDefenseBuffAmount(randomInt);
+					const attackBuffAmount =
+						rollFishingLevelUpAttackBuffAmount(randomInt);
+					const defenseBuffAmount =
+						rollFishingLevelUpDefenseBuffAmount(randomInt);
 					setFishing((prev) =>
 						prev
 							? {
@@ -2469,26 +2551,30 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					resolveCaughtEncounter(postFishState);
 					return;
 				}
-				runStackingEffects(postFishState, nextStamina, (stackedFishing, _stackedStamina, interrupted) => {
-					if (interrupted !== "none") return;
-					setFishing((prev) =>
-						prev
-							? {
-									...stackedFishing,
-									phase: "player_turn",
-									showMenu: true,
-									openingStage: "ready",
-									playerAnim: null,
-									fishAnim: null,
-									playerToasts: [],
-									fishToasts: [],
-									message: "What would you like to do?",
-									awaitingLevelUpBuffChoice: false,
-									canChooseLevelUpBuff: false,
-								}
-							: prev,
-					);
-				});
+				runStackingEffects(
+					postFishState,
+					nextStamina,
+					(stackedFishing, _stackedStamina, interrupted) => {
+						if (interrupted !== "none") return;
+						setFishing((prev) =>
+							prev
+								? {
+										...stackedFishing,
+										phase: "player_turn",
+										showMenu: true,
+										openingStage: "ready",
+										playerAnim: null,
+										fishAnim: null,
+										playerToasts: [],
+										fishToasts: [],
+										message: "What would you like to do?",
+										awaitingLevelUpBuffChoice: false,
+										canChooseLevelUpBuff: false,
+									}
+								: prev,
+						);
+					},
+				);
 			}, 2000);
 		}, 1000);
 	};
@@ -2615,10 +2701,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		)
 			return;
 		const pickedIndex =
-			choiceIndex === undefined ? fishing.selectedMoveIndex : Math.max(0, Math.min(1, choiceIndex));
+			choiceIndex === undefined
+				? fishing.selectedMoveIndex
+				: Math.max(0, Math.min(1, choiceIndex));
 		const choseAttack = pickedIndex <= 0;
 		const chosenAttribute = choseAttack ? "Attack" : "Defense";
-		const chosenStatKey: "attack" | "defense" = choseAttack ? "attack" : "defense";
+		const chosenStatKey: "attack" | "defense" = choseAttack
+			? "attack"
+			: "defense";
 		const amount = choseAttack
 			? fishing.levelUpBuffAttackAmount
 			: fishing.levelUpBuffDefenseAmount;
@@ -2753,7 +2843,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					fishingResolveTimeoutRef.current = window.setTimeout(() => {
 						setFishing((prev) =>
 							prev && prev.phase === "intro"
-								? { ...prev, openingStage: "fish_hook_text", fishAnim: "bobble" }
+								? {
+										...prev,
+										openingStage: "fish_hook_text",
+										fishAnim: "bobble",
+									}
 								: prev,
 						);
 						fishingResolveTimeoutRef.current = window.setTimeout(() => {
@@ -2791,7 +2885,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		if (!fishing || fishing.phase !== "waiting") return;
 		const movedAway =
-			player.map !== fishing.map || player.x !== fishing.castX || player.y !== fishing.castY;
+			player.map !== fishing.map ||
+			player.x !== fishing.castX ||
+			player.y !== fishing.castY;
 		if (!movedAway) return;
 		clearFishingTimers();
 		setFishing(null);
@@ -2814,6 +2910,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (dayTransition) return;
 		if (bootSaveJson && !bootSaveHandledRef.current) return;
 		if (directorRunningRef.current) return;
+		if (sideViewAudioActiveRef.current) return;
 		switchAreaMusic(getAreaMusicForMap(player.map), false);
 	}, [
 		player.map,
@@ -2821,6 +2918,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		caveIsBonusLevel,
 		dayTransition,
 		bootSaveJson,
+		sideViewCutscene,
 	]);
 
 	useEffect(() => {
@@ -2939,7 +3037,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	useEffect(() => {
 		const prevById = new Map(
-			prevForestEnemyBobbleRef.current.map((enemy) => [enemy.id, enemy] as const),
+			prevForestEnemyBobbleRef.current.map(
+				(enemy) => [enemy.id, enemy] as const,
+			),
 		);
 		forestEnemies.forEach((enemy) => {
 			if (!(enemy.type === "bear" || enemy.type === "poop")) return;
@@ -3230,7 +3330,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		x: number,
 		y: number,
 		category: "freshwater" | "saltwater" | "cavewater",
-	) => activeMapLayouts.aquarium?.[y]?.[x] === AQUARIUM_TANK_TILE_BY_CATEGORY[category];
+	) =>
+		activeMapLayouts.aquarium?.[y]?.[x] ===
+		AQUARIUM_TANK_TILE_BY_CATEGORY[category];
 
 	const isAquariumFishYAllowedForBehavior = (
 		y: number,
@@ -3281,7 +3383,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				const previous = prev.find((entry) => entry.fishId === fishId);
 				if (
 					previous &&
-					isAquariumFishTileForCategory(previous.x, previous.y, fishMeta.category) &&
+					isAquariumFishTileForCategory(
+						previous.x,
+						previous.y,
+						fishMeta.category,
+					) &&
 					isAquariumFishYAllowedForBehavior(
 						previous.y,
 						fishMeta.aquariumNpcBehavior,
@@ -3306,9 +3412,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	}, [aquariumDonations, activeMapLayouts.aquarium]);
 
 	useEffect(() => {
-		if (!aquariumCuratorTile || isAquariumPathTile(aquariumCuratorTile.x, aquariumCuratorTile.y))
+		if (
+			!aquariumCuratorTile ||
+			isAquariumPathTile(aquariumCuratorTile.x, aquariumCuratorTile.y)
+		)
 			return;
-		if (isAquariumPathTile(AQUARIUM_CURATOR_ANCHOR.x, AQUARIUM_CURATOR_ANCHOR.y)) {
+		if (
+			isAquariumPathTile(AQUARIUM_CURATOR_ANCHOR.x, AQUARIUM_CURATOR_ANCHOR.y)
+		) {
 			setAquariumCuratorTile({ ...AQUARIUM_CURATOR_ANCHOR });
 			return;
 		}
@@ -3338,7 +3449,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				const occupied = new Set(prev.map((fish) => keyForPos(fish.x, fish.y)));
 				let changed = false;
 				const next = prev.map((fish) => {
-					const fishMeta = fishItemCatalog.find((item) => item.itemId === fish.fishId);
+					const fishMeta = fishItemCatalog.find(
+						(item) => item.itemId === fish.fishId,
+					);
 					if (!fishMeta) return fish;
 					if (fishMeta.aquariumNpcBehavior === "fixed_bottom") return fish;
 					if (randomRoll() < 0.55) return fish;
@@ -3348,7 +3461,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					for (const delta of deltas) {
 						const nx = fish.x + delta.dx;
 						const ny = fish.y + delta.dy;
-						if (!isAquariumFishTileForCategory(nx, ny, fishMeta.category)) continue;
+						if (!isAquariumFishTileForCategory(nx, ny, fishMeta.category))
+							continue;
 						if (
 							!isAquariumFishYAllowedForBehavior(
 								ny,
@@ -3357,11 +3471,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						)
 							continue;
 						const nextKey = keyForPos(nx, ny);
-						if (
-							player.map === "aquarium" &&
-							player.x === nx &&
-							player.y === ny
-						)
+						if (player.map === "aquarium" && player.x === nx && player.y === ny)
 							continue;
 						if (occupied.has(nextKey)) continue;
 						occupied.delete(keyForPos(fish.x, fish.y));
@@ -3394,11 +3504,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						) > 5
 					)
 						continue;
-					if (
-						player.map === "aquarium" &&
-						player.x === nx &&
-						player.y === ny
-					)
+					if (player.map === "aquarium" && player.x === nx && player.y === ny)
 						continue;
 					return { x: nx, y: ny };
 				}
@@ -3669,9 +3775,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (player.map === "forest") {
 			const poo = forestEnemies.find(
 				(enemy) =>
-					enemy.type === "poop" &&
-					enemy.x === player.x &&
-					enemy.y === player.y,
+					enemy.type === "poop" && enemy.x === player.x && enemy.y === player.y,
 			);
 			if (!poo) return;
 			playWater();
@@ -3682,9 +3786,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (player.map === "cave") {
 			const poo = caveEnemies.find(
 				(enemy) =>
-					enemy.type === "poop" &&
-					enemy.x === player.x &&
-					enemy.y === player.y,
+					enemy.type === "poop" && enemy.x === player.x && enemy.y === player.y,
 			);
 			if (!poo) return;
 			playWater();
@@ -3799,10 +3901,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (!rows || y >= rows.length || x >= (rows[0]?.length ?? 0)) return false;
 		if (map === "forest") {
 			const tile = rows[y]?.[x] ?? "T";
-			if (
-				options?.allowWaterWalk &&
-				(tile === "~" || tile === "[")
-			) {
+			if (options?.allowWaterWalk && (tile === "~" || tile === "[")) {
 				if (isForestOccupied(x, y, options?.ignoreEnemyId)) return false;
 				return true;
 			}
@@ -3833,10 +3932,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		if (map === "cave") {
 			const tile = rows[y]?.[x] ?? "<";
-			if (
-				options?.allowWaterWalk &&
-				(tile === "~" || tile === "[")
-			) {
+			if (options?.allowWaterWalk && (tile === "~" || tile === "[")) {
 				if (isCaveOccupied(x, y, options?.ignoreEnemyId)) return false;
 				return true;
 			}
@@ -3867,11 +3963,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			y === STARTER_CHEST_POS.y
 		)
 			return false;
-		if (
-			map === "farm" &&
-			x === farmNewspaperPos.x &&
-			y === farmNewspaperPos.y
-		)
+		if (map === "farm" && x === farmNewspaperPos.x && y === farmNewspaperPos.y)
 			return false;
 		if (map === "farm" && farmForestBlockers[keyForPos(x, y)]) return false;
 		if (map === "farm" && farmCaveBlockers[keyForPos(x, y)]) return false;
@@ -4200,7 +4292,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				applyForestDamage(30, "A bear");
 				return enemy;
 			}
-			if (!isPassableAt("forest", nx, ny, { ignoreEnemyId: enemy.id })) continue;
+			if (!isPassableAt("forest", nx, ny, { ignoreEnemyId: enemy.id }))
+				continue;
 			return { ...enemy, x: nx, y: ny };
 		}
 		return enemy;
@@ -4339,7 +4432,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					3
 				)
 					continue;
-				if (!isPassableAt("cave", nx, ny, { ignoreEnemyId: enemy.id })) continue;
+				if (!isPassableAt("cave", nx, ny, { ignoreEnemyId: enemy.id }))
+					continue;
 				return { ...enemy, x: nx, y: ny };
 			}
 			return enemy;
@@ -4582,6 +4676,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const clearLoadTransientState = () => {
 		clearFishingTimers();
 		stopBattleMusicLoop();
+		clearSideViewRuntimeTimers("clear_load_transient_state");
+		sideViewQueueRef.current = [];
+		sideViewResolvedCutsceneRef.current = null;
+		sideViewResolvedRewardsRef.current = [];
+		sideViewRewardToastQueueRef.current = [];
+		sideViewIntroQueuedRef.current = false;
+		sideViewEndQueuedRef.current = false;
+		sideViewLastBonusDayRef.current = 0;
+		setSideViewCutscenePending(false);
+		setSideViewRuntimeState(null);
 		directorTimersRef.current.forEach((timer) => window.clearTimeout(timer));
 		directorTimersRef.current = [];
 		directorConfirmRef.current = null;
@@ -4671,14 +4775,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		});
 		const nextState: GameState = {
 			...rawState,
+			playerName:
+				(rawState as Partial<GameState>).playerName?.trim() || "Player",
+			townNpcNames: {
+				...defaultTownNpcNames,
+				...((rawState as Partial<GameState>).townNpcNames ?? {}),
+			},
 			headlampLetterRead:
 				(rawState as Partial<GameState>).headlampLetterRead ?? false,
-			hasBath:
-				(rawState as Partial<GameState>).hasBath ?? false,
+			hasBath: (rawState as Partial<GameState>).hasBath ?? false,
 			pendingBathInstall:
 				(rawState as Partial<GameState>).pendingBathInstall ?? false,
-			hasWardrobe:
-				(rawState as Partial<GameState>).hasWardrobe ?? false,
+			hasWardrobe: (rawState as Partial<GameState>).hasWardrobe ?? false,
 			pendingWardrobeInstall:
 				(rawState as Partial<GameState>).pendingWardrobeInstall ?? false,
 			clothingShopOpeningAnnounced:
@@ -4687,15 +4795,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				(rawState as Partial<GameState>).hasAutoCollector ?? false,
 			pendingAutoCollectorInstall:
 				(rawState as Partial<GameState>).pendingAutoCollectorInstall ?? false,
-			hasAutoFeeder:
-				(rawState as Partial<GameState>).hasAutoFeeder ?? false,
+			hasAutoFeeder: (rawState as Partial<GameState>).hasAutoFeeder ?? false,
 			pendingAutoFeederInstall:
 				(rawState as Partial<GameState>).pendingAutoFeederInstall ?? false,
 			newspaperImage:
 				(rawState as Partial<GameState>).newspaperImage ??
 				generateNewspaperEmojiPicture(rawState.newspaper ?? ""),
-			newspaperRead:
-				(rawState as Partial<GameState>).newspaperRead ?? false,
+			newspaperRead: (rawState as Partial<GameState>).newspaperRead ?? false,
 			fishingProgress: (() => {
 				const rawProgress = (rawState as Partial<GameState>).fishingProgress;
 				const level = Math.max(1, Math.min(100, rawProgress?.level ?? 1));
@@ -4709,7 +4815,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				const defaults = createInitialFishingMoveUnlocks();
 				const rawUnlocks = (rawState as Partial<GameState>).fishingMoveUnlocks;
 				const merged = { ...defaults, ...(rawUnlocks ?? {}) };
-				const level = Math.max(1, (rawState as Partial<GameState>).fishingProgress?.level ?? 1);
+				const level = Math.max(
+					1,
+					(rawState as Partial<GameState>).fishingProgress?.level ?? 1,
+				);
 				if (level >= 2) merged.pull_rod = true;
 				return merged;
 			})(),
@@ -4736,7 +4845,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			},
 			progressStoneAlgorithmCounts: {
 				...makeEmptyProgressAlgorithmCounts(),
-				...((rawState as Partial<GameState>).progressStoneAlgorithmCounts ?? {}),
+				...((rawState as Partial<GameState>).progressStoneAlgorithmCounts ??
+					{}),
 			},
 			progressLoadoutRows:
 				(rawState as Partial<GameState>).progressLoadoutRows ??
@@ -4768,9 +4878,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			})(),
 			aquariumDonations: (() => {
 				const defaults = makeEmptyAquariumInventory();
-				const rawDonations = (rawState as Partial<GameState>).aquariumDonations as
-					| AquariumDonationInventory
-					| undefined;
+				const rawDonations = (rawState as Partial<GameState>)
+					.aquariumDonations as AquariumDonationInventory | undefined;
 				if (!rawDonations) return defaults;
 				return { ...defaults, ...rawDonations };
 			})(),
@@ -5032,7 +5141,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		map: player.map,
 	};
 	const simulationPaused =
-		pauseGame || isSaveLoadMenuOpen || !!modal || directorInputLocked;
+		pauseGame ||
+		isSaveLoadMenuOpen ||
+		!!modal ||
+		directorInputLocked ||
+		!!sideViewCutscene;
 	const gameActions: GameStateActions = {
 		setTownNpcTiles,
 		setBoatTiles,
@@ -5104,7 +5217,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			addLog(`You push deeper into the forest (Depth ${nextLevel}).`);
 		}
 		setHighestForestLevelReached((prev) => Math.max(prev, nextLevel));
-		emitProgressEvent({ type: "forest_depth_advanced", forestLevel: nextLevel });
+		emitProgressEvent({
+			type: "forest_depth_advanced",
+			forestLevel: nextLevel,
+		});
 		if (fromMenu) closeMenu();
 	};
 	const continueCaveDungeon = (fromMenu = false) => {
@@ -5192,7 +5308,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			);
 		}
 		if (map === "aquarium") {
-			return !!aquariumCuratorTile && aquariumCuratorTile.x === x && aquariumCuratorTile.y === y;
+			return (
+				!!aquariumCuratorTile &&
+				aquariumCuratorTile.x === x &&
+				aquariumCuratorTile.y === y
+			);
 		}
 		if (map === "farm") {
 			return (
@@ -5238,8 +5358,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return (
 				forestEnemies.some(
 					(e) => e.x === x && e.y === y && (blockOnPoo || e.type !== "poop"),
-				) ||
-				forestObstacles.some((o) => o.x === x && o.y === y)
+				) || forestObstacles.some((o) => o.x === x && o.y === y)
 			);
 		}
 		if (map === "cave") {
@@ -5247,8 +5366,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return (
 				caveEnemies.some(
 					(e) => e.x === x && e.y === y && (blockOnPoo || e.type !== "poop"),
-				) ||
-				caveObstacles.some((o) => o.x === x && o.y === y)
+				) || caveObstacles.some((o) => o.x === x && o.y === y)
 			);
 		}
 		return false;
@@ -5397,7 +5515,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				? POSITION_ANIMATION_MS * 4
 				: playerEmoji === GLYPH.run
 					? POSITION_ANIMATION_MS / 2
-				: POSITION_ANIMATION_MS;
+					: POSITION_ANIMATION_MS;
 		const now = performance.now();
 		if (now < playerMoveUnlockAtRef.current) return;
 		let didMove = false;
@@ -5539,7 +5657,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				? POSITION_ANIMATION_MS * 4
 				: playerEmoji === GLYPH.run
 					? POSITION_ANIMATION_MS / 2
-				: POSITION_ANIMATION_MS;
+					: POSITION_ANIMATION_MS;
 		if (heldMoveTimerRef.current !== null) return;
 		const tick = () => {
 			heldMoveTimerRef.current = null;
@@ -5598,7 +5716,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (result.progressWinPopupShown && !state.progressWinPopupShown) {
 			setProgressWinPopupShown(true);
 			window.setTimeout(() => {
-				openMenu("Victory", ["You win!"], [{ label: "Nice!", onSelect: closeMenu }]);
+				openMenu(
+					"Victory",
+					["You win!"],
+					[{ label: "Nice!", onSelect: closeMenu }],
+				);
 			}, 0);
 		}
 		gameStateRef.current = {
@@ -5623,13 +5745,551 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 	};
 
-	const applyMoneyDelta = (delta: number) => {
+	const applyMoneyDelta = (
+		delta: number,
+		options?: { suppressToast?: boolean },
+	) => {
 		applyMoneyDeltaState(setMoney, setCurrentDayEarned, setTotalEarned, delta);
 		if (delta > 0) {
-			tileFxBusRef.current.api.actor("player").toast(`+$${delta}`);
+			if (!options?.suppressToast) {
+				tileFxBusRef.current.api.actor("player").toast(`+$${delta}`);
+			}
 			emitProgressEvent({ type: "money_gained", moneyDelta: delta });
 		}
 	};
+
+	const clearSideViewRuntimeTimers = (_reason = "unknown") => {
+		if (sideViewFrameTimeoutRef.current !== null) {
+			window.clearTimeout(sideViewFrameTimeoutRef.current);
+			sideViewFrameTimeoutRef.current = null;
+		}
+		if (sideViewFrameStartRafRef.current !== null) {
+			window.cancelAnimationFrame(sideViewFrameStartRafRef.current);
+			sideViewFrameStartRafRef.current = null;
+		}
+		if (sideViewInputUnlockTimeoutRef.current !== null) {
+			window.clearTimeout(sideViewInputUnlockTimeoutRef.current);
+			sideViewInputUnlockTimeoutRef.current = null;
+		}
+		sideViewToastTimersRef.current.forEach((timer) =>
+			window.clearTimeout(timer),
+		);
+		sideViewToastTimersRef.current = [];
+	};
+
+	const resolveSideViewTrack = (
+		bgm: SideViewBgmId | undefined,
+	): HTMLAudioElement | null => {
+		if (!bgm || bgm === "area_default")
+			return getAreaMusicForMap(playerRef.current.map);
+		if (bgm === "farm") return farmMusicRef.current;
+		if (bgm === "town") return townMusicRef.current;
+		if (bgm === "forest") return forestMusicRef.current;
+		if (bgm === "cave") return caveMusicRef.current;
+		if (bgm === "space_bg") return bureaucracyMusicRef.current;
+		if (bgm === "space_store") return cafeOrderMusicRef.current;
+		if (bgm === "battle") return battleMusicRef.current;
+		if (bgm === "theme_song") return computerLabMusicRef.current;
+		return null;
+	};
+
+	const playSideViewSfx = (sfxId: SideViewSfxId) => {
+		if (sfxId === "notification") return playNotification();
+		if (sfxId === "reward") return playGotReward();
+		if (sfxId === "water") return playWater();
+		if (sfxId === "whoosh") return playWhoosh();
+		if (sfxId === "bad") return playBad();
+		if (sfxId === "munch") return playMunch();
+		if (sfxId === "hoe") return playHoe();
+		if (sfxId === "yaya") return playYaya();
+		if (sfxId === "snake") return playSnakeSound();
+		if (sfxId === "bear") return playBearSound();
+		if (sfxId === "poo") return playPooSound();
+		if (sfxId === "bath") return playBath();
+		if (sfxId === "pluck") return playPluck();
+		if (sfxId === "ploop") return playPloop();
+		if (sfxId === "badWater6") return playBadWaterSound("badWater6");
+		playSigh();
+	};
+
+	const formatSideViewRewardLine = (reward: SideViewReward): string => {
+		if (reward.label) return reward.label;
+		if (reward.kind === "money")
+			return `${reward.amount >= 0 ? "+" : ""}$${reward.amount}`;
+		if (reward.kind === "stamina") {
+			return `${reward.amount >= 0 ? "+" : ""}${reward.amount} stamina`;
+		}
+		const icon = itemIcons[reward.itemId] ?? "";
+		const name = itemNames[reward.itemId] ?? reward.itemId;
+		return `${reward.amount >= 0 ? "+" : ""}${reward.amount} ${icon} ${name}`.trim();
+	};
+
+	const applySideViewRewards = (
+		rewards: SideViewReward[],
+		reason: "frame" | "complete",
+	) => {
+		const lines: string[] = [];
+		rewards.forEach((reward) => {
+			if (reward.kind === "item") {
+				updateInventory(reward.itemId, reward.amount, { suppressToast: true });
+				lines.push(formatSideViewRewardLine(reward));
+				return;
+			}
+			if (reward.kind === "money") {
+				applyMoneyDelta(reward.amount, { suppressToast: true });
+				lines.push(formatSideViewRewardLine(reward));
+				return;
+			}
+			setStamina((prev) =>
+				Math.max(0, Math.min(staminaMax, prev + reward.amount)),
+			);
+			lines.push(formatSideViewRewardLine(reward));
+		});
+		if (lines.length === 0) return;
+		sideViewRewardToastQueueRef.current.push(...lines);
+		if (reason === "frame") {
+			addLog(`Cutscene rewards: ${lines.join(", ")}`);
+		}
+	};
+
+	const flushSideViewRewardToasts = () => {
+		sideViewRewardToastQueueRef.current.forEach((line, index) => {
+			const timer = window.setTimeout(() => {
+				tileFxBusRef.current.api.actor("player").toast(line, 3000);
+			}, index * 140);
+			sideViewToastTimersRef.current.push(timer);
+		});
+		sideViewRewardToastQueueRef.current = [];
+	};
+
+	const setSideViewRuntimeState = (next: SideViewSceneRuntime | null) => {
+		sideViewRuntimeRef.current = next;
+		sideViewAudioActiveRef.current = next !== null;
+		if (next) {
+			setSideViewCutscenePending(false);
+		}
+		setSideViewCutscene(next);
+	};
+
+	const startNextQueuedSideViewCutscene = () => {
+		if (sideViewRuntimeRef.current) return;
+		if (
+			dayTransition ||
+			modal ||
+			isSaveLoadMenuOpen ||
+			directorInputLocked ||
+			!!fishing ||
+			isOrdering ||
+			isDoctorCompounding
+		) {
+			return;
+		}
+		const next = sideViewQueueRef.current.shift();
+		if (!next) {
+			setSideViewCutscenePending(false);
+			return;
+		}
+		setSideViewCutscenePending(true);
+		sideViewResolvedCutsceneRef.current = next;
+		sideViewResolvedRewardsRef.current = [];
+		sideViewNextToastIdRef.current = 1;
+		setPauseGame(true);
+		if (next.subScenes.length === 0) {
+			setSideViewCutscenePending(false);
+			setPauseGame(false);
+			return;
+		}
+		startSideViewSubScene(0);
+	};
+
+	const finishSideViewCutscene = () => {
+		const resolved = sideViewResolvedCutsceneRef.current;
+		clearSideViewRuntimeTimers("finish_cutscene");
+		if (resolved?.onCompleteRewards && resolved.onCompleteRewards.length > 0) {
+			applySideViewRewards(resolved.onCompleteRewards, "complete");
+		}
+		setSideViewRuntimeState(null);
+		setSideViewCutscenePending(false);
+		sideViewResolvedCutsceneRef.current = null;
+		sideViewFrameIndexRef.current = 0;
+		setPauseGame(false);
+		switchAreaMusic(getAreaMusicForMap(playerRef.current.map), true);
+		flushSideViewRewardToasts();
+		startNextQueuedSideViewCutscene();
+	};
+
+	const startSideViewSubScene = (subSceneIndex: number) => {
+		const resolved = sideViewResolvedCutsceneRef.current;
+		if (!resolved) return finishSideViewCutscene();
+		const subScene = resolved.subScenes[subSceneIndex];
+		if (!subScene) return finishSideViewCutscene();
+		clearSideViewRuntimeTimers("start_subscene");
+		sideViewFrameIndexRef.current = 0;
+		const now = Date.now();
+		const initialRuntime: SideViewSceneRuntime = {
+			active: true,
+			cutsceneId: resolved.id,
+			subSceneIndex,
+			subScene,
+			mapOpacity: 1,
+			mapFadeDurationMs: 0,
+			frameStoryText: "",
+			currentFrameAutoProgress: !!subScene.frames[0]?.autoProgress,
+			actors: createInitialRuntimeActors(subScene),
+			toasts: [],
+			contentDone: false,
+			inputUnlockAtMs: now + subScene.inputLockMs,
+			readyArrowVisible: false,
+		};
+		setSideViewRuntimeState(initialRuntime);
+		const track = resolveSideViewTrack(subScene.bgm);
+		switchAreaMusic(track, true, true);
+		if (sideViewInputUnlockTimeoutRef.current !== null) {
+			window.clearTimeout(sideViewInputUnlockTimeoutRef.current);
+		}
+		sideViewInputUnlockTimeoutRef.current = window.setTimeout(() => {
+			const runtime = sideViewRuntimeRef.current;
+			if (!runtime || runtime.subSceneIndex !== subSceneIndex) return;
+			setSideViewRuntimeState({
+				...runtime,
+				readyArrowVisible: runtime.contentDone,
+			});
+		}, subScene.inputLockMs);
+
+		const runFrame = (frameIndex: number) => {
+			const currentRuntime = sideViewRuntimeRef.current;
+			if (!currentRuntime || currentRuntime.subSceneIndex !== subSceneIndex)
+				return;
+			const frame: SideViewFrame | undefined = subScene.frames[frameIndex];
+			if (!frame) {
+				const doneState = {
+					...currentRuntime,
+					contentDone: true,
+					readyArrowVisible: Date.now() >= currentRuntime.inputUnlockAtMs,
+				};
+				setSideViewRuntimeState(doneState);
+				return;
+			}
+			// In case cutscene starts before track refs are initialized, retry per frame.
+			const frameTrack = resolveSideViewTrack(subScene.bgm);
+			if (
+				frameTrack &&
+				(currentAreaMusicRef.current !== frameTrack || frameTrack.paused)
+			) {
+				switchAreaMusic(frameTrack, true, true);
+			}
+			sideViewFrameIndexRef.current = frameIndex;
+			let frameRewards: SideViewReward[] = [];
+			if (sideViewFrameTimeoutRef.current !== null) {
+				window.clearTimeout(sideViewFrameTimeoutRef.current);
+			}
+			sideViewFrameTimeoutRef.current = window.setTimeout(
+				() => {
+					sideViewResolvedRewardsRef.current.push(...frameRewards);
+					applySideViewRewards(frameRewards, "frame");
+					runFrame(frameIndex + 1);
+				},
+				Math.max(1, frame.durationMs),
+			);
+			try {
+				const applied = applyFrameActionsToRuntime({
+					actors: currentRuntime.actors,
+					frame,
+					nextToastId: sideViewNextToastIdRef.current,
+				});
+				frameRewards = applied.rewards;
+				if (applied.playerName) {
+					setPlayerName(applied.playerName);
+				}
+				applied.progressStoneGrants.forEach((grant) => {
+					if (grant.kind === "target") {
+						const stone = progressTargetStones.find(
+							(entry) => entry.id === grant.stoneId,
+						);
+						if (!stone) return;
+						grantProgressStone("target", stone.id, grant.label || stone.name);
+						return;
+					}
+					const stone = progressAlgorithmStones.find(
+						(entry) => entry.id === grant.stoneId,
+					);
+					if (!stone) return;
+					grantProgressStone("algorithm", stone.id, grant.label || stone.name);
+				});
+				const playerOutfit = applied.playerOutfit;
+				if (playerOutfit) {
+					setPlayerEmoji(playerOutfit.look);
+					gameStateRef.current = {
+						...gameStateRef.current,
+						playerEmoji: playerOutfit.look,
+					};
+					if (playerOutfit.addToWardrobe) {
+						setOwnedWardrobeLooks((prev) =>
+							prev.includes(playerOutfit.look)
+								? prev
+								: [...prev, playerOutfit.look],
+						);
+						if (
+							!gameStateRef.current.ownedWardrobeLooks.includes(
+								playerOutfit.look,
+							)
+						) {
+							gameStateRef.current = {
+								...gameStateRef.current,
+								ownedWardrobeLooks: [
+									...gameStateRef.current.ownedWardrobeLooks,
+									playerOutfit.look,
+								],
+							};
+						}
+					}
+				}
+				sideViewNextToastIdRef.current = applied.nextToastId;
+				applied.sfx.forEach((sfx) => playSideViewSfx(sfx));
+				const runtimeWithActions: SideViewSceneRuntime = {
+					...currentRuntime,
+					frameStoryText: frame.storyText ?? "",
+					currentFrameAutoProgress: !!frame.autoProgress,
+					mapOpacity: applied.mapFade
+						? applied.mapFade.opacity
+						: currentRuntime.mapOpacity,
+					mapFadeDurationMs: applied.mapFade
+						? applied.mapFade.durationMs
+						: currentRuntime.mapFadeDurationMs,
+					actors: applied.actors,
+					toasts: [...currentRuntime.toasts],
+				};
+				setSideViewRuntimeState(runtimeWithActions);
+				applied.toasts.forEach((toast) => {
+					const delayMs = Math.max(0, toast.delayMs ?? 0);
+					const showTimer = window.setTimeout(() => {
+						const runtime = sideViewRuntimeRef.current;
+						if (!runtime || runtime.subSceneIndex !== subSceneIndex) return;
+						setSideViewRuntimeState({
+							...runtime,
+							toasts: [...runtime.toasts, toast],
+						});
+					}, delayMs);
+					sideViewToastTimersRef.current.push(showTimer);
+					const hideTimer = window.setTimeout(
+						() => {
+							const runtime = sideViewRuntimeRef.current;
+							if (!runtime || runtime.subSceneIndex !== subSceneIndex) return;
+							setSideViewRuntimeState({
+								...runtime,
+								toasts: runtime.toasts.filter((entry) => entry.id !== toast.id),
+							});
+						},
+						delayMs + toast.durationMs + 120,
+					);
+					sideViewToastTimersRef.current.push(hideTimer);
+				});
+			} catch (error) {
+				console.error(
+					"[SideViewCutscene] frame error",
+					(error as Error).message ?? "Unknown frame error",
+				);
+			}
+		};
+
+		sideViewFrameStartRafRef.current = window.requestAnimationFrame(() => {
+			sideViewFrameStartRafRef.current = window.requestAnimationFrame(() => {
+				sideViewFrameStartRafRef.current = null;
+				const timer = window.setTimeout(() => {
+					runFrame(0);
+				}, 0);
+				sideViewToastTimersRef.current.push(timer);
+			});
+		});
+	};
+
+	const fastForwardSideViewCutscene = () => {
+		const runtime = sideViewRuntimeRef.current;
+		if (!runtime) return;
+		const currentFrame = runtime.subScene.frames[sideViewFrameIndexRef.current];
+		if (runtime.currentFrameAutoProgress || currentFrame?.autoProgress) {
+			return;
+		}
+		const subScene = runtime.subScene;
+		const remainingRewards = collectRemainingFrameRewards(
+			subScene.frames,
+			sideViewFrameIndexRef.current,
+		);
+		if (remainingRewards.length > 0) {
+			sideViewResolvedRewardsRef.current.push(...remainingRewards);
+			applySideViewRewards(remainingRewards, "frame");
+		}
+		clearSideViewRuntimeTimers("fast_forward");
+		setSideViewRuntimeState({
+			...runtime,
+			contentDone: true,
+			readyArrowVisible: Date.now() >= runtime.inputUnlockAtMs,
+		});
+	};
+
+	const advanceSideViewCutscene = () => {
+		const runtime = sideViewRuntimeRef.current;
+		const resolved = sideViewResolvedCutsceneRef.current;
+		if (!runtime || !resolved) return;
+		const nextIndex = runtime.subSceneIndex + 1;
+		if (nextIndex >= resolved.subScenes.length) {
+			finishSideViewCutscene();
+			return;
+		}
+		startSideViewSubScene(nextIndex);
+	};
+
+	const enqueueSideViewCutscene = (
+		cutscene: SideViewCutscene,
+		runtimeVariables?: Record<string, string | number | boolean>,
+	) => {
+		try {
+			const compiled = compileSideViewCutscene(cutscene, runtimeVariables);
+			const canStartNow =
+				!sideViewRuntimeRef.current &&
+				!dayTransition &&
+				!modal &&
+				!isSaveLoadMenuOpen &&
+				!directorInputLocked &&
+				!fishing &&
+				!isOrdering &&
+				!isDoctorCompounding;
+			if (canStartNow) {
+				setSideViewCutscenePending(true);
+			}
+			sideViewQueueRef.current.push(compiled);
+			startNextQueuedSideViewCutscene();
+		} catch (error) {
+			setSideViewCutscenePending(false);
+			addLog(
+				`Failed to start sideview cutscene: ${(error as Error).message ?? "Unknown error"}.`,
+			);
+		}
+	};
+
+	useEffect(() => {
+		if (sideViewCutscene) return;
+		if (sideViewQueueRef.current.length <= 0) return;
+		startNextQueuedSideViewCutscene();
+	}, [
+		sideViewCutscene,
+		dayTransition,
+		modal,
+		isSaveLoadMenuOpen,
+		directorInputLocked,
+		fishing,
+		isOrdering,
+		isDoctorCompounding,
+	]);
+
+	useLayoutEffect(() => {
+		if (bootSaveJson) return;
+		if (sideViewIntroQueuedRef.current) return;
+		if (day !== 1) return;
+		sideViewIntroQueuedRef.current = true;
+		const starterItems: ItemId[] = [
+			"turnip_seed",
+			"carrot_seed",
+			"pumpkin_seed",
+			"corn_seed",
+		];
+		const starterItemId =
+			starterItems[randomInt(0, starterItems.length - 1)] ?? "turnip_seed";
+		const starterItemName = itemNames[starterItemId] ?? starterItemId;
+		const starterItemGlyph = itemIcons[starterItemId] ?? GLYPH.gift;
+		const randomPlayerName = generateName();
+		const targetStone =
+			progressTargetStones[randomInt(0, progressTargetStones.length - 1)];
+		const algorithmPool = progressAlgorithmStones.filter(
+			(stone) => stone.rarity === "common" || stone.rarity === "uncommon",
+		);
+		const algorithmStone =
+			algorithmPool[randomInt(0, algorithmPool.length - 1)] ?? algorithmPool[0];
+		const costumeLook =
+			allWardrobeLooks[randomInt(0, allWardrobeLooks.length - 1)]!;
+		const scene = buildNewGameRulesCutscene({
+			startItemLabel: starterItemName,
+			startItemGlyph: starterItemGlyph,
+			ruleLineA: "Daily prices shift and weather matters.",
+			ruleLineB: "Depth and progress stones shape your run.",
+		});
+		scene.onCompleteRewards = [
+			{
+				kind: "item",
+				itemId: starterItemId,
+				amount: 2,
+				label: `+2 ${starterItemGlyph} ${starterItemName}`,
+			},
+		];
+		enqueueSideViewCutscene(scene, {
+			PLAYER_NAME: randomPlayerName,
+			TARGET_STONE_NAME: targetStone?.name ?? "Profit Stone",
+			TARGET_STONE_ID: targetStone?.id ?? "money_gained",
+			ALGO_STONE_NAME: algorithmStone?.name ?? "+1 Stone",
+			ALGO_STONE_ID: algorithmStone?.id ?? "add_1",
+			ALGO_STONE_RARITY_LABEL: algorithmStone?.rarity ?? "common",
+			COSTUME_NAME: costumeLook,
+			COSTUME_LOOK: costumeLook,
+		});
+	}, [bootSaveJson, day]);
+
+	useEffect(() => {
+		if (day <= 1) return;
+		if (sideViewLastBonusDayRef.current === day) return;
+		sideViewLastBonusDayRef.current = day;
+		if (progressWon) return;
+		if (randomRoll() > 0.25) return;
+		const grantReward = randomRoll() < 0.6;
+		const rewardItemPool: ItemId[] = [
+			"turnip_seed",
+			"carrot_seed",
+			"pumpkin_seed",
+			"corn_seed",
+			"feed",
+		];
+		const bonusItem =
+			rewardItemPool[randomInt(0, rewardItemPool.length - 1)] ?? "turnip_seed";
+		const bonusItemName = itemNames[bonusItem] ?? bonusItem;
+		const bonusItemGlyph = itemIcons[bonusItem] ?? GLYPH.gift;
+		const scene = buildMidGameBonusCutscene({
+			title: grantReward ? "A good omen appears." : "A quiet scene passes by.",
+			rewardLabel: grantReward ? bonusItemName : undefined,
+			rewardGlyph: bonusItemGlyph,
+		});
+		if (grantReward) {
+			scene.onCompleteRewards = [
+				{
+					kind: "item",
+					itemId: bonusItem,
+					amount: 1,
+					label: `+1 ${bonusItemGlyph} ${bonusItemName}`,
+				},
+			];
+		}
+		enqueueSideViewCutscene(scene);
+	}, [day, progressWon]);
+
+	useEffect(() => {
+		if (!progressWon) return;
+		if (sideViewEndQueuedRef.current) return;
+		sideViewEndQueuedRef.current = true;
+		const scene = buildEndGameSummaryCutscene({
+			days: day,
+			totalEarned,
+			bestDepth: Math.max(highestForestLevelReached, highestCaveLevelReached),
+			favoriteLine:
+				totalEarned >= 5000
+					? "The town still talks about this farm."
+					: "A humble run, but the story goes on.",
+		});
+		enqueueSideViewCutscene(scene);
+	}, [
+		progressWon,
+		day,
+		totalEarned,
+		highestForestLevelReached,
+		highestCaveLevelReached,
+	]);
 
 	const grantProgressStone = (
 		kind: "target" | "algorithm",
@@ -5639,7 +6299,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (kind === "target") {
 			setProgressStoneTargetCounts((prev) => ({
 				...prev,
-				[stoneId as ProgressTargetId]: (prev[stoneId as ProgressTargetId] ?? 0) + 1,
+				[stoneId as ProgressTargetId]:
+					(prev[stoneId as ProgressTargetId] ?? 0) + 1,
 			}));
 			gameStateRef.current = {
 				...gameStateRef.current,
@@ -5686,11 +6347,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			}
 			return next;
 		});
-		const nextTargetCounts = { ...gameStateRef.current.progressStoneTargetCounts };
+		const nextTargetCounts = {
+			...gameStateRef.current.progressStoneTargetCounts,
+		};
 		for (const stone of progressTargetStones) {
 			nextTargetCounts[stone.id] = (nextTargetCounts[stone.id] ?? 0) + 1;
 		}
-		const nextAlgorithmCounts = { ...gameStateRef.current.progressStoneAlgorithmCounts };
+		const nextAlgorithmCounts = {
+			...gameStateRef.current.progressStoneAlgorithmCounts,
+		};
 		for (const stone of progressAlgorithmStones) {
 			nextAlgorithmCounts[stone.id] = (nextAlgorithmCounts[stone.id] ?? 0) + 1;
 		}
@@ -5700,10 +6365,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			progressStoneAlgorithmCounts: nextAlgorithmCounts,
 		};
 		addLog("Debug grant: +1 of every progress stone.");
-		tileFxBusRef.current.api.actor("player").toast("+1 all progress stones", 4500);
+		tileFxBusRef.current.api
+			.actor("player")
+			.toast("+1 all progress stones", 4500);
 	};
 
-	const maybeGrantChestProgressStone = (kind: "forest" | "cave", depth: number) => {
+	const maybeGrantChestProgressStone = (
+		kind: "forest" | "cave",
+		depth: number,
+	) => {
 		const milestone = depth % 5 === 0;
 		const chance = milestone ? 0.35 : 0.18;
 		if (randomRoll() >= chance) return;
@@ -5720,7 +6390,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			algoRarities.includes(stone.rarity),
 		);
 		if (targetPool.length <= 0 && algoPool.length <= 0) return;
-		const pickTarget = targetPool.length > 0 && (algoPool.length === 0 || randomRoll() < 0.5);
+		const pickTarget =
+			targetPool.length > 0 && (algoPool.length === 0 || randomRoll() < 0.5);
 		if (pickTarget) {
 			const stone = targetPool[randomInt(0, targetPool.length - 1)]!;
 			grantProgressStone("target", stone.id, stone.name);
@@ -5750,9 +6421,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				: row.targetStoneId === "aquarium_donated"
 					? { type: "aquarium_donated" }
 					: row.targetStoneId === "forest_depth_advanced"
-						? { type: "forest_depth_advanced", forestLevel: highestForestLevelReached }
+						? {
+								type: "forest_depth_advanced",
+								forestLevel: highestForestLevelReached,
+							}
 						: row.targetStoneId === "cave_depth_advanced"
-							? { type: "cave_depth_advanced", caveLevel: highestCaveLevelReached }
+							? {
+									type: "cave_depth_advanced",
+									caveLevel: highestCaveLevelReached,
+								}
 							: { type: row.targetStoneId, quantity: 1 };
 		const previewState = gameStateRef.current;
 		const result = applyProgressEventToState(
@@ -5775,7 +6452,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 	const describeLoadoutRowChain = (row: ProgressLoadoutRow): string => {
 		const parts = row.algorithmStoneIds
-			.map((id) => progressAlgorithmStones.find((stone) => stone.id === id)?.name ?? null)
+			.map(
+				(id) =>
+					progressAlgorithmStones.find((stone) => stone.id === id)?.name ??
+					null,
+			)
 			.filter((name): name is string => !!name);
 		if (parts.length <= 0) return "(none)";
 		return parts.join(" -> ");
@@ -5783,33 +6464,42 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const targetStoneToastText = (targetId: ProgressTargetId): string => {
 		if (targetId === "money_gained") return "Any time you earn $100";
 		if (targetId === "fish_caught") return "When you catch a fish";
-		if (targetId === "forest_depth_advanced") return "When you advance deeper in the forest";
-		if (targetId === "cave_depth_advanced") return "When you advance deeper in the cave";
+		if (targetId === "forest_depth_advanced")
+			return "When you advance deeper in the forest";
+		if (targetId === "cave_depth_advanced")
+			return "When you advance deeper in the cave";
 		if (targetId === "crop_harvested") return "When you harvest crops";
 		if (targetId === "animal_fed") return "When you feed farm animals";
 		if (targetId === "milk_collected") return "When you milk a cow";
 		if (targetId === "wool_collected") return "When you collect wool";
 		if (targetId === "egg_collected") return "When you collect eggs";
 		if (targetId === "crop_sold") return "When you sell crops";
-		if (targetId === "animal_product_sold") return "When you sell animal products";
+		if (targetId === "animal_product_sold")
+			return "When you sell animal products";
 		if (targetId === "fish_sold") return "When you sell fish";
 		return "When you donate to the aquarium";
 	};
-	const algorithmStoneToastText = (algorithmId: ProgressAlgorithmId): string => {
+	const algorithmStoneToastText = (
+		algorithmId: ProgressAlgorithmId,
+	): string => {
 		if (algorithmId === "add_1") return "Adds 1";
 		if (algorithmId === "add_2") return "Adds 2";
 		if (algorithmId === "add_3") return "Adds 3";
 		if (algorithmId === "add_5") return "Adds 5";
-		if (algorithmId === "add_diamond_count") return "Adds however many diamonds you own";
+		if (algorithmId === "add_diamond_count")
+			return "Adds however many diamonds you own";
 		if (algorithmId === "add_barn_tier") return "Adds your barn tier";
-		if (algorithmId === "add_tier5_tools") return "Adds however many tier 5 tools you unlocked";
+		if (algorithmId === "add_tier5_tools")
+			return "Adds however many tier 5 tools you unlocked";
 		if (algorithmId === "mul_1_25") return "Multiplys by 1.25";
 		if (algorithmId === "mul_1_5") return "Multiplys by 1.5";
 		if (algorithmId === "mul_2") return "Multiplys by 2";
 		if (algorithmId === "mul_donated_fish_count")
 			return "Multiplys by however many fish you donated";
-		if (algorithmId === "add_cow_count") return "Adds however many cows you own";
-		if (algorithmId === "add_sheep_count") return "Adds however many sheep you own";
+		if (algorithmId === "add_cow_count")
+			return "Adds however many cows you own";
+		if (algorithmId === "add_sheep_count")
+			return "Adds however many sheep you own";
 		if (algorithmId === "add_chicken_count")
 			return "Adds however many chickens you own";
 		if (algorithmId === "add_crop_count")
@@ -5849,8 +6539,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		rowIndex: 0 | 1 | 2,
 		targetStoneId: ProgressTargetId | null,
 	): [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow] => {
-		if (rowIndex === 0) return [{ ...prev[0], targetStoneId }, prev[1], prev[2]];
-		if (rowIndex === 1) return [prev[0], { ...prev[1], targetStoneId }, prev[2]];
+		if (rowIndex === 0)
+			return [{ ...prev[0], targetStoneId }, prev[1], prev[2]];
+		if (rowIndex === 1)
+			return [prev[0], { ...prev[1], targetStoneId }, prev[2]];
 		return [prev[0], prev[1], { ...prev[2], targetStoneId }];
 	};
 	const setAlgorithmSlot = (
@@ -5860,14 +6552,20 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		stoneId: ProgressAlgorithmId | null,
 	): [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow] => {
 		const row = prev[rowIndex];
-		const algorithmStoneIds: [ProgressAlgorithmId | null, ProgressAlgorithmId | null, ProgressAlgorithmId | null] =
+		const algorithmStoneIds: [
+			ProgressAlgorithmId | null,
+			ProgressAlgorithmId | null,
+			ProgressAlgorithmId | null,
+		] =
 			algoIndex === 0
 				? [stoneId, row.algorithmStoneIds[1], row.algorithmStoneIds[2]]
 				: algoIndex === 1
 					? [row.algorithmStoneIds[0], stoneId, row.algorithmStoneIds[2]]
 					: [row.algorithmStoneIds[0], row.algorithmStoneIds[1], stoneId];
-		if (rowIndex === 0) return [{ ...row, algorithmStoneIds }, prev[1], prev[2]];
-		if (rowIndex === 1) return [prev[0], { ...row, algorithmStoneIds }, prev[2]];
+		if (rowIndex === 0)
+			return [{ ...row, algorithmStoneIds }, prev[1], prev[2]];
+		if (rowIndex === 1)
+			return [prev[0], { ...row, algorithmStoneIds }, prev[2]];
 		return [prev[0], prev[1], { ...row, algorithmStoneIds }];
 	};
 
@@ -5903,7 +6601,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const interactAquariumCurator = () => {
 		const undonatedFish = fishItemCatalog
-			.filter((fish) => inventory[fish.itemId] > 0 && !aquariumDonations[fish.itemId])
+			.filter(
+				(fish) => inventory[fish.itemId] > 0 && !aquariumDonations[fish.itemId],
+			)
 			.map((fish) => ({ ...fish, quantity: inventory[fish.itemId] }));
 		if (undonatedFish.length <= 0) {
 			openMenu(
@@ -5928,13 +6628,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 							return;
 						}
 						const nextDonations = { ...aquariumDonations, [fish.itemId]: true };
-						const previousDonationCount = Object.values(aquariumDonations).filter(Boolean).length;
+						const previousDonationCount =
+							Object.values(aquariumDonations).filter(Boolean).length;
 						const donationNumber = previousDonationCount + 1;
-						const categories: Array<"freshwater" | "saltwater" | "cavewater"> = [
-							"freshwater",
-							"saltwater",
-							"cavewater",
-						];
+						const categories: Array<"freshwater" | "saltwater" | "cavewater"> =
+							["freshwater", "saltwater", "cavewater"];
 						const completedCategories = categories.filter((category) => {
 							const categoryFish = fishItemCatalog.filter(
 								(item) => item.category === category,
@@ -5987,7 +6685,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 								return;
 							}
 							const unlockableMoves = FISHING_PLAYER_MOVE_ORDER.filter(
-								(moveId) => moveId !== "cut_line" && !fishingMoveUnlocks[moveId],
+								(moveId) =>
+									moveId !== "cut_line" && !fishingMoveUnlocks[moveId],
 							);
 							if (unlockableMoves.length <= 0) {
 								updateInventory("emerald", 1);
@@ -6019,12 +6718,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 										label: FISHING_PLAYER_MOVES[moveId].label,
 										info: [FISHING_PLAYER_MOVES[moveId].description],
 										onSelect: () => {
-											setFishingMoveUnlocks((prev) => ({ ...prev, [moveId]: true }));
+											setFishingMoveUnlocks((prev) => ({
+												...prev,
+												[moveId]: true,
+											}));
 											closeMenu();
 											playYaya();
 											tileFxBusRef.current.api
 												.actor("player")
-												.toast(`You learned ${FISHING_PLAYER_MOVES[moveId].label}!`, 6000);
+												.toast(
+													`You learned ${FISHING_PLAYER_MOVES[moveId].label}!`,
+													6000,
+												);
 											grantCollectionRewardsAndMaybeShowPopup();
 										},
 									})),
@@ -6181,6 +6886,170 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			openMenu,
 			setModalIndex,
 		});
+	};
+
+	const openCutsceneDebugMenu = () => {
+		if (modal || dayTransition || isSaveLoadMenuOpen || sideViewCutscene)
+			return;
+		const backgroundDebugScenes: Array<{
+			id: string;
+			label: string;
+			build: () => SideViewCutscene;
+		}> = [
+			{
+				id: "debug_background_farm",
+				label: "4. Background: Farm",
+				build: () =>
+					buildBackgroundExampleCutscene({
+						backgroundId: "farm",
+						label: "Farm",
+						description: "Sky over tilled dirt and grass.",
+						bgm: "farm",
+					}),
+			},
+			{
+				id: "debug_background_town",
+				label: "5. Background: Town",
+				build: () =>
+					buildBackgroundExampleCutscene({
+						backgroundId: "town",
+						label: "Town",
+						description: "Road layer with city-side props.",
+						bgm: "town",
+					}),
+			},
+			{
+				id: "debug_background_forest",
+				label: "6. Background: Forest",
+				build: () =>
+					buildBackgroundExampleCutscene({
+						backgroundId: "forest",
+						label: "Forest",
+						description: "Tree-heavy skyline with grass base.",
+						bgm: "forest",
+					}),
+			},
+			{
+				id: "debug_background_aquarium",
+				label: "7. Background: Aquarium",
+				build: () =>
+					buildBackgroundExampleCutscene({
+						backgroundId: "aquarium",
+						label: "Aquarium",
+						description: "Indoor glass tanks above a floor strip.",
+						bgm: "space_store",
+					}),
+			},
+			{
+				id: "debug_background_beach",
+				label: "8. Background: Beach",
+				build: () =>
+					buildBackgroundExampleCutscene({
+						backgroundId: "beach",
+						label: "Beach",
+						description: "Sand platform over ocean water.",
+						bgm: "town",
+					}),
+			},
+			{
+				id: "debug_background_cave",
+				label: "9. Background: Cave",
+				build: () =>
+					buildBackgroundExampleCutscene({
+						backgroundId: "cave",
+						label: "Cave",
+						description: "Rock ceiling with compacted cave floor.",
+						bgm: "cave",
+					}),
+			},
+		];
+		const debugScenes: Array<{
+			id: string;
+			label: string;
+			build: () => SideViewCutscene;
+		}> = [
+			{
+				id: "new_game_rules_intro",
+				label: "1. New Game Rules",
+				build: () => {
+					const itemId: ItemId = "turnip_seed";
+					const itemGlyph = itemIcons[itemId] ?? GLYPH.gift;
+					const itemLabel = itemNames[itemId] ?? itemId;
+					const scene = buildNewGameRulesCutscene({
+						startItemLabel: itemLabel,
+						startItemGlyph: itemGlyph,
+						ruleLineA: "Market trends and weather alter each run.",
+						ruleLineB: "Rewards can trigger from scene frames.",
+					});
+					scene.onCompleteRewards = [
+						{
+							kind: "item",
+							itemId,
+							amount: 2,
+							label: `+2 ${itemGlyph} ${itemLabel}`,
+						},
+					];
+					return scene;
+				},
+			},
+			{
+				id: "mid_game_bonus",
+				label: "2. Mid-Game Bonus",
+				build: () => {
+					const itemId: ItemId = "corn_seed";
+					const itemGlyph = itemIcons[itemId] ?? GLYPH.gift;
+					const itemLabel = itemNames[itemId] ?? itemId;
+					const scene = buildMidGameBonusCutscene({
+						title: "A sudden bonus event.",
+						rewardLabel: itemLabel,
+						rewardGlyph: itemGlyph,
+					});
+					scene.onCompleteRewards = [
+						{
+							kind: "item",
+							itemId,
+							amount: 1,
+							label: `+1 ${itemGlyph} ${itemLabel}`,
+						},
+					];
+					return scene;
+				},
+			},
+			{
+				id: "end_game_summary",
+				label: "3. End-Game Summary",
+				build: () =>
+					buildEndGameSummaryCutscene({
+						days: day,
+						totalEarned,
+						bestDepth: Math.max(
+							highestForestLevelReached,
+							highestCaveLevelReached,
+						),
+						favoriteLine: "Debug summary playback.",
+					}),
+			},
+			...backgroundDebugScenes,
+		];
+
+		openMenu(
+			"Cutscene Debug",
+			["Select a cutscene to trigger."],
+			[
+				...debugScenes.map((entry) => ({
+					label: entry.label,
+					info: [`id: ${entry.id}`],
+					onSelect: () => {
+						closeMenu();
+						enqueueSideViewCutscene(entry.build());
+					},
+				})),
+				{
+					label: "Close",
+					onSelect: closeMenu,
+				},
+			],
+		);
 	};
 
 	const { startDoctorMedicine, startCafeOrder } = createServiceOrderActions({
@@ -6876,8 +7745,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const ty = player.y + delta.dy;
 		if (player.map === "computer_lab") {
 			const targetCell = activeMapLayouts.computer_lab?.[ty]?.[tx] ?? "";
-			const rowIndex: 0 | 1 | 2 | -1 = ty === 2 ? 0 : ty === 4 ? 1 : ty === 6 ? 2 : -1;
-			const algoIndex: 0 | 1 | 2 | -1 = tx === 4 ? 0 : tx === 5 ? 1 : tx === 6 ? 2 : -1;
+			const rowIndex: 0 | 1 | 2 | -1 =
+				ty === 2 ? 0 : ty === 4 ? 1 : ty === 6 ? 2 : -1;
+			const algoIndex: 0 | 1 | 2 | -1 =
+				tx === 4 ? 0 : tx === 5 ? 1 : tx === 6 ? 2 : -1;
 			const isTargetSlot = tx === 3;
 			if (targetCell === "x" && tx === 2 && rowIndex >= 0) {
 				const rowSlotIndex = rowIndex as 0 | 1 | 2;
@@ -6914,7 +7785,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				);
 				return;
 			}
-			if (targetCell === "x" && rowIndex >= 0 && (isTargetSlot || algoIndex >= 0)) {
+			if (
+				targetCell === "x" &&
+				rowIndex >= 0 &&
+				(isTargetSlot || algoIndex >= 0)
+			) {
 				const rowSlotIndex = rowIndex as 0 | 1 | 2;
 				const row = progressLoadoutRows[rowSlotIndex];
 				if (isTargetSlot) {
@@ -6971,9 +7846,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 									}
 									setProgressLoadoutRows((prev) => {
 										return setRowTargetStoneId(prev, rowSlotIndex, stone.id);
-										});
-										closeMenu();
-									},
+									});
+									closeMenu();
+								},
 							});
 							return options;
 						},
@@ -6984,10 +7859,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						targetOptions.length > 0
 							? ["Install or remove a target progress stone."]
 							: ["You do not own any target stones yet."],
-						[
-							...targetOptions,
-							{ label: "Back", onSelect: closeMenu },
-						],
+						[...targetOptions, { label: "Back", onSelect: closeMenu }],
 					);
 					return;
 				}
@@ -7009,7 +7881,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 								],
 								onSelect: () => {
 									setProgressLoadoutRows((prev) => {
-										return setAlgorithmSlot(prev, rowSlotIndex, algoSlotIndex, null);
+										return setAlgorithmSlot(
+											prev,
+											rowSlotIndex,
+											algoSlotIndex,
+											null,
+										);
 									});
 									closeMenu();
 								},
@@ -7026,41 +7903,43 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					);
 					return;
 				}
-				const visibleAlgorithmOptions = progressAlgorithmStones.reduce<ModalOption[]>(
-					(options, stone) => {
-						const used = countUsedAlgorithmStone(stone.id);
-						const owned = progressStoneAlgorithmCounts[stone.id] ?? 0;
-						const available = owned - used + (currentAlgorithmStoneId === stone.id ? 1 : 0);
-						if (available <= 0) return options;
-						options.push({
-							label: `${stone.name} (${owned})`,
-							info: [stone.description, `Rarity: ${stone.rarity}`],
-							onSelect: () => {
-								if (available <= 0 && currentAlgorithmStoneId !== stone.id) {
-									playBad();
-									addLog("You do not own an available copy of that stone.");
-									closeMenu();
-									return;
-								}
-								setProgressLoadoutRows((prev) => {
-									return setAlgorithmSlot(prev, rowSlotIndex, algoSlotIndex, stone.id);
-								});
+				const visibleAlgorithmOptions = progressAlgorithmStones.reduce<
+					ModalOption[]
+				>((options, stone) => {
+					const used = countUsedAlgorithmStone(stone.id);
+					const owned = progressStoneAlgorithmCounts[stone.id] ?? 0;
+					const available =
+						owned - used + (currentAlgorithmStoneId === stone.id ? 1 : 0);
+					if (available <= 0) return options;
+					options.push({
+						label: `${stone.name} (${owned})`,
+						info: [stone.description, `Rarity: ${stone.rarity}`],
+						onSelect: () => {
+							if (available <= 0 && currentAlgorithmStoneId !== stone.id) {
+								playBad();
+								addLog("You do not own an available copy of that stone.");
 								closeMenu();
-							},
-						});
-						return options;
-					},
-					[],
-				);
+								return;
+							}
+							setProgressLoadoutRows((prev) => {
+								return setAlgorithmSlot(
+									prev,
+									rowSlotIndex,
+									algoSlotIndex,
+									stone.id,
+								);
+							});
+							closeMenu();
+						},
+					});
+					return options;
+				}, []);
 				openMenu(
 					`Row ${rowIndex + 1} Algorithm ${algoIndex + 1}`,
 					visibleAlgorithmOptions.length > 0
 						? ["Install or remove an algorithmic progress stone."]
 						: ["You do not own any algorithm stones yet."],
-					[
-						...visibleAlgorithmOptions,
-						{ label: "Back", onSelect: closeMenu },
-					],
+					[...visibleAlgorithmOptions, { label: "Back", onSelect: closeMenu }],
 				);
 				return;
 			}
@@ -7167,6 +8046,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		const interactCtx: PlayerInteractContext = {
 			modal,
+			playerName,
 			fishing,
 			isOrdering,
 			isDoctorCompounding,
@@ -7375,6 +8255,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			interactAquariumCurator,
 			onProgressEvent: emitProgressEvent,
 			maybeGrantChestProgressStone,
+			grantProgressStone,
 		};
 		runInteract(interactCtx, dir);
 	};
@@ -7492,6 +8373,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		confirmDirectorDialog: confirmDirectorPopup,
 		isNewspaperOpen: isNewspaperPopupOpen,
 		closeNewspaperPopup,
+		openCutsceneDebugMenu,
+		sideViewCutsceneActive: !!sideViewCutscene,
+		sideViewCutsceneInputUnlockAtMs: sideViewCutscene?.inputUnlockAtMs ?? 0,
+		sideViewCutsceneContentDone: sideViewCutscene?.contentDone ?? false,
+		sideViewCutsceneCurrentFrameAutoProgress:
+			sideViewCutscene?.currentFrameAutoProgress ?? false,
+		advanceSideViewCutscene,
+		fastForwardSideViewCutscene,
 	};
 	const inputPreset =
 		controlMode === "mobile" ? MOBILE_KEYBOARD_PRESET : PC_KEYBOARD_PRESET;
@@ -7523,6 +8412,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			modal ||
 			directorInputLocked ||
 			!!directorPopup ||
+			!!sideViewCutscene ||
 			isNewspaperPopupOpen ||
 			isBathing ||
 			isOrdering ||
@@ -7552,11 +8442,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return;
 		}
 		if (dir === "down") {
-			inputRouter.dispatchCommand("MOVE_DOWN", { sourceKey: "__mobile_move__" });
+			inputRouter.dispatchCommand("MOVE_DOWN", {
+				sourceKey: "__mobile_move__",
+			});
 			return;
 		}
 		if (dir === "left") {
-			inputRouter.dispatchCommand("MOVE_LEFT", { sourceKey: "__mobile_move__" });
+			inputRouter.dispatchCommand("MOVE_LEFT", {
+				sourceKey: "__mobile_move__",
+			});
 			return;
 		}
 		inputRouter.dispatchCommand("MOVE_RIGHT", { sourceKey: "__mobile_move__" });
@@ -7612,7 +8506,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					? POSITION_ANIMATION_MS * 4
 					: playerEmoji === GLYPH.run
 						? POSITION_ANIMATION_MS / 2
-					: POSITION_ANIMATION_MS,
+						: POSITION_ANIMATION_MS,
 			);
 		};
 		mobileMoveCadenceTimerRef.current = window.setTimeout(
@@ -7621,7 +8515,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				? POSITION_ANIMATION_MS * 4
 				: playerEmoji === GLYPH.run
 					? POSITION_ANIMATION_MS / 2
-				: POSITION_ANIMATION_MS,
+					: POSITION_ANIMATION_MS,
 		);
 	};
 
@@ -7691,7 +8585,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const onMobileMoveJoystickTouchMove = (e: TouchEvent<HTMLDivElement>) => {
 		const touchId = mobileMoveJoystickTouchIdRef.current;
 		if (touchId === null) return;
-		const touch = Array.from(e.touches).find((candidate) => candidate.identifier === touchId);
+		const touch = Array.from(e.touches).find(
+			(candidate) => candidate.identifier === touchId,
+		);
 		if (!touch) return;
 		e.preventDefault();
 		updateMobileMoveJoystickFromTouch(touch.clientX, touch.clientY);
@@ -7708,7 +8604,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		clearMobileMoveJoystick();
 	};
 
-	const onMobileInteractJoystickTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+	const onMobileInteractJoystickTouchStart = (
+		e: TouchEvent<HTMLDivElement>,
+	) => {
 		if (controlMode !== "mobile") return;
 		if (mobileInteractJoystickTouchIdRef.current !== null) return;
 		const touch = e.changedTouches[0];
@@ -7725,7 +8623,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const onMobileInteractJoystickTouchMove = (e: TouchEvent<HTMLDivElement>) => {
 		const touchId = mobileInteractJoystickTouchIdRef.current;
 		if (touchId === null) return;
-		const touch = Array.from(e.touches).find((candidate) => candidate.identifier === touchId);
+		const touch = Array.from(e.touches).find(
+			(candidate) => candidate.identifier === touchId,
+		);
 		if (!touch) return;
 		e.preventDefault();
 		updateMobileInteractJoystickFromTouch(touch.clientX, touch.clientY);
@@ -7742,7 +8642,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const usedSwipe = mobileInteractSwipeUsedRef.current;
 		clearMobileInteractJoystick();
 		if (!usedSwipe) {
-			inputRouter.dispatchCommand("OK", { sourceKey: "__mobile_interact_tap__" });
+			inputRouter.dispatchCommand("OK", {
+				sourceKey: "__mobile_interact_tap__",
+			});
 		}
 	};
 
@@ -7752,6 +8654,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			modal ||
 			directorInputLocked ||
 			!!directorPopup ||
+			!!sideViewCutscene ||
 			isBathing ||
 			isOrdering ||
 			isDoctorCompounding ||
@@ -7764,6 +8667,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		modal,
 		directorInputLocked,
 		directorPopup,
+		sideViewCutscene,
 		isBathing,
 		isOrdering,
 		isDoctorCompounding,
@@ -7909,6 +8813,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		onBlur: onInputBlur,
 		shellRef,
 		day,
+		playerName,
 		player,
 		townNpcTiles,
 		forestEnemies,
@@ -8039,6 +8944,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		zoomIn,
 		directorPopup,
 		confirmDirectorPopup,
+		sideViewCutscene,
+		sideViewCutscenePending,
 		tileFx: tileFxBusRef.current.api,
 		tileFxBus: tileFxBusRef.current,
 	});

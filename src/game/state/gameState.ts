@@ -96,6 +96,7 @@ export type GameState = {
 	currentDayEarned: number;
 	previousDayEarned: number;
 	totalEarned: number;
+	playerName: string;
 	playerEmoji: string;
 	showTiredFace: boolean;
 	showForestHit: boolean;
@@ -142,6 +143,7 @@ export type GameState = {
 	petTile: Point | null;
 	petFacing: 1 | -1;
 	petHeartTile: Point | null;
+	townNpcNames: Record<string, string>;
 	townNpcTiles: TownNpcTileMap;
 	boatTiles: BoatTileMap;
 	npcDailyAssignments: Record<string, NpcDailyAssignment>;

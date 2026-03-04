@@ -1,5 +1,6 @@
 import type { GameRuntimeViewModel } from "../../ui/viewModel";
 import type { ItemId, ToolLevels } from "../../shared/types";
+import { fishItemIds } from "../../content/fishCatalog";
 
 type BuildGameRuntimeViewModelArgs = Omit<
 	GameRuntimeViewModel,
@@ -16,6 +17,7 @@ type BuildGameRuntimeViewModelArgs = Omit<
 export const buildGameRuntimeViewModel = (
 	args: BuildGameRuntimeViewModelArgs,
 ): GameRuntimeViewModel => {
+	const fishIdSet = new Set<ItemId>(fishItemIds as ItemId[]);
 	const {
 		inventory,
 		itemIcons,
@@ -36,12 +38,14 @@ export const buildGameRuntimeViewModel = (
 			amount: inventory[id],
 		}));
 
-	const marketRows = priceItems.map((id) => ({
-		id,
-		name: itemNames[id],
-		price: prices[id],
-		trend: priceTrends[id],
-	}));
+	const marketRows = priceItems
+		.filter((id) => !fishIdSet.has(id))
+		.map((id) => ({
+			id,
+			name: itemNames[id],
+			price: prices[id],
+			trend: priceTrends[id],
+		}));
 
 	const toolRows = [
 		{ id: "hoe", name: "Hoe", level: tools.hoe },
