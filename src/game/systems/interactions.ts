@@ -22,6 +22,7 @@ import {
 	traderSoldOutLines,
 } from "../content/dialog";
 import { animalDefs, isCowLikeAnimal, itemNames } from "../content/catalog";
+import { progressAlgorithmStones } from "../progression/progressStonesAlgorithmic";
 import { GLYPH } from "../config/glyphs";
 import {
 	DOCTOR_POS,
@@ -50,6 +51,8 @@ import type {
 	TraderTradeEntry,
 	VendorKey,
 	ProgressEventPayload,
+	ProgressAlgorithmId,
+	ProgressTargetId,
 } from "../shared/types";
 
 export type InteractionsContext = {
@@ -125,6 +128,13 @@ export type InteractionsContext = {
 	randomInt: (min: number, max: number) => number;
 	tileFx: TileFxApi;
 	onProgressEvent?: (event: ProgressEventPayload) => void;
+	onManualCowMilked?: () => void;
+	onManualSheepSheared?: () => void;
+	grantProgressStone?: (
+		kind: "target" | "algorithm",
+		stoneId: ProgressTargetId | ProgressAlgorithmId,
+		label: string,
+	) => void;
 };
 
 export const handleLateInteractionBlocks = (
@@ -189,7 +199,13 @@ export const handleLateInteractionBlocks = (
 		randomInt,
 		tileFx,
 		onProgressEvent,
+		onManualCowMilked,
+		onManualSheepSheared,
+		grantProgressStone,
 	} = ctx;
+	const algorithmStoneNameById = Object.fromEntries(
+		progressAlgorithmStones.map((stone) => [stone.id, stone.name]),
+	) as Record<string, string>;
 
 	const copSketchyLines = [
 		"Hi officer. I was just leaving.",
@@ -334,8 +350,10 @@ export const handleLateInteractionBlocks = (
 				updateInventory(product, produced);
 				if (product === "milk") {
 					onProgressEvent?.({ type: "milk_collected", quantity: produced });
+					onManualCowMilked?.();
 				} else if (product === "wool") {
 					onProgressEvent?.({ type: "wool_collected", quantity: produced });
+					onManualSheepSheared?.();
 				}
 				tileFx.actor(`animal-${animal.id}`).streatch(1.35, 220);
 				setAnimals((prev) =>
@@ -522,15 +540,20 @@ export const handleLateInteractionBlocks = (
 				[intro],
 				[
 					...traderTrades.map((trade) => {
+						const givesAlgorithmStone = !!trade.giveAlgorithmStoneId;
+						const giveLabel = givesAlgorithmStone
+							? (algorithmStoneNameById[trade.giveAlgorithmStoneId!] ??
+								trade.giveAlgorithmStoneId!)
+							: itemNames[trade.giveItem];
 						const maxCanTrade = Math.min(
 							trade.remaining,
 							inventory[trade.wantItem],
 						);
 						return {
-							label: `Trade ${itemNames[trade.wantItem]} -> ${itemNames[trade.giveItem]}`,
+							label: `Trade ${itemNames[trade.wantItem]} -> ${giveLabel}`,
 							info: [
 								`Needs: ${itemNames[trade.wantItem]}`,
-								`Gives: ${itemNames[trade.giveItem]}`,
+								`Gives: ${giveLabel}`,
 								`You have: ${inventory[trade.wantItem]}`,
 								`Trader stock: ${trade.remaining}`,
 								"Rate: 1 for 1",
@@ -538,12 +561,25 @@ export const handleLateInteractionBlocks = (
 							onSelect: () => {
 								openQuantityPrompt({
 									mode: "buy",
-									itemLabel: `${itemNames[trade.wantItem]} -> ${itemNames[trade.giveItem]}`,
+									itemLabel: `${itemNames[trade.wantItem]} -> ${giveLabel}`,
 									max: maxCanTrade,
 									unitPrice: 0,
 									onConfirm: (quantity) => {
 										updateInventory(trade.wantItem, -quantity);
-										updateInventory(trade.giveItem, quantity);
+										if (trade.giveAlgorithmStoneId) {
+											const stoneLabel =
+												algorithmStoneNameById[trade.giveAlgorithmStoneId] ??
+												trade.giveAlgorithmStoneId;
+											for (let i = 0; i < quantity; i += 1) {
+												grantProgressStone?.(
+													"algorithm",
+													trade.giveAlgorithmStoneId,
+													stoneLabel,
+												);
+											}
+										} else {
+											updateInventory(trade.giveItem, quantity);
+										}
 										setTraderTrades((prev) =>
 											prev
 												.map((t) =>
@@ -605,10 +641,22 @@ export const handleLateInteractionBlocks = (
 				if (dropped) {
 					window.setTimeout(() => {
 						setSketchyMerchantActive(() => false);
-						const dropLine = `The shady vendor dropped a ${itemNames[dropped.item]}.`;
+						const droppedLabel = dropped.giveAlgorithmStoneId
+							? (algorithmStoneNameById[dropped.giveAlgorithmStoneId] ??
+								dropped.giveAlgorithmStoneId)
+							: itemNames[dropped.item];
+						const dropLine = `The shady vendor dropped a ${droppedLabel}.`;
 						tileFx.actor("player").toast(dropLine, 4000);
 						window.setTimeout(() => {
-							updateInventory(dropped.item, 1);
+							if (dropped.giveAlgorithmStoneId) {
+								grantProgressStone?.(
+									"algorithm",
+									dropped.giveAlgorithmStoneId,
+									droppedLabel,
+								);
+							} else {
+								updateInventory(dropped.item, 1);
+							}
 						}, 4000);
 					}, 8000);
 				} else {
@@ -633,17 +681,22 @@ export const handleLateInteractionBlocks = (
 				[intro],
 				[
 					...sketchyMerchantStock.map((entry) => {
+						const givesAlgorithmStone = !!entry.giveAlgorithmStoneId;
+						const itemLabel = givesAlgorithmStone
+							? (algorithmStoneNameById[entry.giveAlgorithmStoneId!] ??
+								entry.giveAlgorithmStoneId!)
+							: itemNames[entry.item];
 						const maxCanBuy = Math.min(
 							entry.qty,
 							Math.floor(money / Math.max(1, entry.price)),
 						);
 						return {
-							label: `${itemNames[entry.item]} $${entry.price}`,
+							label: `${itemLabel} $${entry.price}`,
 							info: [
 								`Stock: ${entry.qty}`,
 								`You can buy now: ${maxCanBuy}`,
 								`Price: $${entry.price} each`,
-								`Item: ${itemNames[entry.item]}`,
+								`Item: ${itemLabel}`,
 							],
 							dealMeta: {
 								itemId: entry.item,
@@ -654,16 +707,28 @@ export const handleLateInteractionBlocks = (
 							onSelect: () => {
 								openQuantityPrompt({
 									mode: "buy",
-									itemLabel: itemNames[entry.item],
+									itemLabel,
 									max: maxCanBuy,
 									unitPrice: entry.price,
 									onConfirm: (quantity) => {
 										applyMoneyDelta(-entry.price * quantity);
-										updateInventory(entry.item, quantity);
+										if (entry.giveAlgorithmStoneId) {
+											for (let i = 0; i < quantity; i += 1) {
+												grantProgressStone?.(
+													"algorithm",
+													entry.giveAlgorithmStoneId,
+													itemLabel,
+												);
+											}
+										} else {
+											updateInventory(entry.item, quantity);
+										}
 										setSketchyMerchantStock((prev) =>
 											prev
 												.map((stockEntry) =>
-													stockEntry.item === entry.item
+													stockEntry.item === entry.item &&
+													stockEntry.giveAlgorithmStoneId ===
+														entry.giveAlgorithmStoneId
 														? {
 																...stockEntry,
 																qty: Math.max(0, stockEntry.qty - quantity),

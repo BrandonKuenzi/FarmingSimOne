@@ -97,6 +97,7 @@ export type GameState = {
 	previousDayEarned: number;
 	totalEarned: number;
 	playerName: string;
+	newGameDate: string;
 	playerEmoji: string;
 	showTiredFace: boolean;
 	showForestHit: boolean;
@@ -155,6 +156,7 @@ export type GameState = {
 	cafeObservation: string;
 	isDoctorCompounding: boolean;
 	doctorObservation: string;
+	townTourSeen: boolean;
 	clouds: CloudSprite[];
 	grassWindBands: Array<{
 		id: number;

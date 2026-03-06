@@ -1464,8 +1464,8 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		getDoorGroundClass,
 		fishing,
 		fishingProgress,
-		moveFishingSelection,
-		moveFishingBuffSelection,
+		previewFishingMoveById,
+		previewFishingBuffChoiceByIndex,
 		selectFishingMove,
 		selectFishingLevelUpBuffChoice,
 		selectFishingMoveById,
@@ -1562,6 +1562,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		confirmDirectorPopup,
 		sideViewCutscene,
 		sideViewCutscenePending,
+		sideViewCutsceneOk,
 		tileFxBus,
 	} = ctx;
 	const newspaperSections = newspaper
@@ -1603,6 +1604,12 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 			openingStage === "player_stats_enter" ||
 			openingStage === "ready");
 	const hasFishingRod = toolRows.some((tool) => tool.id === "fishingRod");
+	const showMobileTouchControls =
+		controlMode === "mobile" &&
+		!sideViewCutscene &&
+		!sideViewCutscenePending &&
+		!showFishingEncounter;
+	const showFishingSelectionCaret = controlMode !== "mobile";
 	const displayedFishingLevel = fishing?.playerLevel ?? fishingProgress.level;
 	const displayedFishingExp = fishing?.playerExp ?? fishingProgress.exp;
 	const fishingExpToNext =
@@ -1824,7 +1831,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 				</div>
 
 				<div className='gameplay-map-slot'>
-					{controlMode === "mobile" && (
+					{showMobileTouchControls && (
 						<div className='mobile-zoom-overlay'>
 							{canZoomOut && (
 								<button
@@ -2289,7 +2296,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 								<div className='fishing-encounter-line'>{fishing.message}</div>
 							</div>
 							<div
-								className={`fishing-options-panel fishing-panel-layer ${fishingMenuVisible ? "active" : ""}`}
+								className={`fishing-options-panel fishing-panel-layer ${fishingMenuVisible ? "active" : ""} ${controlMode === "mobile" ? "mobile-mode" : "pc-mode"}`}
 								aria-hidden={!fishingMenuVisible}
 							>
 								{fishingBuffChoiceVisible ? (
@@ -2297,24 +2304,41 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										<div className='fishing-options-moves'>
 											{fishingBuffOptions.map((option, idx) => {
 												const isSelected = fishing.selectedMoveIndex === idx;
+												const selectForInfo = () =>
+													previewFishingBuffChoiceByIndex(idx);
+												const buttonClassName = `option fishing-move-button ${showFishingSelectionCaret ? "" : " no-caret"}`;
 												return (
-													<button
+													<div
 														key={option.key}
-														type='button'
-														className={`option fishing-move-button ${isSelected ? "active" : ""}`}
-														onClick={option.onSelect}
-														onMouseEnter={() =>
-															moveFishingBuffSelection(
-																idx - fishing.selectedMoveIndex,
-															)
-														}
-														disabled={
-															!fishingMenuVisible || !fishingBuffChoiceEnabled
-														}
+														className={`fishing-move-action-row${isSelected ? " is-selected" : ""}`}
 													>
-														<span>{isSelected ? ">" : " "}</span>
-														<span>{option.label}</span>
-													</button>
+														<button
+															type='button'
+															className={buttonClassName}
+															onClick={option.onSelect}
+															onMouseEnter={selectForInfo}
+															disabled={
+																!fishingMenuVisible || !fishingBuffChoiceEnabled
+															}
+														>
+															{showFishingSelectionCaret && (
+																<span>{isSelected ? ">" : " "}</span>
+															)}
+															<span>{option.label}</span>
+														</button>
+														<button
+															type='button'
+															className='option fishing-move-info-button'
+															onClick={selectForInfo}
+															onMouseEnter={selectForInfo}
+															disabled={
+																!fishingMenuVisible || !fishingBuffChoiceEnabled
+															}
+															aria-label={`Show info for ${option.label}`}
+														>
+															{"\u2139\uFE0F"}
+														</button>
+													</div>
 												);
 											})}
 										</div>
@@ -2330,22 +2354,37 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 												const isSelected =
 													fishing.selectedMoveIndex === sourceIndex;
 												const isTurn = fishing.phase === "player_turn";
+												const selectForInfo = () =>
+													previewFishingMoveById(moveId);
+												const buttonClassName = `option fishing-move-button ${showFishingSelectionCaret ? "" : " no-caret"}`;
 												return (
-													<button
+													<div
 														key={moveId}
-														type='button'
-														className={`option fishing-move-button ${isSelected ? "active" : ""}`}
-														onClick={() => selectFishingMoveById(moveId)}
-														onMouseEnter={() =>
-															moveFishingSelection(
-																sourceIndex - fishing.selectedMoveIndex,
-															)
-														}
-														disabled={!isTurn || !fishingMenuVisible}
+														className={`fishing-move-action-row${isSelected ? " is-selected" : ""}`}
 													>
-														<span>{isSelected ? ">" : " "}</span>
-														<span>{info.label}</span>
-													</button>
+														<button
+															type='button'
+															className={buttonClassName}
+															onClick={() => selectFishingMoveById(moveId)}
+															onMouseEnter={selectForInfo}
+															disabled={!isTurn || !fishingMenuVisible}
+														>
+															{showFishingSelectionCaret && (
+																<span>{isSelected ? ">" : " "}</span>
+															)}
+															<span>{info.label}</span>
+														</button>
+														<button
+															type='button'
+															className='option fishing-move-info-button'
+															onClick={selectForInfo}
+															onMouseEnter={selectForInfo}
+															disabled={!isTurn || !fishingMenuVisible}
+															aria-label={`Show info for ${info.label}`}
+														>
+															{"\u2139\uFE0F"}
+														</button>
+													</div>
 												);
 											})}
 										</div>
@@ -2650,7 +2689,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					</motion.div>
 				</motion.div>
 			)}
-			{controlMode === "mobile" && (
+			{showMobileTouchControls && (
 				<div className='mobile-controls-overlay'>
 					<div
 						className='mobile-joystick-zone'
@@ -2733,7 +2772,10 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 			{sideViewCutscenePending && !sideViewCutscene && (
 				<div className='sideview-cutscene-backdrop' />
 			)}
-			<SideViewCutsceneOverlay scene={sideViewCutscene} />
+			<SideViewCutsceneOverlay
+				scene={sideViewCutscene}
+				onOk={sideViewCutsceneOk}
+			/>
 		</div>
 	);
 };

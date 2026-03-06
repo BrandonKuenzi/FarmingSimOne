@@ -235,6 +235,10 @@ export const handleGameInputCommand = (
 
 	if (ctx.sideViewCutsceneActive) {
 		if (command !== "OK") return consume();
+		if (ctx.sideViewCutsceneContentDone) {
+			ctx.advanceSideViewCutscene();
+			return consume();
+		}
 		if (Date.now() < ctx.sideViewCutsceneInputUnlockAtMs) return consume();
 		if (!ctx.sideViewCutsceneContentDone) {
 			if (ctx.sideViewCutsceneCurrentFrameAutoProgress) return consume();

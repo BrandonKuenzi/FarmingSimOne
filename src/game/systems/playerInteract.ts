@@ -329,6 +329,9 @@ export type PlayerInteractContext = {
 	aquariumCuratorTile: Point | null;
 	interactAquariumCurator: () => void;
 	onProgressEvent?: (event: ProgressEventPayload) => void;
+	onManualCowMilked?: () => void;
+	onManualSheepSheared?: () => void;
+	onManualGrassHoed?: () => void;
 	maybeGrantChestProgressStone?: (kind: "forest" | "cave", depth: number) => void;
 	grantProgressStone?: (
 		kind: "target" | "algorithm",
@@ -544,6 +547,9 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		aquariumCuratorTile,
 		interactAquariumCurator,
 		onProgressEvent,
+		onManualCowMilked,
+		onManualSheepSheared,
+		onManualGrassHoed,
 		maybeGrantChestProgressStone,
 		grantProgressStone,
 	} = ctx;
@@ -1293,6 +1299,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			if (!tryUseToolAction(tools.hoe)) return;
 			setPlots(nextPlots);
 			playHoe();
+			onManualGrassHoed?.();
 		}
 		return;
 	}
@@ -1541,6 +1548,9 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			randomInt,
 			tileFx,
 			onProgressEvent,
+			onManualCowMilked,
+			onManualSheepSheared,
+			grantProgressStone,
 		})
 	)
 		return;
