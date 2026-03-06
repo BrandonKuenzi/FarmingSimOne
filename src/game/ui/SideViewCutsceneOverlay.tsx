@@ -4,14 +4,25 @@ import type { SideViewSceneRuntime } from "../cutscenes";
 
 type Props = {
 	scene: SideViewSceneRuntime | null;
+	onOk: () => void;
 };
 
-export const SideViewCutsceneOverlay = ({ scene }: Props) => {
+export const SideViewCutsceneOverlay = ({ scene, onOk }: Props) => {
 	if (!scene || !scene.active) return null;
 	const cutsceneTitle =
 		scene.cutsceneId === "new_game_rules_intro"
 			? "New Game"
-			: scene.cutsceneId.replace(/_/g, " ");
+			: scene.cutsceneId === "a_dairy_good_surprise"
+				? "A Dairy Good Surprise!"
+				: scene.cutsceneId === "sheer_delight"
+					? "Sheer Delight!"
+					: scene.cutsceneId === "bruises_in_the_forest"
+						? "Bruises in the Forest"
+						: scene.cutsceneId === "you_caved_under_pressure"
+							? "You Caved Under Pressure"
+							: scene.cutsceneId === "looky_here"
+								? "Looky here!"
+				: scene.cutsceneId.replace(/_/g, " ");
 	const rows = scene.subScene.map.rows;
 	const rowCount = rows.length;
 	const colCount = Math.max(1, ...rows.map((row) => row.length));
@@ -92,7 +103,18 @@ export const SideViewCutsceneOverlay = ({ scene }: Props) => {
 										animate={oneShotAnimate}
 										transition={oneShotTransition}
 									>
-										<span key={actor.oneShotKey}>{actor.glyph}</span>
+										<span
+											key={actor.oneShotKey}
+											style={{
+												display: "inline-block",
+												transform:
+													actor.scale && actor.scale !== 1
+														? `scale(${actor.scale})`
+														: undefined,
+											}}
+										>
+											{actor.glyph}
+										</span>
 									</motion.div>
 								);
 							})}
@@ -130,6 +152,7 @@ export const SideViewCutsceneOverlay = ({ scene }: Props) => {
 				<div className='sideview-cutscene-hud'>
 					<div
 						className={`sideview-cutscene-next${scene.readyArrowVisible ? "" : " is-hidden"}`}
+						onClick={onOk}
 					>
 						<span className='sideview-cutscene-next-label'>OK</span>
 						<span className='sideview-cutscene-next-arrow'>{"\u{27A1}\u{FE0F}"}</span>

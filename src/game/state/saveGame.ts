@@ -6,6 +6,11 @@ import { defaultTownNpcNames } from "../world/npcs";
 
 export const SAVE_GAME_VERSION = 2;
 
+const formatNewGameDate = (date: Date): string => {
+	const pad = (value: number) => String(value).padStart(2, "0");
+	return `${pad(date.getFullYear() % 100)}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+};
+
 export type SaveGameData = {
 	version: number;
 	gameState: GameState;
@@ -23,6 +28,10 @@ export const fromSaveGameData = (save: SaveGameData): GameState => {
 	const migrated = {
 		...state,
 		playerName: state.playerName?.trim() || "Player",
+		newGameDate:
+			typeof state.newGameDate === "string" && /^\d{6}$/.test(state.newGameDate)
+				? state.newGameDate
+				: formatNewGameDate(new Date()),
 		townNpcNames: {
 			...defaultTownNpcNames,
 			...(state.townNpcNames ?? {}),
@@ -39,6 +48,7 @@ export const fromSaveGameData = (save: SaveGameData): GameState => {
 			...(state.progressStoneAlgorithmCounts ?? {}),
 		},
 		progressLoadoutRows: state.progressLoadoutRows ?? makeEmptyProgressLoadoutRows(),
+		townTourSeen: state.townTourSeen ?? false,
 		highestForestLevelReached: Math.max(1, state.highestForestLevelReached ?? state.forestLevel ?? 1),
 		highestCaveLevelReached: Math.max(1, state.highestCaveLevelReached ?? state.caveLevel ?? 1),
 	};

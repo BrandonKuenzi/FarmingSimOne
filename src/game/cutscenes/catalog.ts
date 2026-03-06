@@ -916,6 +916,384 @@ export const buildMidGameBonusCutscene = (args: {
 	],
 });
 
+export const buildCowMilkingBonusCutscene = (args: {
+	playerGlyph: string;
+	itemLabel: string;
+}): SideViewCutscene => ({
+	id: "a_dairy_good_surprise",
+	variables: {
+		ITEM_NAME: args.itemLabel,
+	},
+	subScenes: [
+		{
+			id: "cow_milk_bonus",
+			map: {
+				...getSideViewBackground("farm"),
+			},
+			actors: [
+				{ id: "cow", glyph: GLYPH_COW, x: 5, y: 4 },
+				{ id: "player", glyph: args.playerGlyph, x: 6, y: 4 },
+			],
+			bgm: "space_store",
+			inputLockMs: 6000,
+			frames: [
+				{
+					durationMs: 3000,
+					autoProgress: true,
+					storyText: "Oh! What is this!?!",
+					actions: [
+						{
+							type: "animation",
+							targetActorId: "cow",
+							animation: "bobbleLooping",
+						},
+						{
+							type: "toast",
+							targetActorId: "player",
+							message: "!",
+							durationMs: 2000,
+							delayMs: 1000,
+						},
+					],
+				},
+				{
+					durationMs: 3000,
+					autoProgress: true,
+					storyText:
+						"A {{ITEM_NAME}} came out of the cow's utter with the milk!",
+					actions: [
+						{ type: "sfx", sfxId: "reward" },
+						{
+							type: "animation",
+							targetActorId: "cow",
+							animation: "bobbleLooping",
+						},
+						{
+							type: "animation",
+							targetActorId: "player",
+							animation: "bobbleLooping",
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+export const buildSheepWoolBonusCutscene = (args: {
+	playerGlyph: string;
+	itemLabel: string;
+}): SideViewCutscene => ({
+	id: "sheer_delight",
+	variables: {
+		ITEM_NAME: args.itemLabel,
+	},
+	subScenes: [
+		{
+			id: "sheep_wool_bonus",
+			map: {
+				...getSideViewBackground("farm"),
+			},
+			actors: [
+				{ id: "sheep", glyph: GLYPH_SHEEP, x: 5, y: 4 },
+				{ id: "player", glyph: args.playerGlyph, x: 6, y: 4 },
+			],
+			bgm: "space_store",
+			inputLockMs: 6000,
+			frames: [
+				{
+					durationMs: 3000,
+					autoProgress: true,
+					storyText: "Oh! What is this!?!",
+					actions: [
+						{
+							type: "animation",
+							targetActorId: "sheep",
+							animation: "bobbleLooping",
+						},
+						{
+							type: "toast",
+							targetActorId: "player",
+							message: "!",
+							durationMs: 2000,
+							delayMs: 1000,
+						},
+					],
+				},
+				{
+					durationMs: 3000,
+					autoProgress: true,
+					storyText: "There was a {{ITEM_NAME}} stuck in the sheeps wool!",
+					actions: [
+						{ type: "sfx", sfxId: "reward" },
+						{
+							type: "animation",
+							targetActorId: "sheep",
+							animation: "bobbleLooping",
+						},
+						{
+							type: "animation",
+							targetActorId: "player",
+							animation: "bobbleLooping",
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+export const buildHoeGrassBonusCutscene = (args: {
+	playerGlyph: string;
+	itemLabel: string;
+}): SideViewCutscene => ({
+	id: "looky_here",
+	variables: {
+		REWARD_NAME: args.itemLabel,
+	},
+	subScenes: [
+		{
+			id: "hoe_grass_bonus",
+			map: {
+				...getSideViewBackground("farm"),
+			},
+			actors: [
+				{ id: "spark", glyph: GLYPH_SPARK, x: 5, y: 5 },
+				{ id: "player", glyph: args.playerGlyph, x: 6, y: 4 },
+			],
+			bgm: "space_store",
+			inputLockMs: 6000,
+			frames: [
+				{
+					durationMs: 3000,
+					autoProgress: true,
+					storyText: "Oh! What is this!?!",
+					actions: [
+						{
+							type: "animation",
+							targetActorId: "spark",
+							animation: "bobbleLooping",
+						},
+						{
+							type: "animation",
+							targetActorId: "spark",
+							animation: "moveUp",
+							tiles: 1,
+							seconds: 2,
+						},
+						{
+							type: "toast",
+							targetActorId: "player",
+							message: "!",
+							durationMs: 2000,
+							delayMs: 1000,
+						},
+					],
+				},
+				{
+					durationMs: 3000,
+					autoProgress: true,
+					storyText: "You unearthed a {{REWARD_NAME}}!",
+					actions: [
+						{ type: "sfx", sfxId: "reward" },
+						{
+							type: "animation",
+							targetActorId: "spark",
+							animation: "bobbleLooping",
+						},
+						{
+							type: "animation",
+							targetActorId: "player",
+							animation: "bobbleLooping",
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+export const buildBruisesInTheForestCutscene = (): SideViewCutscene => ({
+	id: "bruises_in_the_forest",
+	subScenes: [
+		{
+			id: "forest_bruises",
+			map: {
+				...getSideViewBackground("farm"),
+			},
+			actors: [
+				{ id: "tree_1", glyph: GLYPH_DECIDUOUS_TREE, x: 7, y: 4 },
+				{ id: "tree_2", glyph: GLYPH_DECIDUOUS_TREE, x: 8, y: 4 },
+				{ id: "tree_3", glyph: GLYPH_DECIDUOUS_TREE, x: 9, y: 4 },
+				{ id: "tree_4", glyph: GLYPH_DECIDUOUS_TREE, x: 10, y: 4 },
+				{ id: "tree_5", glyph: GLYPH_DECIDUOUS_TREE, x: 11, y: 4 },
+				{ id: "player", glyph: "\u{1F915}", x: 12, y: 4 },
+			],
+			bgm: "space_store",
+			inputLockMs: 4000,
+			frames: [
+				{
+					durationMs: 4000,
+					autoProgress: true,
+					actions: [
+						{
+							type: "animation",
+							targetActorId: "player",
+							animation: "moveLeft",
+							tiles: 7,
+							seconds: 0.5,
+						},
+						{
+							type: "sfx",
+							sfxId: "hoe",
+						},
+						{
+							type: "toast",
+							targetActorId: "tree_1",
+							message: "And stay out!",
+							durationMs: 2000,
+							delayMs: 2000,
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+export const buildYouCavedUnderPressureCutscene = (): SideViewCutscene => ({
+	id: "you_caved_under_pressure",
+	subScenes: [
+		{
+			id: "cave_bruises",
+			map: {
+				...getSideViewBackground("farm"),
+			},
+			actors: [
+				{
+					id: "cave-0",
+					glyph: "\u25A0",
+					x: 0,
+					y: 4,
+					fg: "#111",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-1",
+					glyph: "\u25A0",
+					x: 1,
+					y: 4,
+					fg: "#222",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-2",
+					glyph: "\u25A0",
+					x: 0,
+					y: 3,
+					fg: "#222",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-3",
+					glyph: "\u25A0",
+					x: 1,
+					y: 3,
+					fg: "#333",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-4",
+					glyph: "\u25A0",
+					x: 2,
+					y: 3,
+					fg: "#111",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-5",
+					glyph: "\u25A0",
+					x: 0,
+					y: 2,
+					fg: "#333",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-6",
+					glyph: "\u25A0",
+					x: 1,
+					y: 2,
+					fg: "#111",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-7",
+					glyph: "\u25A0",
+					x: 2,
+					y: 2,
+					fg: "#222",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-8",
+					glyph: "\u25A0",
+					x: 0,
+					y: 1,
+					fg: "#111",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{
+					id: "cave-9",
+					glyph: "\u25A0",
+					x: 1,
+					y: 1,
+					fg: "#222",
+					zIndex: 20,
+					scale: 2.8,
+				},
+				{ id: "player", glyph: "\u{1F915}", x: -1, y: 4 },
+			],
+			bgm: "space_store",
+			inputLockMs: 4000,
+			frames: [
+				{
+					durationMs: 4000,
+					autoProgress: true,
+					actions: [
+						{
+							type: "animation",
+							targetActorId: "player",
+							animation: "moveRight",
+							tiles: 6,
+							seconds: 0.5,
+						},
+						{
+							type: "sfx",
+							sfxId: "hoe",
+						},
+						{
+							type: "toast",
+							targetActorId: "cave-0",
+							message: "And stay out!",
+							durationMs: 2000,
+							delayMs: 2000,
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
 export const buildEndGameSummaryCutscene = (args: {
 	days: number;
 	totalEarned: number;

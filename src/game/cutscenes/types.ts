@@ -1,6 +1,7 @@
 import type { ItemId } from "../shared/types";
 
 export type SideViewBgmId =
+	| "none"
 	| "area_default"
 	| "farm"
 	| "town"
@@ -133,6 +134,7 @@ export type SideViewActorDef = {
 	y: number;
 	zIndex?: number;
 	fg?: string;
+	scale?: number;
 };
 
 export type SideViewSubScene = {

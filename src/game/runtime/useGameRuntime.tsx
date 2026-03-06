@@ -279,9 +279,14 @@ import { useWorldSimulation } from "./worldSimulation";
 import {
 	applyFrameActionsToRuntime,
 	buildBackgroundExampleCutscene,
+	buildBruisesInTheForestCutscene,
+	buildCowMilkingBonusCutscene,
 	buildEndGameSummaryCutscene,
+	buildHoeGrassBonusCutscene,
 	buildMidGameBonusCutscene,
 	buildNewGameRulesCutscene,
+	buildSheepWoolBonusCutscene,
+	buildYouCavedUnderPressureCutscene,
 	collectRemainingFrameRewards,
 	compileSideViewCutscene,
 	createInitialRuntimeActors,
@@ -453,9 +458,9 @@ const MANUAL_ZOOM_LEVELS = [
 	MANUAL_ZOOM_MAX,
 ] as const;
 const DIRECTOR_DEFAULT_FOCUS_ZOOM = MANUAL_ZOOM_MAX + 0.25;
-const DIRECTOR_NAV_DURATION_MS = 1000;
-const DIRECTOR_RETURN_DURATION_MS = 1000;
-const DIRECTOR_RETURN_SETTLE_MS = 180;
+const DIRECTOR_NAV_DURATION_MS = 900;
+const DIRECTOR_RETURN_DURATION_MS = 900;
+const DIRECTOR_RETURN_SETTLE_MS = 580;
 const MOBILE_JOYSTICK_DEADZONE_PX = 14;
 const MOBILE_JOYSTICK_MAX_RADIUS_PX = 42;
 
@@ -481,49 +486,20 @@ const savarioLines = [
 	"I pulled up your save file, it's down below.",
 	"Your save file is just outside the office.",
 ] as const;
-const saveFileNameA = [
-	"DontHackThisFile",
-	"EditMeAtYourOwnRisk",
-	"SuperEncryptedSaveFile",
-	"TotallyUntamperableData",
-	"CommitteeApprovedProgress",
-	"DefinitelyNotJustJson",
-	"BureaucraticallySealedSave",
-	"LegallyDistinctBackupPlan",
-	"FinePrintIncludedSave",
-	"NotSuspiciousAtAll",
-	"PleaseDontOpenInNotepad",
-	"DefinitelyNoCheatsInside",
-	"ProductivitySimulationArchive",
-	"ExtremelyOfficialDocument",
-	"TaxCompliantTurnipLedger",
-	"FarmerNumberSevenReport",
-	"HighlyClassifiedPotatoes",
-	"UnreasonablyNormalDataFile",
-	"ArchiveOfQuestionableChoices",
-	"ProgressBarEvidence",
-	"CommitteeEyesOnly",
-	"DoNotFeedAfterMidnight",
-	"TotallyBalancedGameState",
-	"OopsAllJsonAgain",
-	"VerySecureTrustMe",
-	"AuditFriendlyAdventureLog",
-	"LegitSaveNoReally",
-	"PermitPendingSave",
-	"RiskAssessedRuralData",
-	"EmergencyTurnipProtocol",
-] as const;
-
-const formatSaveTimestamp = (date: Date): string => {
+const formatNewGameDate = (date: Date): string => {
 	const pad = (value: number) => String(value).padStart(2, "0");
-	return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+	return `${pad(date.getFullYear() % 100)}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
 };
 
-const randomSaveFilePrefix = () =>
-	saveFileNameA[Math.floor(Math.random() * saveFileNameA.length)]!;
+const sanitizeSaveToken = (value: string): string => {
+	const normalized = value.trim().replace(/\s+/g, "_");
+	const cleaned = normalized.replace(/[<>:"/\\|?*\x00-\x1F]/g, "");
+	return cleaned || "Player";
+};
 
 type GameRuntimeBootOptions = {
 	bootSaveJson?: string | null;
+	newGameDate?: string | null;
 };
 
 type PendingFishingReward = {
@@ -531,9 +507,15 @@ type PendingFishingReward = {
 	fishName: string;
 	fishGlyph: string;
 };
+type PendingFishingBonusReward =
+	| { kind: "item"; itemId: ItemId }
+	| { kind: "money"; amount: number }
+	| { kind: "algorithm"; stoneId: ProgressAlgorithmId; label: string }
+	| { kind: "target"; stoneId: ProgressTargetId; label: string };
 
 export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const bootSaveJson = options?.bootSaveJson ?? null;
+	const bootNewGameDate = options?.newGameDate ?? null;
 	const shellRef = useRef<HTMLDivElement | null>(null);
 	const notificationRef = useRef<HTMLAudioElement | null>(null);
 	const farmMusicRef = useRef<HTMLAudioElement | null>(null);
@@ -591,6 +573,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const tiredFaceTimeoutRef = useRef<number | null>(null);
 	const petRunoverBadTimeoutRef = useRef<number | null>(null);
 	const forestHitTimeoutRef = useRef<number | null>(null);
+	const forestForcedEjectCutsceneQueuedRef = useRef(false);
+	const caveForcedEjectCutsceneQueuedRef = useRef(false);
 	const lastStoneHintPlayerPosRef = useRef<{
 		map: MapId;
 		x: number;
@@ -601,6 +585,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const orderRewardTimeoutRef = useRef<number | null>(null);
 	const savarioResponseTimeoutRef = useRef<number | null>(null);
 	const pendingFishingRewardRef = useRef<PendingFishingReward | null>(null);
+	const pendingFishingBonusRewardRef = useRef<PendingFishingBonusReward | null>(
+		null,
+	);
+	const pendingCowMilkingCutsceneRewardRef =
+		useRef<PendingFishingBonusReward | null>(null);
+	const pendingSheepShearingCutsceneRewardRef =
+		useRef<PendingFishingBonusReward | null>(null);
+	const pendingHoeGrassCutsceneRewardRef =
+		useRef<PendingFishingBonusReward | null>(null);
 	const cafeObservationIntervalRef = useRef<number | null>(null);
 	const doctorProcessTimeoutRef = useRef<number | null>(null);
 	const doctorRewardTimeoutRef = useRef<number | null>(null);
@@ -759,6 +752,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				previousDayEarned: 0,
 				totalEarned: 0,
 				playerName: "Player",
+				newGameDate:
+					bootNewGameDate && /^\d{6}$/.test(bootNewGameDate)
+						? bootNewGameDate
+						: formatNewGameDate(new Date()),
 				playerEmoji: starterWardrobeLooks[0],
 				showTiredFace: false,
 				showForestHit: false,
@@ -826,6 +823,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				cafeObservation: "",
 				isDoctorCompounding: false,
 				doctorObservation: "",
+				townTourSeen: false,
 				clouds: [],
 				grassWindBands: [],
 				animalTiles: {},
@@ -1030,6 +1028,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		cafeObservation,
 		isDoctorCompounding,
 		doctorObservation,
+		townTourSeen,
 		clouds,
 		grassWindBands,
 		animalTiles,
@@ -1062,6 +1061,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const bootSaveHandledRef = useRef(false);
 	const audioEngineInitializedRef = useRef(false);
 	const directorRunningRef = useRef(false);
+	const townTourRunningRef = useRef(false);
 	const directorConfirmRef = useRef<(() => void) | null>(null);
 	const directorTimersRef = useRef<number[]>([]);
 	const sideViewFrameTimeoutRef = useRef<number | null>(null);
@@ -1244,6 +1244,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setCafeObservation = setForKey("cafeObservation");
 	const setIsDoctorCompounding = setForKey("isDoctorCompounding");
 	const setDoctorObservation = setForKey("doctorObservation");
+	const setTownTourSeen = setForKey("townTourSeen");
 	const setClouds = setForKey("clouds");
 	const setGrassWindBands = setForKey("grassWindBands");
 	const setAnimalTiles = setForKey("animalTiles");
@@ -1901,12 +1902,39 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		setFishing(null);
 		const pendingFishingReward = pendingFishingRewardRef.current;
 		pendingFishingRewardRef.current = null;
+		const pendingFishingBonusReward = pendingFishingBonusRewardRef.current;
+		pendingFishingBonusRewardRef.current = null;
 		if (pendingFishingReward) {
 			window.setTimeout(() => {
 				updateInventory(pendingFishingReward.itemId, 1, {
 					toastText: `+1 ${pendingFishingReward.fishGlyph} ${pendingFishingReward.fishName}`,
 				});
 			}, 80);
+		}
+		if (pendingFishingBonusReward) {
+			window.setTimeout(() => {
+				if (pendingFishingBonusReward.kind === "money") {
+					applyMoneyDelta(pendingFishingBonusReward.amount);
+					return;
+				}
+				if (pendingFishingBonusReward.kind === "item") {
+					updateInventory(pendingFishingBonusReward.itemId, 1);
+					return;
+				}
+				if (pendingFishingBonusReward.kind === "algorithm") {
+					grantProgressStone(
+						"algorithm",
+						pendingFishingBonusReward.stoneId,
+						pendingFishingBonusReward.label,
+					);
+					return;
+				}
+				grantProgressStone(
+					"target",
+					pendingFishingBonusReward.stoneId,
+					pendingFishingBonusReward.label,
+				);
+			}, 120);
 		}
 		if (!dayTransition && !modal) {
 			switchAreaMusic(getAreaMusicForMap(playerRef.current.map), true);
@@ -1943,6 +1971,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			if (!prev) return prev;
 			if (outcome !== "caught") {
 				pendingFishingRewardRef.current = null;
+				pendingFishingBonusRewardRef.current = null;
 			}
 			const message =
 				outcome === "caught"
@@ -1972,6 +2001,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const fishMeta = getFishItemMetaById(encounter.fishId);
 		if (!fishMeta) {
 			pendingFishingRewardRef.current = null;
+			pendingFishingBonusRewardRef.current = null;
 			addLog(
 				`Caught ${encounter.fishName}, but inventory item mapping is missing.`,
 			);
@@ -1982,6 +2012,100 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			fishName: fishMeta.name,
 			fishGlyph: fishMeta.glyph,
 		};
+	};
+	const rollFishingExtendedExitReward = (): PendingFishingBonusReward => {
+		const rewardKind = randomInt(0, 7);
+		if (rewardKind === 0) return { kind: "item", itemId: "iron" };
+		if (rewardKind === 1) return { kind: "item", itemId: "ruby" };
+		if (rewardKind === 2) return { kind: "money", amount: 1000 };
+		if (
+			rewardKind === 3 ||
+			rewardKind === 4 ||
+			rewardKind === 5 ||
+			rewardKind === 6
+		) {
+			const rarity: ProgressRarity =
+				rewardKind === 3
+					? "common"
+					: rewardKind === 4
+						? "uncommon"
+						: rewardKind === 5
+							? "rare"
+							: "legendary";
+			const pool = progressAlgorithmStones.filter(
+				(stone) => stone.rarity === rarity,
+			);
+			const stone = pool[randomInt(0, pool.length - 1)]!;
+			return {
+				kind: "algorithm",
+				stoneId: stone.id,
+				label: stone.name,
+			};
+		}
+		const targetStone =
+			progressTargetStones[randomInt(0, progressTargetStones.length - 1)]!;
+		return {
+			kind: "target",
+			stoneId: targetStone.id,
+			label: targetStone.name,
+		};
+	};
+	const getFishingExtendedExitRewardLabel = (
+		reward: PendingFishingBonusReward,
+	): string => {
+		if (reward.kind === "money") return "$1,000";
+		if (reward.kind === "item") return itemNames[reward.itemId];
+		return reward.label;
+	};
+	const startFishingExtendedExitOrEnd = (caughtFishing: FishingState) => {
+		const shouldRunExtendedExit = randomRoll() < 0.1;
+		if (!shouldRunExtendedExit) {
+			fishingResolveTimeoutRef.current = window.setTimeout(() => {
+				endFishing();
+			}, 2000);
+			return;
+		}
+		setFishing((prev) =>
+			prev
+				? {
+						...prev,
+						phase: "caught",
+						message: "Oh? What is this?",
+						showMenu: false,
+						openingStage: "ready",
+						playerAnim: null,
+						fishAnim: "defeat",
+						playerToasts: [],
+						fishToasts: [],
+					}
+				: prev,
+		);
+		fishingResolveTimeoutRef.current = window.setTimeout(() => {
+			const bonusReward = rollFishingExtendedExitReward();
+			pendingFishingBonusRewardRef.current = bonusReward;
+			const rewardLabel = getFishingExtendedExitRewardLabel(bonusReward);
+			const needsAn = /^[aeiou]/i.test(rewardLabel.trim());
+			const article = needsAn ? "an" : "a";
+			setFishing((prev) =>
+				prev
+					? {
+							...prev,
+							phase: "caught",
+							message: `There was ${article} ${rewardLabel} in the ${caughtFishing.fishName}'s oriface!`,
+							showMenu: false,
+							openingStage: "ready",
+							playerAnim: null,
+							fishAnim: "defeat",
+							playerToasts: [],
+							fishToasts: [],
+						}
+					: prev,
+			);
+			playGotReward();
+			fishingResolveTimeoutRef.current = window.setTimeout(() => {
+				endFishing();
+			}, 2000);
+		}, 2000);
 	};
 
 	const buildPlayerActionIntroText = (moveId: FishingPlayerMoveId) => {
@@ -2471,9 +2595,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				return;
 			}
 
-			fishingResolveTimeoutRef.current = window.setTimeout(() => {
-				endFishing();
-			}, 2000);
+			startFishingExtendedExitOrEnd(caughtFishing);
 		}, 2000);
 	};
 
@@ -2692,6 +2814,29 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			};
 		});
 	};
+	const previewFishingMoveById = (moveId: FishingPlayerMoveId) => {
+		setFishing((prev) => {
+			if (!prev || prev.phase !== "player_turn") return prev;
+			if (!fishingMoveUnlocks[moveId]) return prev;
+			const nextIndex = FISHING_PLAYER_MOVE_ORDER.indexOf(moveId);
+			if (nextIndex < 0 || nextIndex === prev.selectedMoveIndex) return prev;
+			return {
+				...prev,
+				selectedMoveIndex: nextIndex,
+			};
+		});
+	};
+	const previewFishingBuffChoiceByIndex = (choiceIndex: number) => {
+		setFishing((prev) => {
+			if (!prev || !prev.awaitingLevelUpBuffChoice) return prev;
+			const nextIndex = Math.max(0, Math.min(1, choiceIndex));
+			if (nextIndex === prev.selectedMoveIndex) return prev;
+			return {
+				...prev,
+				selectedMoveIndex: nextIndex,
+			};
+		});
+	};
 
 	const selectFishingLevelUpBuffChoice = (choiceIndex?: number) => {
 		if (
@@ -2766,9 +2911,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						}
 					: prev,
 			);
-			fishingResolveTimeoutRef.current = window.setTimeout(() => {
-				endFishing();
-			}, 2000);
+			startFishingExtendedExitOrEnd(fishing);
 		}, 2000);
 	};
 
@@ -2779,6 +2922,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const startFishing = (map: MapId, x: number, y: number) => {
 		clearFishingTimers();
 		pendingFishingRewardRef.current = null;
+		pendingFishingBonusRewardRef.current = null;
 		startFishingSequence({
 			map,
 			x,
@@ -2952,6 +3096,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		const beachTrack = beachAmbienceRef.current;
 		if (!beachTrack) return;
+		if (townTourRunningRef.current) {
+			stopTownBeachFade();
+			beachTrack.pause();
+			beachTrack.currentTime = 0;
+			if (seagullsSoundRef.current) {
+				seagullsSoundRef.current.pause();
+				seagullsSoundRef.current.currentTime = 0;
+			}
+			return;
+		}
 		if (beachPauseTimeoutRef.current !== null) {
 			window.clearTimeout(beachPauseTimeoutRef.current);
 			beachPauseTimeoutRef.current = null;
@@ -3261,6 +3415,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 		const rainy = currentWeather === "rainy";
 		const fullDistance = 108 + 14;
+		const cloudSpawnTopMinPct = 0;
+		const cloudSpawnTopMaxPct = 10;
 		const makeCloud = (spawnFromRight: boolean): CloudSprite => {
 			const startX = spawnFromRight
 				? 108 + randomRoll() * 12
@@ -3275,7 +3431,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return {
 				id: nextCloudIdRef.current++,
 				startX,
-				y: 4 + randomRoll() * 60,
+				y:
+					cloudSpawnTopMinPct +
+					randomRoll() * (cloudSpawnTopMaxPct - cloudSpawnTopMinPct),
 				size: rainy ? 1 + randomRoll() * 0.45 : 0.95 + randomRoll() * 0.35,
 				durationSec,
 				glyph: rainy ? GLYPH.rainCloud : GLYPH.cloud, // rainy cloud / cloud
@@ -4033,13 +4191,24 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			forestHitTimeoutRef.current = null;
 		}, 180);
 		setStamina((prev) => {
+			if (prev <= 0) return prev;
 			const next = Math.max(0, prev - amount);
 			if (next <= 0) {
 				setForestLockedToday(true);
 				setPlayer({ map: "farm", x: FARM_WIDTH - 2, y: FOREST_GATE_Y });
-				tileFxBusRef.current.api
-					.actor("player")
-					.toast("You got tired and woke up on your farm", 6000);
+				stopAreaFade();
+				if (currentAreaMusicRef.current) {
+					currentAreaMusicRef.current.pause();
+					currentAreaMusicRef.current.currentTime = 0;
+					currentAreaMusicRef.current = null;
+				}
+				if (!forestForcedEjectCutsceneQueuedRef.current) {
+					forestForcedEjectCutsceneQueuedRef.current = true;
+					window.setTimeout(() => {
+						enqueueSideViewCutscene(buildBruisesInTheForestCutscene());
+						forestForcedEjectCutsceneQueuedRef.current = false;
+					}, 0);
+				}
 			}
 			return next;
 		});
@@ -4675,6 +4844,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 	const clearLoadTransientState = () => {
 		clearFishingTimers();
+		pendingFishingRewardRef.current = null;
+		pendingFishingBonusRewardRef.current = null;
+		pendingCowMilkingCutsceneRewardRef.current = null;
+		pendingSheepShearingCutsceneRewardRef.current = null;
+		pendingHoeGrassCutsceneRewardRef.current = null;
 		stopBattleMusicLoop();
 		clearSideViewRuntimeTimers("clear_load_transient_state");
 		sideViewQueueRef.current = [];
@@ -4749,7 +4923,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			const url = URL.createObjectURL(blob);
 			const link = document.createElement("a");
 			link.href = url;
-			link.download = `${randomSaveFilePrefix()}-${formatSaveTimestamp(new Date())}.json`;
+			const playerToken = sanitizeSaveToken(gameState.playerName || "Player");
+			const newGameDateToken =
+				typeof gameState.newGameDate === "string" &&
+				/^\d{6}$/.test(gameState.newGameDate)
+					? gameState.newGameDate
+					: formatNewGameDate(new Date());
+			link.download = `${playerToken}${newGameDateToken}.json`;
 			document.body.appendChild(link);
 			link.click();
 			link.remove();
@@ -4777,6 +4957,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			...rawState,
 			playerName:
 				(rawState as Partial<GameState>).playerName?.trim() || "Player",
+			newGameDate:
+				typeof (rawState as Partial<GameState>).newGameDate === "string" &&
+				/^\d{6}$/.test((rawState as Partial<GameState>).newGameDate ?? "")
+					? ((rawState as Partial<GameState>).newGameDate as string)
+					: formatNewGameDate(new Date()),
 			townNpcNames: {
 				...defaultTownNpcNames,
 				...((rawState as Partial<GameState>).townNpcNames ?? {}),
@@ -4851,6 +5036,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			progressLoadoutRows:
 				(rawState as Partial<GameState>).progressLoadoutRows ??
 				makeEmptyProgressLoadoutRows(),
+			townTourSeen: (rawState as Partial<GameState>).townTourSeen ?? false,
 			highestForestLevelReached: Math.max(
 				rawState.forestLevel,
 				(rawState as Partial<GameState>).highestForestLevelReached ??
@@ -5010,13 +5196,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			forestHitTimeoutRef.current = null;
 		}, 180);
 		setStamina((prev) => {
+			if (prev <= 0) return prev;
 			const next = Math.max(0, prev - amount);
 			if (next <= 0) {
 				setCaveLockedToday(true);
 				setPlayer({ map: "farm", x: 1, y: CAVE_GATE_Y });
-				tileFxBusRef.current.api
-					.actor("player")
-					.toast("You got tired and woke up on your farm", 6000);
+				if (!caveForcedEjectCutsceneQueuedRef.current) {
+					caveForcedEjectCutsceneQueuedRef.current = true;
+					window.setTimeout(() => {
+						enqueueSideViewCutscene(buildYouCavedUnderPressureCutscene());
+						caveForcedEjectCutsceneQueuedRef.current = false;
+					}, 0);
+				}
 			}
 			return next;
 		});
@@ -5780,6 +5971,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const resolveSideViewTrack = (
 		bgm: SideViewBgmId | undefined,
 	): HTMLAudioElement | null => {
+		if (bgm === "none") return null;
 		if (!bgm || bgm === "area_default")
 			return getAreaMusicForMap(playerRef.current.map);
 		if (bgm === "farm") return farmMusicRef.current;
@@ -5907,6 +6099,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		clearSideViewRuntimeTimers("finish_cutscene");
 		if (resolved?.onCompleteRewards && resolved.onCompleteRewards.length > 0) {
 			applySideViewRewards(resolved.onCompleteRewards, "complete");
+		}
+		if (resolved?.id === "a_dairy_good_surprise") {
+			applyCowMilkingCutsceneReward();
+		} else if (resolved?.id === "sheer_delight") {
+			applySheepShearingCutsceneReward();
+		} else if (resolved?.id === "looky_here") {
+			applyHoeGrassCutsceneReward();
 		}
 		setSideViewRuntimeState(null);
 		setSideViewCutscenePending(false);
@@ -6234,39 +6433,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	}, [bootSaveJson, day]);
 
 	useEffect(() => {
-		if (day <= 1) return;
-		if (sideViewLastBonusDayRef.current === day) return;
-		sideViewLastBonusDayRef.current = day;
-		if (progressWon) return;
-		if (randomRoll() > 0.25) return;
-		const grantReward = randomRoll() < 0.6;
-		const rewardItemPool: ItemId[] = [
-			"turnip_seed",
-			"carrot_seed",
-			"pumpkin_seed",
-			"corn_seed",
-			"feed",
-		];
-		const bonusItem =
-			rewardItemPool[randomInt(0, rewardItemPool.length - 1)] ?? "turnip_seed";
-		const bonusItemName = itemNames[bonusItem] ?? bonusItem;
-		const bonusItemGlyph = itemIcons[bonusItem] ?? GLYPH.gift;
-		const scene = buildMidGameBonusCutscene({
-			title: grantReward ? "A good omen appears." : "A quiet scene passes by.",
-			rewardLabel: grantReward ? bonusItemName : undefined,
-			rewardGlyph: bonusItemGlyph,
-		});
-		if (grantReward) {
-			scene.onCompleteRewards = [
-				{
-					kind: "item",
-					itemId: bonusItem,
-					amount: 1,
-					label: `+1 ${bonusItemGlyph} ${bonusItemName}`,
-				},
-			];
-		}
-		enqueueSideViewCutscene(scene);
+		// Keep Mid-Game Bonus cutscene available via debug menu only.
+		// Automatic runtime trigger intentionally disabled.
+		return;
 	}, [day, progressWon]);
 
 	useEffect(() => {
@@ -6295,6 +6464,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		kind: "target" | "algorithm",
 		stoneId: ProgressTargetId | ProgressAlgorithmId,
 		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
 	) => {
 		if (kind === "target") {
 			setProgressStoneTargetCounts((prev) => ({
@@ -6329,8 +6499,172 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				},
 			};
 		}
-		addLog(`Found progress stone: ${label}.`);
-		tileFxBusRef.current.api.actor("player").toast(`+1 ${label}`, 5000);
+		if (!options?.suppressLog) {
+			addLog(`Found progress stone: ${label}.`);
+		}
+		if (!options?.suppressToast) {
+			tileFxBusRef.current.api.actor("player").toast(`+1 ${label}`, 5000);
+		}
+	};
+	const rollCowMilkingCutsceneReward = (): PendingFishingBonusReward => {
+		const roll = randomInt(0, 7);
+		if (roll === 0) return { kind: "money", amount: 500 };
+		if (roll === 1) return { kind: "item", itemId: "iron" };
+		if (roll === 2) return { kind: "item", itemId: "diamond" };
+		if (roll === 3 || roll === 4 || roll === 5 || roll === 6) {
+			const rarity: ProgressRarity =
+				roll === 3
+					? "common"
+					: roll === 4
+						? "uncommon"
+						: roll === 5
+							? "rare"
+							: "legendary";
+			const pool = progressAlgorithmStones.filter(
+				(stone) => stone.rarity === rarity,
+			);
+			const stone = pool[randomInt(0, pool.length - 1)]!;
+			return {
+				kind: "algorithm",
+				stoneId: stone.id,
+				label: stone.name,
+			};
+		}
+		const targetStone =
+			progressTargetStones[randomInt(0, progressTargetStones.length - 1)]!;
+		return {
+			kind: "target",
+			stoneId: targetStone.id,
+			label: targetStone.name,
+		};
+	};
+	const rollHoeGrassCutsceneReward = (): PendingFishingBonusReward => {
+		const roll = randomInt(0, 4);
+		if (roll <= 3) {
+			const rarity: ProgressRarity =
+				roll === 0
+					? "common"
+					: roll === 1
+						? "uncommon"
+						: roll === 2
+							? "rare"
+							: "legendary";
+			const pool = progressAlgorithmStones.filter(
+				(stone) => stone.rarity === rarity,
+			);
+			const stone = pool[randomInt(0, pool.length - 1)]!;
+			return {
+				kind: "algorithm",
+				stoneId: stone.id,
+				label: stone.name,
+			};
+		}
+		const targetStone =
+			progressTargetStones[randomInt(0, progressTargetStones.length - 1)]!;
+		return {
+			kind: "target",
+			stoneId: targetStone.id,
+			label: targetStone.name,
+		};
+	};
+	const formatCowMilkingCutsceneRewardName = (
+		reward: PendingFishingBonusReward,
+	): string => {
+		if (reward.kind === "money") return "$500";
+		if (reward.kind === "item")
+			return itemNames[reward.itemId] ?? reward.itemId;
+		return reward.label;
+	};
+	const applyCowMilkingCutsceneReward = () => {
+		const reward = pendingCowMilkingCutsceneRewardRef.current;
+		pendingCowMilkingCutsceneRewardRef.current = null;
+		if (!reward) return;
+		if (reward.kind === "money") {
+			applyMoneyDelta(reward.amount);
+			return;
+		}
+		if (reward.kind === "item") {
+			updateInventory(reward.itemId, 1);
+			return;
+		}
+		if (reward.kind === "algorithm") {
+			grantProgressStone("algorithm", reward.stoneId, reward.label, {
+				suppressLog: true,
+			});
+			return;
+		}
+		grantProgressStone("target", reward.stoneId, reward.label, {
+			suppressLog: true,
+		});
+	};
+	const applySheepShearingCutsceneReward = () => {
+		const reward = pendingSheepShearingCutsceneRewardRef.current;
+		pendingSheepShearingCutsceneRewardRef.current = null;
+		if (!reward) return;
+		if (reward.kind === "money") {
+			applyMoneyDelta(reward.amount);
+			return;
+		}
+		if (reward.kind === "item") {
+			updateInventory(reward.itemId, 1);
+			return;
+		}
+		if (reward.kind === "algorithm") {
+			grantProgressStone("algorithm", reward.stoneId, reward.label);
+			return;
+		}
+		grantProgressStone("target", reward.stoneId, reward.label);
+	};
+	const applyHoeGrassCutsceneReward = () => {
+		const reward = pendingHoeGrassCutsceneRewardRef.current;
+		pendingHoeGrassCutsceneRewardRef.current = null;
+		if (!reward) return;
+		if (reward.kind === "money") {
+			applyMoneyDelta(reward.amount);
+			return;
+		}
+		if (reward.kind === "item") {
+			updateInventory(reward.itemId, 1);
+			return;
+		}
+		if (reward.kind === "algorithm") {
+			grantProgressStone("algorithm", reward.stoneId, reward.label);
+			return;
+		}
+		grantProgressStone("target", reward.stoneId, reward.label);
+	};
+	const maybeTriggerManualCowMilkingCutscene = () => {
+		if (randomRoll() >= 1 / 50) return;
+		const reward = rollCowMilkingCutsceneReward();
+		pendingCowMilkingCutsceneRewardRef.current = reward;
+		enqueueSideViewCutscene(
+			buildCowMilkingBonusCutscene({
+				playerGlyph: playerEmoji,
+				itemLabel: formatCowMilkingCutsceneRewardName(reward),
+			}),
+		);
+	};
+	const maybeTriggerManualSheepShearingCutscene = () => {
+		if (randomRoll() >= 1 / 50) return;
+		const reward = rollCowMilkingCutsceneReward();
+		pendingSheepShearingCutsceneRewardRef.current = reward;
+		enqueueSideViewCutscene(
+			buildSheepWoolBonusCutscene({
+				playerGlyph: playerEmoji,
+				itemLabel: formatCowMilkingCutsceneRewardName(reward),
+			}),
+		);
+	};
+	const maybeTriggerManualGrassHoeCutscene = () => {
+		if (randomRoll() >= 1 / 75) return;
+		const reward = rollHoeGrassCutsceneReward();
+		pendingHoeGrassCutsceneRewardRef.current = reward;
+		enqueueSideViewCutscene(
+			buildHoeGrassBonusCutscene({
+				playerGlyph: playerEmoji,
+				itemLabel: formatCowMilkingCutsceneRewardName(reward),
+			}),
+		);
 	};
 	const debugGrantAllProgressStones = () => {
 		setProgressStoneTargetCounts((prev) => {
@@ -7029,6 +7363,40 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						favoriteLine: "Debug summary playback.",
 					}),
 			},
+			{
+				id: "a_dairy_good_surprise",
+				label: "A Dairy Good Surprise!",
+				build: () => {
+					const reward = rollCowMilkingCutsceneReward();
+					pendingCowMilkingCutsceneRewardRef.current = reward;
+					return buildCowMilkingBonusCutscene({
+						playerGlyph: playerEmoji,
+						itemLabel: formatCowMilkingCutsceneRewardName(reward),
+					});
+				},
+			},
+			{
+				id: "sheer_delight",
+				label: "Sheer Delight!",
+				build: () => {
+					const reward = rollCowMilkingCutsceneReward();
+					pendingSheepShearingCutsceneRewardRef.current = reward;
+					return buildSheepWoolBonusCutscene({
+						playerGlyph: playerEmoji,
+						itemLabel: formatCowMilkingCutsceneRewardName(reward),
+					});
+				},
+			},
+			{
+				id: "bruises_in_the_forest",
+				label: "Bruises in the Forest",
+				build: () => buildBruisesInTheForestCutscene(),
+			},
+			{
+				id: "you_caved_under_pressure",
+				label: "You Caved Under Pressure",
+				build: () => buildYouCavedUnderPressureCutscene(),
+			},
 			...backgroundDebugScenes,
 		];
 
@@ -7319,7 +7687,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const clampDirectorZoom = (zoom: number | undefined): number => {
 		const chosen = zoom ?? DIRECTOR_DEFAULT_FOCUS_ZOOM;
-		return Math.max(1, Math.min(2.5, Math.round(chosen * 100) / 100));
+		if (!Number.isFinite(chosen)) return DIRECTOR_DEFAULT_FOCUS_ZOOM;
+		return Math.max(1, Math.round(chosen * 100) / 100);
 	};
 
 	const buildUpgradeSceneChain = (events: UpgradeSceneEvent[]) =>
@@ -7671,6 +8040,172 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		isSaveLoadMenuOpen,
 		mapDoors,
 	]);
+
+	useEffect(() => {
+		if (townTourSeen) return;
+		if (player.map !== "town") return;
+		if (dayTransition || modal || isSaveLoadMenuOpen) return;
+		if (directorRunningRef.current) return;
+
+		const townTourShots: Array<{
+			focus: { x: number; y: number };
+			message: string;
+			zoom?: number;
+		}> = [
+			{
+				focus: { x: 27, y: 1 },
+				message: "Welcome to town! Let's give you a quick tour!",
+				zoom: 2,
+			},
+			{
+				focus: { x: 22, y: 8 },
+				message:
+					"Here in town you will find shops that will help you on your quest!",
+				zoom: 4.35,
+			},
+			{
+				focus: { x: 33, y: 8 },
+				message:
+					"This one, for instance, is where you can upgrade tools and farm equipment.",
+				zoom: 5,
+			},
+			{
+				focus: { x: 51, y: 7 },
+				message: "Sell your harvest here to make money!",
+				zoom: 8,
+			},
+			{
+				focus: { x: 26, y: 13 },
+				message:
+					"Sometimes valuables will wash up on the beach. Keep an eye out for that!",
+				zoom: 4,
+			},
+			{
+				focus: { x: 2, y: 3 },
+				message: "Finally, the most important building in town!",
+				zoom: 8,
+			},
+			{
+				focus: { x: 2, y: 3 },
+				message:
+					"This purple building is where you use your PROGRESS STONES to help you beat the game.",
+				zoom: 8,
+			},
+			{
+				focus: { x: 2, y: 3 },
+				message:
+					"Definitely stop by and drop your PROGRESS STONES off here ASAP.",
+				zoom: 8,
+			},
+		];
+
+		directorRunningRef.current = true;
+		townTourRunningRef.current = true;
+		let cancelled = false;
+		const beachTrack = beachAmbienceRef.current;
+		const seagullsTrack = seagullsSoundRef.current;
+		const prevBeachMuted = beachTrack?.muted ?? false;
+		const prevSeagullsMuted = seagullsTrack?.muted ?? false;
+		const restoreTownTourAmbientMute = () => {
+			if (beachTrack) {
+				beachTrack.muted = prevBeachMuted;
+			}
+			if (seagullsTrack) {
+				seagullsTrack.muted = prevSeagullsMuted;
+			}
+		};
+		const stopAllAreaTracksExcept = (keep: HTMLAudioElement | null) => {
+			const tracks = [
+				farmMusicRef.current,
+				townMusicRef.current,
+				houseMusicRef.current,
+				forestMusicRef.current,
+				caveMusicRef.current,
+				computerLabMusicRef.current,
+				bureaucracyMusicRef.current,
+				cafeOrderMusicRef.current,
+				endOfDayRef.current,
+				beachAmbienceRef.current,
+			];
+			tracks.forEach((track) => {
+				if (!track || track === keep) return;
+				track.pause();
+				track.currentTime = 0;
+			});
+		};
+		void (async () => {
+			setPauseGame(true);
+			setDirectorInputLocked(true);
+			setCloudOverlayVisible(false);
+			stopTownBeachFade();
+			if (beachTrack) {
+				beachTrack.muted = true;
+				beachTrack.pause();
+				beachTrack.currentTime = 0;
+			}
+			if (seagullsTrack) {
+				seagullsTrack.muted = true;
+				seagullsTrack.pause();
+				seagullsTrack.currentTime = 0;
+			}
+			stopAllAreaTracksExcept(townMusicRef.current);
+			switchAreaMusic(townMusicRef.current, true);
+			for (const shot of townTourShots) {
+				if (cancelled) return;
+				setMapZoom(clampDirectorZoom(shot.zoom));
+				setCameraTarget({
+					map: "town",
+					x: shot.focus.x,
+					y: shot.focus.y,
+					smooth: true,
+					durationMs: DIRECTOR_NAV_DURATION_MS,
+				});
+				await waitDirector(DIRECTOR_NAV_DURATION_MS);
+				if (cancelled) return;
+				await awaitDirectorPopupConfirm(shot.message);
+				if (cancelled) return;
+			}
+			const playerNow = playerRef.current;
+			setMapZoom(DEFAULT_MAP_ZOOM);
+			setCameraTarget({
+				map: playerNow.map,
+				x: playerNow.x,
+				y: playerNow.y,
+				smooth: true,
+				durationMs: DIRECTOR_RETURN_DURATION_MS,
+			});
+			await waitDirector(DIRECTOR_RETURN_DURATION_MS);
+			if (cancelled) return;
+			await waitDirector(DIRECTOR_RETURN_SETTLE_MS);
+			if (cancelled) return;
+			setCameraTarget(null);
+			setDirectorPopup(null);
+			setDirectorInputLocked(false);
+			setCloudOverlayVisible(true);
+			setPauseGame(false);
+			setTownTourSeen(true);
+			townTourRunningRef.current = false;
+			directorRunningRef.current = false;
+			restoreTownTourAmbientMute();
+		})().catch(() => {
+			setDirectorPopup(null);
+			setDirectorInputLocked(false);
+			setCloudOverlayVisible(true);
+			setCameraTarget(null);
+			setMapZoom(DEFAULT_MAP_ZOOM);
+			setPauseGame(false);
+			townTourRunningRef.current = false;
+			directorRunningRef.current = false;
+			restoreTownTourAmbientMute();
+		});
+
+		return () => {
+			cancelled = true;
+			townTourRunningRef.current = false;
+			restoreTownTourAmbientMute();
+			setCloudOverlayVisible(true);
+		};
+	}, [townTourSeen, player.map, dayTransition, modal, isSaveLoadMenuOpen]);
 
 	const stopBathing = (line?: string) => {
 		if (!isBathing) return;
@@ -8254,6 +8789,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			aquariumCuratorTile,
 			interactAquariumCurator,
 			onProgressEvent: emitProgressEvent,
+			onManualCowMilked: maybeTriggerManualCowMilkingCutscene,
+			onManualSheepSheared: maybeTriggerManualSheepShearingCutscene,
+			onManualGrassHoed: maybeTriggerManualGrassHoeCutscene,
 			maybeGrantChestProgressStone,
 			grantProgressStone,
 		};
@@ -8434,6 +8972,11 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 	const onInputBlur = () => {
 		clearHeldMove();
+	};
+	const onSideViewCutsceneOk = () => {
+		inputRouter.dispatchCommand("OK", {
+			sourceKey: "__sideview_ok_button__",
+		});
 	};
 
 	const dispatchMobileMoveCommand = (dir: Dir) => {
@@ -8852,6 +9395,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		fishingProgress,
 		moveFishingSelection,
 		moveFishingBuffSelection,
+		previewFishingMoveById,
+		previewFishingBuffChoiceByIndex,
 		selectFishingMove,
 		selectFishingLevelUpBuffChoice,
 		selectFishingMoveById,
@@ -8946,6 +9491,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		confirmDirectorPopup,
 		sideViewCutscene,
 		sideViewCutscenePending,
+		sideViewCutsceneOk: onSideViewCutsceneOk,
 		tileFx: tileFxBusRef.current.api,
 		tileFxBus: tileFxBusRef.current,
 	});

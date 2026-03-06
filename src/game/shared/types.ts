@@ -389,6 +389,7 @@ export type CloudSprite = {
 
 export type SketchyStockEntry = {
 	item: ItemId;
+	giveAlgorithmStoneId?: ProgressAlgorithmId;
 	qty: number;
 	price: number;
 	basePrice: number;
@@ -398,6 +399,7 @@ export type TraderTradeEntry = {
 	id: number;
 	giveItem: ItemId;
 	wantItem: ItemId;
+	giveAlgorithmStoneId?: ProgressAlgorithmId;
 	remaining: number;
 };
 

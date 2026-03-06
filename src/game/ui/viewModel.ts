@@ -81,6 +81,8 @@ export type GameRuntimeViewModel = {
 	fishingProgress: FishingProgressState;
 	moveFishingSelection: (delta: number) => void;
 	moveFishingBuffSelection: (delta: number) => void;
+	previewFishingMoveById: (moveId: FishingPlayerMoveId) => void;
+	previewFishingBuffChoiceByIndex: (choiceIndex: number) => void;
 	selectFishingMove: () => void;
 	selectFishingLevelUpBuffChoice: (choiceIndex?: number) => void;
 	selectFishingMoveById: (moveId: FishingPlayerMoveId) => void;
@@ -195,6 +197,7 @@ export type GameRuntimeViewModel = {
 	confirmDirectorPopup: () => void;
 	sideViewCutscene: SideViewSceneRuntime | null;
 	sideViewCutscenePending: boolean;
+	sideViewCutsceneOk: () => void;
 	tileFx: TileFxApi;
 	tileFxBus: TileFxBus;
 };

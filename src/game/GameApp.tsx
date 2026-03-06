@@ -198,14 +198,21 @@ const titleC = [
 const pick = <T,>(items: readonly T[]) =>
 	items[Math.floor(Math.random() * items.length)]!;
 
-function RuntimeHost({ bootSaveJson }: { bootSaveJson: string | null }) {
-	return useGameRuntime({ bootSaveJson });
+function RuntimeHost({
+	bootSaveJson,
+	newGameDate,
+}: {
+	bootSaveJson: string | null;
+	newGameDate: string | null;
+}) {
+	return useGameRuntime({ bootSaveJson, newGameDate });
 }
 
 export default function GameApp() {
 	const [started, setStarted] = useState(false);
 	const [startMode, setStartMode] = useState<"new" | "load">("new");
 	const [bootSaveJson, setBootSaveJson] = useState<string | null>(null);
+	const [newGameDate, setNewGameDate] = useState<string | null>(null);
 	const [runtimeSessionId, setRuntimeSessionId] = useState(0);
 	const [titleError, setTitleError] = useState<string | null>(null);
 	const title = useMemo(
@@ -213,11 +220,16 @@ export default function GameApp() {
 		[],
 	);
 	const titleStars = useMemo(() => createDayTransitionStars(), []);
+	const formatNewGameDate = (date: Date): string => {
+		const pad = (value: number) => String(value).padStart(2, "0");
+		return `${pad(date.getFullYear() % 100)}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+	};
 
 	const startNewGame = () => {
 		setTitleError(null);
 		setStartMode("new");
 		setBootSaveJson(null);
+		setNewGameDate(formatNewGameDate(new Date()));
 		setRuntimeSessionId((prev) => prev + 1);
 		setStarted(true);
 	};
@@ -239,6 +251,7 @@ export default function GameApp() {
 					setTitleError(null);
 					setStartMode("load");
 					setBootSaveJson(text);
+					setNewGameDate(null);
 					setRuntimeSessionId((prev) => prev + 1);
 					setStarted(true);
 				})
@@ -303,6 +316,7 @@ export default function GameApp() {
 		<RuntimeHost
 			key={runtimeSessionId}
 			bootSaveJson={bootSaveJson}
+			newGameDate={newGameDate}
 		/>
 	);
 }
