@@ -1,6 +1,8 @@
 import type { SetStateAction } from "react";
 import type { NpcDailyAssignment } from "../../npcDialogue";
 import type { DayTransitionStar } from "../content/dayTransition";
+import type { NPCInterest } from "../content/npcDialog";
+import type { StatisticsState } from "../statistics/statistics";
 import type {
 	Animal,
 	AquariumDonationInventory,
@@ -18,6 +20,7 @@ import type {
 	ItemId,
 	MapId,
 	ModalState,
+	NpcGiftLetterState,
 	PetEmoji,
 	Plot,
 	Point,
@@ -144,7 +147,10 @@ export type GameState = {
 	petTile: Point | null;
 	petFacing: 1 | -1;
 	petHeartTile: Point | null;
+	npcGiftLetter: NpcGiftLetterState | null;
 	townNpcNames: Record<string, string>;
+	townNpcInterests: Record<string, NPCInterest>;
+	townNpcGlyphs: Record<string, string>;
 	townNpcTiles: TownNpcTileMap;
 	boatTiles: BoatTileMap;
 	npcDailyAssignments: Record<string, NpcDailyAssignment>;
@@ -182,6 +188,7 @@ export type GameState = {
 	progressLoadoutRows: [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow];
 	highestForestLevelReached: number;
 	highestCaveLevelReached: number;
+	statistics: StatisticsState;
 };
 
 export type GameStateAction = {

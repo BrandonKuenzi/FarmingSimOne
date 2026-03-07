@@ -236,6 +236,7 @@ type MapViewportCtx = Pick<
 	| "activeMapLayouts"
 	| "player"
 	| "townNpcTiles"
+	| "townNpcGlyphs"
 	| "forestEnemies"
 	| "caveEnemies"
 	| "animalsMap"
@@ -293,6 +294,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		activeMapLayouts,
 		player,
 		townNpcTiles,
+		townNpcGlyphs,
 		forestEnemies,
 		caveEnemies,
 		animalsMap,
@@ -460,23 +462,14 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		}
 
 		if (player.map === "town") {
-			const labels: Record<string, string> = {
-				neighbor_1: "n",
-				neighbor_2: "m",
-				neighbor_3: "o",
-				neighbor_4: "p",
-			};
 			Object.entries(townNpcTiles).forEach(([key, pos]) => {
-				const marker = labels[key];
-				if (!marker) return;
-				const visual = toVisual(marker, player.map);
+				const glyph = townNpcGlyphs[key];
+				if (!glyph) return;
 				entities.push({
 					id: `town-npc-${key}`,
 					x: pos.x,
 					y: pos.y,
-					glyph: visual.glyph,
-					className: visual.className,
-					overlayGlyph: visual.overlayGlyph,
+					glyph,
 				});
 			});
 		}
@@ -1389,6 +1382,7 @@ const MemoMapViewport = React.memo(
 	(prev, next) =>
 		prev.ctx.player === next.ctx.player &&
 		prev.ctx.townNpcTiles === next.ctx.townNpcTiles &&
+		prev.ctx.townNpcGlyphs === next.ctx.townNpcGlyphs &&
 		prev.ctx.forestEnemies === next.ctx.forestEnemies &&
 		prev.ctx.caveEnemies === next.ctx.caveEnemies &&
 		prev.ctx.animalsMap === next.ctx.animalsMap &&
@@ -1435,6 +1429,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		playerName,
 		player,
 		townNpcTiles,
+		townNpcGlyphs,
 		forestEnemies,
 		caveEnemies,
 		animalsMap,
@@ -1535,13 +1530,26 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		continueAfterSleep,
 		dayTransitionPrompt,
 		isSaveLoadMenuOpen,
+		isStatsDebugOverlayOpen,
+		isDebugToolsPanelOpen,
+		friendPostcardUnlockAtMs,
+		statisticsRows,
 		controlMode,
 		canSaveGame,
 		saveDisabledMessage,
 		saveLoadStatus,
 		toggleSaveLoadMenu,
+		toggleStatsDebugOverlay,
+		toggleDebugToolsPanel,
 		toggleControlMode,
 		closeSaveLoadMenu,
+		closeStatsDebugOverlay,
+		closeDebugToolsPanel,
+		runDebugGrantResources,
+		runDebugSpawnBarnAnimals,
+		runDebugSpawnTownBeachBottle,
+		runDebugAdvanceAllNpcFriendshipTiers,
+		runDebugSpawnFriendshipLetter,
 		saveGameToFile,
 		loadGameFromFilePicker,
 		mobileMoveJoystickAnchor,
@@ -1726,6 +1734,104 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 					</div>
 				</div>
 			)}
+			{isStatsDebugOverlayOpen && (
+				<div
+					className='save-load-overlay'
+					onClick={closeStatsDebugOverlay}
+				>
+					<div
+						className='save-load-panel'
+						onClick={(event) => event.stopPropagation()}
+					>
+						<div className='panel-title'>Statistics Debug</div>
+						<div className='small'>Press L to close.</div>
+						<div className='small'>
+							Tracked counters: {statisticsRows.length}
+						</div>
+						<div className='small'>
+							{statisticsRows.length <= 0 ? (
+								"No statistics tracked yet."
+							) : (
+								statisticsRows.map((row) => (
+									<div key={`stat-row-${row.key}`}>
+										{row.key}: {row.value}
+									</div>
+								))
+							)}
+						</div>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={closeStatsDebugOverlay}
+						>
+							Close
+						</button>
+					</div>
+				</div>
+			)}
+			{isDebugToolsPanelOpen && (
+				<div
+					className='save-load-overlay'
+					onClick={closeDebugToolsPanel}
+				>
+					<div
+						className='save-load-panel'
+						onClick={(event) => event.stopPropagation()}
+					>
+						<div className='panel-title'>Debug Tools</div>
+						<div className='small'>Press P to close.</div>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={runDebugGrantResources}
+						>
+							Grant Resources
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={runDebugSpawnBarnAnimals}
+						>
+							Spawn Barn Animals
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={runDebugSpawnTownBeachBottle}
+						>
+							Spawn Town Beach Bottle
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={runDebugAdvanceAllNpcFriendshipTiers}
+						>
+							Advance NPC Friendship Tier
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={runDebugSpawnFriendshipLetter}
+						>
+							Spawn Friendship Letter
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={toggleStatsDebugOverlay}
+						>
+							Toggle Stats Overlay
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
+							onClick={toggleDebugToolsPanel}
+						>
+							Close
+						</button>
+					</div>
+				</div>
+			)}
 			<div className='hud'>
 				<button
 					type='button'
@@ -1870,6 +1976,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 							activeMapLayouts,
 							player,
 							townNpcTiles,
+							townNpcGlyphs,
 							forestEnemies,
 							caveEnemies,
 							animalsMap,
@@ -2406,12 +2513,30 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 
 			{modal && (
 				<div className='modal-backdrop'>
-					<div className='modal'>
+					<div
+						className={`modal${modal.title.startsWith("[friendPostcard:") ? " modal-postcard" : ""}`}
+					>
 						{(() => {
 							const selectedOption = modal.options[modalIndex];
 							const dealMeta = selectedOption?.dealMeta;
 							const showMarketInModal =
 								!quantityPrompt && MODAL_TITLES_WITH_MARKET.has(modal.title);
+							const friendPostcardMatch = modal.title.match(
+								/^\[friendPostcard:([^|\]]+)(?:\|([^\]]+))?\]\n?/,
+							);
+							const isFriendPostcard = !!friendPostcardMatch;
+							const friendPostcardSender = friendPostcardMatch?.[1] ?? "";
+							const friendPostcardGlyph = friendPostcardMatch?.[2] ?? "";
+							const isBottlePostcard =
+								friendPostcardSender === "Message In A Bottle";
+							const friendPostcardReady = Date.now() >= friendPostcardUnlockAtMs;
+							const portraitMatch = modal.title.match(/^\[npcPortrait:(.+?)\]\n?/);
+							const modalPortraitGlyph = portraitMatch?.[1] ?? null;
+							const modalDisplayTitle = portraitMatch
+								? modal.title.slice(portraitMatch[0].length)
+								: modal.title;
+							const [modalTitleMain, modalTitleSub] =
+								modalDisplayTitle.split("\n", 2);
 							const dealBadge = dealMeta
 								? getDealBadge(
 										dealMeta.mode,
@@ -2419,26 +2544,68 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										dealMeta.baseUnitPrice ?? initialPrices[dealMeta.itemId],
 									)
 								: undefined;
+							if (isFriendPostcard) {
+								return (
+									<div className='friend-postcard'>
+										<div className='friend-postcard-stamp'>
+											<div className='friend-postcard-stamp-inner'>
+												{friendPostcardGlyph}
+											</div>
+										</div>
+										<div className='friend-postcard-address'>
+											<div>From: {friendPostcardSender}</div>
+											{isBottlePostcard ? <div>To: Whoever</div> : null}
+										</div>
+										<div className='friend-postcard-body'>
+											{modal.body[0] ?? ""}
+										</div>
+										<div className='friend-postcard-actions'>
+											<div className='friend-postcard-attachment'>
+												{modal.body[1] ?? ""}
+											</div>
+											{friendPostcardReady ? (
+												<button
+													type='button'
+													className='option active'
+													onClick={selectModal}
+												>
+													CLOSE
+												</button>
+											) : null}
+										</div>
+									</div>
+								);
+							}
 							return (
 								<>
-									<div className='panel-title'>{modal.title}</div>
-									{modal.body.map((b, i) => (
-										<div
-											key={`${b}-${i}`}
-											className='small'
-										>
-											{b.startsWith("TIP: ") ? (
-												<>
-													<strong>TIP:</strong> {b.slice(5)}
-												</>
-											) : (
-												b
-											)}
-										</div>
-									))}
 									<div
-										className={`modal-layout${quantityPrompt ? " quantity-mode" : ""}`}
+										className={`modal-shell${modalPortraitGlyph ? " with-npc-portrait" : ""}`}
 									>
+										{modalPortraitGlyph ? (
+											<div className='modal-npc-portrait'>{modalPortraitGlyph}</div>
+										) : null}
+										<div className='modal-main'>
+											<div className='panel-title'>{modalTitleMain}</div>
+											{modalTitleSub ? (
+												<div className='modal-title-sub small'>{modalTitleSub}</div>
+											) : null}
+											{modal.body.map((b, i) => (
+												<div
+													key={`${b}-${i}`}
+													className='small'
+												>
+													{b.startsWith("TIP: ") ? (
+														<>
+															<strong>TIP:</strong> {b.slice(5)}
+														</>
+													) : (
+														b
+													)}
+												</div>
+											))}
+											<div
+												className={`modal-layout${quantityPrompt ? " quantity-mode" : ""}`}
+											>
 										<div className='modal-left-pane'>
 											{quantityPrompt ? (
 												<div className='quantity-pane'>
@@ -2566,14 +2733,16 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 											)}
 										</div>
 									</div>
-									{!quantityPrompt && (
-										<div
-											className='small'
-											style={{ marginTop: 6 }}
-										>
-											Use W/S to move, Space to select.
+											{!quantityPrompt && (
+												<div
+													className='small'
+													style={{ marginTop: 6 }}
+												>
+													Use W/S to move, Space to select.
+												</div>
+											)}
 										</div>
-									)}
+									</div>
 								</>
 							);
 						})()}

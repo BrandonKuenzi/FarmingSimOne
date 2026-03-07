@@ -17,10 +17,10 @@ import chaChingSrc from "../../assets/chaching.ogg";
 import endOfDaySrc from "../../assets/summerDreamBoat.mp3";
 import hoeSoundSrc from "../../assets/hoe.mp3";
 import munchSoundSrc from "../../assets/munch.m4a";
-import badSoundSrc from "../../assets/bad.m4a";
+import badSoundSrc from "../../assets/bad.mp3";
 import waterSoundSrc from "../../assets/water.m4a";
 import yayaSoundSrc from "../../assets/yaya.ogg";
-import tooTiredSoundSrc from "../../assets/imTooTired.m4a";
+import tooTiredSoundSrc from "../../assets/imTooTired.mp3";
 import cafeOrderMusicSrc from "../../assets/SpaceStore.mp3";
 import notificationSoundSrc from "../../assets/shuffle.m4a";
 import forestMusicSrc from "../../assets/GameDeepForest.mp3";
@@ -28,6 +28,7 @@ import caveMusicSrc from "../../assets/CaveTheme.mp3";
 import themeSongSrc from "../../assets/themeSong.mp3";
 import spaceBgSrc from "../../assets/SpaceBG.mp3";
 import gotRewardSoundSrc from "../../assets/gotReward.mp3";
+import friendshipSoundSrc from "../../assets/friendship.mp3";
 import snakeSoundSrc from "../../assets/snake.m4a";
 import bearSoundSrc from "../../assets/bear.m4a";
 import pooSoundSrc from "../../assets/poo.m4a";
@@ -49,8 +50,6 @@ import badWater5SoundSrc from "../../assets/badWater5.mp3";
 import badWater6SoundSrc from "../../assets/badWater6.mp3";
 import {
 	generateDailyAssignmentsForNpcs,
-	generateNpcDialogLine,
-	generateNpcGreetingLine,
 	generateOverfedAnimalLine,
 	type NpcDailyAssignment,
 } from "../../npcDialogue";
@@ -67,7 +66,6 @@ import {
 	sheepHarvestTtsLines,
 	sketchyMerchantIntro,
 	sketchyVendorSales,
-	townTips,
 	traderAfterSaleLines,
 	traderBoxLines,
 	traderHeliLines,
@@ -76,6 +74,12 @@ import {
 	tractorDeliveryLine,
 	vendorGreetings,
 } from "../content/dialog";
+import {
+	assignUniqueNpcInterests,
+	countFriendshipHeartsForUniqueTalks,
+	FRIENDSHIP_HEART_THRESHOLDS,
+	NPCGiftLetterLines,
+} from "../content/npcDialog";
 import {
 	createDayTransitionStars,
 	moonPhases,
@@ -150,6 +154,7 @@ import {
 	SKETCHY_CRATE_POS,
 	SKETCHY_MERCHANT_POS,
 	TOWN_NPC_GRASS_ROW_Y,
+	assignTownNpcGlyphs,
 	defaultTownNpcNames,
 	createGeneratedTownNpcNames,
 	townNpcAnchors,
@@ -187,7 +192,7 @@ import {
 	rollFishMove,
 	startFishingSequence,
 } from "../systems/fishing";
-import { rollBeachBottleReward } from "../systems/rewards";
+import { rollBeachBottleRewardPlan } from "../systems/rewards";
 import { getFogTargetOpacity } from "../systems/vision";
 import {
 	cancelQuantityPrompt as cancelQuantityPromptMenu,
@@ -442,6 +447,16 @@ import {
 } from "../state/saveGame";
 import { stopAllBufferedAudio } from "../systems/sound";
 import { generateName } from "../systems/generateName";
+import {
+	PLAYER_STAT_KEYS,
+	getStatistic,
+	incrementStatisticsState,
+	makeCropHarvestedKey,
+	makeEmptyStatisticsState,
+	makeFishCaughtByTypeKey,
+	makeTownNpcUniqueTalkKey,
+	resolveGemFoundStatKey,
+} from "../statistics/statistics";
 
 const BUREAUCRACY_SPAWN = {
 	map: "bureaucracy_office" as const,
@@ -474,6 +489,7 @@ const detectDefaultControlMode = (): "pc" | "mobile" => {
 	return hasCoarsePointer || hasTouchPoints ? "mobile" : "pc";
 };
 const HEADLAMP_LETTER_POS = { x: 7, y: 8 } as const;
+const FRIEND_GIFT_LETTER_POS = { x: 7, y: 9 } as const;
 const FARM_NEWSPAPER_POS = { x: 6, y: 8 } as const;
 const DAY_ONE_NEWSPAPER_TEXT =
 	"Welcome to the farm! Press WASD to move. Press the Up Down Left Right arrows to interact with the world around you! Check your newspaper daily to learn whats happening in the world around you!";
@@ -535,6 +551,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const yayaSoundRef = useRef<HTMLAudioElement | null>(null);
 	const tooTiredRef = useRef<HTMLAudioElement | null>(null);
 	const gotRewardRef = useRef<HTMLAudioElement | null>(null);
+	const friendshipRef = useRef<HTMLAudioElement | null>(null);
 	const snakeSoundRef = useRef<HTMLAudioElement | null>(null);
 	const bearSoundRef = useRef<HTMLAudioElement | null>(null);
 	const pooSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -656,6 +673,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				...initialFarmExpansionBlockers.stone,
 			};
 			const generatedTownNpcNames = createGeneratedTownNpcNames();
+			const generatedTownNpcInterests = assignUniqueNpcInterests(
+				Object.keys(generatedTownNpcNames),
+				randomRoll,
+			);
+			const generatedTownNpcGlyphs = assignTownNpcGlyphs(
+				Object.keys(generatedTownNpcNames),
+				randomRoll,
+			);
 			return {
 				player: bootSaveJson
 					? { ...BUREAUCRACY_SPAWN }
@@ -809,7 +834,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				petTile: null,
 				petFacing: 1,
 				petHeartTile: null,
+				npcGiftLetter: null,
 				townNpcNames: generatedTownNpcNames,
+				townNpcInterests: generatedTownNpcInterests,
+				townNpcGlyphs: generatedTownNpcGlyphs,
 				townNpcTiles: townNpcAnchors,
 				boatTiles: initialBoatTiles,
 				npcDailyAssignments: generateDailyAssignmentsForNpcs(
@@ -849,10 +877,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				progressLoadoutRows: makeEmptyProgressLoadoutRows(),
 				highestForestLevelReached: 1,
 				highestCaveLevelReached: 1,
+				statistics: makeEmptyStatisticsState(),
 			};
 		},
 	);
 	const [isSaveLoadMenuOpen, setIsSaveLoadMenuOpen] = useState(false);
+	const [isStatsDebugOverlayOpen, setIsStatsDebugOverlayOpen] = useState(false);
+	const [isDebugToolsPanelOpen, setIsDebugToolsPanelOpen] = useState(false);
+	const [friendPostcardUnlockAtMs, setFriendPostcardUnlockAtMs] = useState(0);
 	const [controlMode, setControlMode] = useState<"pc" | "mobile">(() =>
 		detectDefaultControlMode(),
 	);
@@ -1016,7 +1048,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		petTile,
 		petFacing,
 		petHeartTile,
+		npcGiftLetter,
 		townNpcNames,
+		townNpcInterests,
+		townNpcGlyphs,
 		townNpcTiles,
 		boatTiles,
 		npcDailyAssignments,
@@ -1048,6 +1083,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		progressLoadoutRows,
 		highestForestLevelReached,
 		highestCaveLevelReached,
+		statistics,
 	} = gameState;
 	const quantityParentMenuRef = useRef<{
 		modal: ModalState;
@@ -1083,6 +1119,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const sideViewIntroQueuedRef = useRef(false);
 	const sideViewEndQueuedRef = useRef(false);
 	const sideViewLastBonusDayRef = useRef(0);
+	const inputLockTimeoutRef = useRef<number | null>(null);
 	const gameStateRef = useRef(gameState);
 	const playerRef = useRef(player);
 	const playerMoveUnlockAtRef = useRef(0);
@@ -1233,6 +1270,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setPetTile = setForKey("petTile");
 	const setPetFacing = setForKey("petFacing");
 	const setPetHeartTile = setForKey("petHeartTile");
+	const setNpcGiftLetter = setForKey("npcGiftLetter");
 	const setTownNpcTiles = setForKey("townNpcTiles");
 	const setBoatTiles = setForKey("boatTiles");
 	const setNpcDailyAssignments = setForKey("npcDailyAssignments");
@@ -1266,6 +1304,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setProgressLoadoutRows = setForKey("progressLoadoutRows");
 	const setHighestForestLevelReached = setForKey("highestForestLevelReached");
 	const setHighestCaveLevelReached = setForKey("highestCaveLevelReached");
+	const setStatistics = setForKey("statistics");
 	const activeMapLayouts = useMemo(
 		() => ({
 			...mapLayouts,
@@ -1292,12 +1331,20 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const canSaveGame = player.map === "farm" || player.map === "town";
 	const headlampLetterVisible =
 		unlockFlags.headlampVendorStock && !headlampLetterRead;
+	const friendGiftLetterVisible = npcGiftLetter !== null;
 	const farmNewspaperPos = FARM_NEWSPAPER_POS;
 	const saveDisabledMessage = canSaveGame
 		? null
 		: player.map === "bureaucracy_office"
 			? "No saving in intake. Form 27-B says one reality shift per visit."
 			: "No saving in the forest/cave. Bureaucracy says the moss eats paperwork.";
+	const statisticsRows = useMemo(
+		() =>
+			Object.entries(statistics.counters)
+				.sort((a, b) => a[0].localeCompare(b[0]))
+				.map(([key, value]) => ({ key, value })),
+		[statistics],
+	);
 	const animalsMap: MapId = isBarnExternal(barnTier) ? "barn" : "farm";
 	const barnInteriorBounds = useMemo(() => {
 		if (animalsMap === "farm") return getFarmBarnInteriorBounds(barnTier);
@@ -1458,6 +1505,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				yayaSoundRef,
 				tooTiredRef,
 				gotRewardRef,
+				friendshipRef,
 				snakeSoundRef,
 				bearSoundRef,
 				pooSoundRef,
@@ -1501,6 +1549,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				themeSongSrc,
 				spaceBgSrc,
 				gotRewardSoundSrc,
+				friendshipSoundSrc,
 				snakeSoundSrc,
 				bearSoundSrc,
 				pooSoundSrc,
@@ -1534,6 +1583,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		playWater,
 		playYaya,
 		playGotReward,
+		playFriendship,
 		playSnakeSound,
 		playBearSound,
 		playPooSound,
@@ -1571,6 +1621,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			yayaSoundRef,
 			tooTiredRef,
 			gotRewardRef,
+			friendshipRef,
 			snakeSoundRef,
 			bearSoundRef,
 			pooSoundRef,
@@ -1652,6 +1703,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				yayaSoundRef,
 				tooTiredRef,
 				gotRewardRef,
+				friendshipRef,
 				snakeSoundRef,
 				bearSoundRef,
 				pooSoundRef,
@@ -1773,6 +1825,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			if (petHeartTimeoutRef.current !== null) {
 				window.clearTimeout(petHeartTimeoutRef.current);
 				petHeartTimeoutRef.current = null;
+			}
+			if (inputLockTimeoutRef.current !== null) {
+				window.clearTimeout(inputLockTimeoutRef.current);
+				inputLockTimeoutRef.current = null;
 			}
 			if (cafeShopkeeperMoveIntervalRef.current !== null) {
 				window.clearInterval(cafeShopkeeperMoveIntervalRef.current);
@@ -1919,6 +1975,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				}
 				if (pendingFishingBonusReward.kind === "item") {
 					updateInventory(pendingFishingBonusReward.itemId, 1);
+					incrementGemFoundStatistic(pendingFishingBonusReward.itemId, 1);
 					return;
 				}
 				if (pendingFishingBonusReward.kind === "algorithm") {
@@ -2487,6 +2544,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		playYaya();
 		queueFishingReward(caughtFishing);
 		emitProgressEvent({ type: "fish_caught", quantity: 1 });
+		incrementStatistics(PLAYER_STAT_KEYS.fishCaughtTotal, 1);
+		if (caughtFishing.fishId) {
+			incrementStatistics(makeFishCaughtByTypeKey(caughtFishing.fishId), 1);
+		}
 		setFishing({
 			...caughtFishing,
 			phase: "caught",
@@ -4136,6 +4197,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		)
 			return false;
 		if (
+			map === "farm" &&
+			friendGiftLetterVisible &&
+			x === FRIEND_GIFT_LETTER_POS.x &&
+			y === FRIEND_GIFT_LETTER_POS.y
+		)
+			return false;
+		if (
 			map === "town" &&
 			beachBottlePos &&
 			beachBottlePos.x === x &&
@@ -4966,8 +5034,27 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				...defaultTownNpcNames,
 				...((rawState as Partial<GameState>).townNpcNames ?? {}),
 			},
+			townNpcInterests:
+				(rawState as Partial<GameState>).townNpcInterests ??
+				assignUniqueNpcInterests(
+					Object.keys({
+						...defaultTownNpcNames,
+						...((rawState as Partial<GameState>).townNpcNames ?? {}),
+					}),
+					randomRoll,
+				),
+			townNpcGlyphs:
+				(rawState as Partial<GameState>).townNpcGlyphs ??
+				assignTownNpcGlyphs(
+					Object.keys({
+						...defaultTownNpcNames,
+						...((rawState as Partial<GameState>).townNpcNames ?? {}),
+					}),
+					randomRoll,
+				),
 			headlampLetterRead:
 				(rawState as Partial<GameState>).headlampLetterRead ?? false,
+			npcGiftLetter: (rawState as Partial<GameState>).npcGiftLetter ?? null,
 			hasBath: (rawState as Partial<GameState>).hasBath ?? false,
 			pendingBathInstall:
 				(rawState as Partial<GameState>).pendingBathInstall ?? false,
@@ -5047,6 +5134,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				(rawState as Partial<GameState>).highestCaveLevelReached ??
 					rawState.caveLevel,
 			),
+			statistics:
+				(rawState as Partial<GameState>).statistics ?? makeEmptyStatisticsState(),
 			inventory: (() => {
 				const defaultInventory = makeEmptyInventory();
 				const rawInventory = (rawState as Partial<GameState>).inventory as
@@ -5163,12 +5252,42 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			if (next) setSaveLoadStatus(null);
 			return next;
 		});
+		setIsStatsDebugOverlayOpen(false);
+		setIsDebugToolsPanelOpen(false);
+	};
+	const toggleStatsDebugOverlay = () => {
+		setIsStatsDebugOverlayOpen((prev) => !prev);
+		setIsSaveLoadMenuOpen(false);
+		setIsDebugToolsPanelOpen(false);
+	};
+	const toggleDebugToolsPanel = () => {
+		setIsDebugToolsPanelOpen((prev) => !prev);
+		setIsSaveLoadMenuOpen(false);
+		setIsStatsDebugOverlayOpen(false);
 	};
 	const toggleControlMode = () => {
 		setControlMode((prev) => (prev === "pc" ? "mobile" : "pc"));
 	};
 	const closeSaveLoadMenu = () => {
 		setIsSaveLoadMenuOpen(false);
+	};
+	const closeStatsDebugOverlay = () => {
+		setIsStatsDebugOverlayOpen(false);
+	};
+	const closeDebugToolsPanel = () => {
+		setIsDebugToolsPanelOpen(false);
+	};
+	const lockInputForMs = (ms: number) => {
+		const duration = Math.max(0, ms);
+		setDirectorInputLocked(true);
+		if (inputLockTimeoutRef.current !== null) {
+			window.clearTimeout(inputLockTimeoutRef.current);
+			inputLockTimeoutRef.current = null;
+		}
+		inputLockTimeoutRef.current = window.setTimeout(() => {
+			setDirectorInputLocked(false);
+			inputLockTimeoutRef.current = null;
+		}, duration);
 	};
 	useEffect(() => {
 		if (!bootSaveJson) return;
@@ -5334,6 +5453,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const simulationPaused =
 		pauseGame ||
 		isSaveLoadMenuOpen ||
+		isStatsDebugOverlayOpen ||
 		!!modal ||
 		directorInputLocked ||
 		!!sideViewCutscene;
@@ -5412,6 +5532,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			type: "forest_depth_advanced",
 			forestLevel: nextLevel,
 		});
+		incrementStatistics(PLAYER_STAT_KEYS.forestLevelsCompleted, 1);
 		if (fromMenu) closeMenu();
 	};
 	const continueCaveDungeon = (fromMenu = false) => {
@@ -5437,6 +5558,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		setHighestCaveLevelReached((prev) => Math.max(prev, nextLevel));
 		emitProgressEvent({ type: "cave_depth_advanced", caveLevel: nextLevel });
+		incrementStatistics(PLAYER_STAT_KEYS.caveLevelsCompleted, 1);
 		if (fromMenu) closeMenu();
 	};
 	const openForestExitMenu = () => {
@@ -5581,6 +5703,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				setFarmWeedObstacles((prev) => ({ ...prev, [key]: false }));
 				if (randomRoll() < 0.5) {
 					updateInventory("feed", 1);
+					incrementStatistics(PLAYER_STAT_KEYS.animalFeedFromGrassTotal, 1);
 				}
 				if (randomRoll() < 0.02) {
 					applyMoneyDelta(randomInt(1, 5));
@@ -5640,6 +5763,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				const lines: string[] = [];
 				if (gotFeed) {
 					updateInventory("feed", 1);
+					incrementStatistics(PLAYER_STAT_KEYS.animalFeedFromGrassTotal, 1);
 				}
 				if (gotMoney) {
 					const amount = randomInt(1, 5);
@@ -5658,6 +5782,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				[key]: { crop: null, growthDays: 0, watered: false },
 			}));
 			updateInventory(crop.harvestItem, 1);
+			incrementStatistics(makeCropHarvestedKey(plot.crop), 1);
 		}
 	};
 
@@ -5923,6 +6048,29 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		};
 	};
 
+	const incrementStatistics = (key: string, amount = 1) => {
+		if (amount <= 0) return;
+		setStatistics((prev) => {
+			const next = incrementStatisticsState(prev, key, amount);
+			gameStateRef.current = {
+				...gameStateRef.current,
+				statistics: next,
+			};
+			return next;
+		});
+	};
+
+	const incrementGemFoundStatistic = (itemId: ItemId, amount = 1) => {
+		const key = resolveGemFoundStatKey(itemId);
+		if (!key) return;
+		incrementStatistics(key, amount);
+	};
+
+	const resolveItemDefaultMarketValue = (itemId: ItemId): number =>
+		getMarketBasePrice(itemId, initialPrices[itemId]);
+	const getStatisticValue = (key: string): number =>
+		getStatistic(gameStateRef.current.statistics, key);
+
 	const updateInventory = (
 		item: ItemId,
 		amount: number,
@@ -6024,6 +6172,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		rewards.forEach((reward) => {
 			if (reward.kind === "item") {
 				updateInventory(reward.itemId, reward.amount, { suppressToast: true });
+				incrementGemFoundStatistic(reward.itemId, reward.amount);
 				lines.push(formatSideViewRewardLine(reward));
 				return;
 			}
@@ -6069,6 +6218,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			dayTransition ||
 			modal ||
 			isSaveLoadMenuOpen ||
+			isStatsDebugOverlayOpen ||
 			directorInputLocked ||
 			!!fishing ||
 			isOrdering ||
@@ -6703,6 +6853,96 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			.actor("player")
 			.toast("+1 all progress stones", 4500);
 	};
+	const runDebugGrantResources = () => {
+		applyMoneyDelta(10000);
+		updateInventory("iron", 100);
+		updateInventory("ruby", 10);
+		updateInventory("diamond", 10);
+		updateInventory("emerald", 10);
+		debugGrantAllProgressStones();
+	};
+	const runDebugSpawnBarnAnimals = () => {
+		const animalsToSpawn: AnimalType[] = ["cow", "chicken", "sheep"];
+		let spawned = 0;
+		animalsToSpawn.forEach((type) => {
+			if (spawnAnimalInBarn(type)) spawned += 1;
+		});
+		if (spawned > 0) {
+			addLog(
+				`Debug barn boost: +${spawned} animal${spawned === 1 ? "" : "s"} (cow, chicken, sheep as space allows).`,
+			);
+		} else {
+			addLog("Debug barn boost failed: no room in the barn.");
+		}
+	};
+	const runDebugSpawnTownBeachBottle = () => {
+		if (townBeachBottleTiles.length <= 0) {
+			addLog("Debug bottle spawn failed: no valid town beach tile.");
+			return;
+		}
+		const spawn =
+			townBeachBottleTiles[randomInt(0, townBeachBottleTiles.length - 1)]!;
+		const spawnKey = keyForPos(spawn.x, spawn.y);
+		setBeachBottlePos(spawn);
+		setBeachShellDrops((prev) => {
+			if (!prev[spawnKey]) return prev;
+			const next = { ...prev };
+			delete next[spawnKey];
+			return next;
+		});
+		addLog("Spawned a bottle on the town beach.");
+	};
+	const runDebugAdvanceAllNpcFriendshipTiers = () => {
+		const npcKeys = Object.keys(townNpcNames);
+		if (npcKeys.length <= 0) {
+			addLog("No neighbor NPCs found for friendship debug.");
+			return;
+		}
+		let totalAdded = 0;
+		let upgradedCount = 0;
+		npcKeys.forEach((npcKey) => {
+			const statKey = makeTownNpcUniqueTalkKey(npcKey);
+			const currentCount = getStatisticValue(statKey);
+			const currentLevel = countFriendshipHeartsForUniqueTalks(currentCount);
+			if (currentLevel >= 5) return;
+			const nextThreshold =
+				currentLevel === 0
+					? FRIENDSHIP_HEART_THRESHOLDS[0]
+					: currentLevel === 1
+						? FRIENDSHIP_HEART_THRESHOLDS[1]
+						: currentLevel === 2
+							? FRIENDSHIP_HEART_THRESHOLDS[2]
+							: currentLevel === 3
+								? FRIENDSHIP_HEART_THRESHOLDS[3]
+								: FRIENDSHIP_HEART_THRESHOLDS[4];
+			if (nextThreshold === undefined) return;
+			const delta = Math.max(0, nextThreshold - currentCount);
+			if (delta <= 0) return;
+			incrementStatistics(statKey, delta);
+			totalAdded += delta;
+			upgradedCount += 1;
+		});
+		if (totalAdded > 0) {
+			incrementStatistics(PLAYER_STAT_KEYS.townNpcUniqueTalksTotal, totalAdded);
+		}
+		if (upgradedCount > 0) {
+			addLog(
+				`Advanced friendship tier for ${upgradedCount} neighbor NPC${upgradedCount === 1 ? "" : "s"}.`,
+			);
+			return;
+		}
+		addLog("All neighbor NPCs are already at max friendship tier.");
+	};
+	const runDebugSpawnFriendshipLetter = () => {
+		if (gameStateRef.current.npcGiftLetter) {
+			addLog("Friendship letter already on porch.");
+			return;
+		}
+		const spawned = trySpawnNpcGiftLetter(false);
+		if (!spawned) {
+			addLog("No eligible level 3+ friend available for a friendship letter.");
+		}
+	};
 
 	const maybeGrantChestProgressStone = (
 		kind: "forest" | "cave",
@@ -7001,6 +7241,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 							updateInventory("diamond", 1);
 							updateInventory("emerald", 1);
 							updateInventory("ruby", 1);
+							incrementStatistics(PLAYER_STAT_KEYS.diamondsFoundTotal, 1);
+							incrementStatistics(PLAYER_STAT_KEYS.emeraldsFoundTotal, 1);
+							incrementStatistics(PLAYER_STAT_KEYS.rubiesFoundTotal, 1);
 							let index = 0;
 							const showNext = () => {
 								if (index >= completedCategories.length) {
@@ -7024,6 +7267,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 							);
 							if (unlockableMoves.length <= 0) {
 								updateInventory("emerald", 1);
+								incrementStatistics(PLAYER_STAT_KEYS.emeraldsFoundTotal, 1);
 								openMenu(
 									"Aquarium Curator",
 									[
@@ -7223,7 +7467,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const openCutsceneDebugMenu = () => {
-		if (modal || dayTransition || isSaveLoadMenuOpen || sideViewCutscene)
+		if (
+			modal ||
+			dayTransition ||
+			isSaveLoadMenuOpen ||
+			isStatsDebugOverlayOpen ||
+			sideViewCutscene
+		)
 			return;
 		const backgroundDebugScenes: Array<{
 			id: string;
@@ -7725,7 +7975,101 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		directorConfirmRef.current?.();
 	};
 
+	const pickRandomAlgorithmStoneByRarity = (rarity: ProgressRarity) => {
+		const pool = progressAlgorithmStones.filter((stone) => stone.rarity === rarity);
+		if (pool.length > 0) {
+			return pool[randomInt(0, pool.length - 1)]!;
+		}
+		return progressAlgorithmStones[0]!;
+	};
+
+	const rollNpcGiftLetterRewardForLevel = (friendshipLevel: number) => {
+		if (friendshipLevel >= 5) {
+			const pick = randomInt(0, 3);
+			if (pick === 0) return { kind: "item" as const, itemId: "diamond" as const, amount: 1 };
+			if (pick === 1) {
+				const stone = pickRandomAlgorithmStoneByRarity("rare");
+				return { kind: "algorithm" as const, stoneId: stone.id };
+			}
+			if (pick === 2) {
+				const stone = pickRandomAlgorithmStoneByRarity("legendary");
+				return { kind: "algorithm" as const, stoneId: stone.id };
+			}
+			const targetStone = progressTargetStones[randomInt(0, progressTargetStones.length - 1)]!;
+			return { kind: "target" as const, stoneId: targetStone.id };
+		}
+
+		if (friendshipLevel >= 4) {
+			const pick = randomInt(0, 4);
+			if (pick === 0) return { kind: "item" as const, itemId: "ruby" as const, amount: 1 };
+			if (pick === 1) return { kind: "item" as const, itemId: "emerald" as const, amount: 1 };
+			if (pick === 2) {
+				const stone = pickRandomAlgorithmStoneByRarity("common");
+				return { kind: "algorithm" as const, stoneId: stone.id };
+			}
+			if (pick === 3) {
+				const stone = pickRandomAlgorithmStoneByRarity("uncommon");
+				return { kind: "algorithm" as const, stoneId: stone.id };
+			}
+			const stone = pickRandomAlgorithmStoneByRarity("rare");
+			return { kind: "algorithm" as const, stoneId: stone.id };
+		}
+
+		const pick = randomInt(0, 6);
+		if (pick === 0) return { kind: "item" as const, itemId: "iron" as const, amount: 5 };
+		if (pick === 1) return { kind: "item" as const, itemId: "ruby" as const, amount: 1 };
+		if (pick === 2) return { kind: "item" as const, itemId: "emerald" as const, amount: 1 };
+		if (pick === 3) return { kind: "item" as const, itemId: "milk" as const, amount: 5 };
+		if (pick === 4) return { kind: "item" as const, itemId: "wool" as const, amount: 5 };
+		if (pick === 5) return { kind: "item" as const, itemId: "feed" as const, amount: 20 };
+		const stone = pickRandomAlgorithmStoneByRarity("common");
+		return { kind: "algorithm" as const, stoneId: stone.id };
+	};
+
+	const trySpawnNpcGiftLetter = (respectChance: boolean): boolean => {
+		if (gameStateRef.current.npcGiftLetter) return false;
+		const npcKeys = Object.keys(townNpcNames);
+		if (npcKeys.length <= 0) return false;
+		const friendshipByNpc = npcKeys.map((npcKey) => {
+			const uniqueTalkCount = getStatistic(
+				gameStateRef.current.statistics,
+				makeTownNpcUniqueTalkKey(npcKey),
+			);
+			const friendshipLevel = countFriendshipHeartsForUniqueTalks(uniqueTalkCount);
+			return { npcKey, friendshipLevel };
+		});
+		const chancePoints = friendshipByNpc.reduce(
+			(total, entry) =>
+				total + entry.friendshipLevel + (entry.friendshipLevel >= 5 ? 2.5 : 0),
+			0,
+		);
+		if (chancePoints <= 0) return false;
+		if (respectChance && randomRoll() >= chancePoints / 100) return false;
+		const eligible = friendshipByNpc.filter((entry) => entry.friendshipLevel >= 3);
+		if (eligible.length <= 0) return false;
+		const selected = eligible[randomInt(0, eligible.length - 1)]!;
+		const selectedInterest = townNpcInterests[selected.npcKey];
+		if (!selectedInterest) return false;
+		const linePool = NPCGiftLetterLines[selectedInterest] ?? [];
+		if (linePool.length <= 0) return false;
+		const body = linePool[randomInt(0, linePool.length - 1)]!;
+		const reward = rollNpcGiftLetterRewardForLevel(selected.friendshipLevel);
+		setNpcGiftLetter({
+			senderNpcKey: selected.npcKey,
+			senderName: townNpcNames[selected.npcKey] ?? "A Neighbor",
+			body,
+			reward,
+		});
+		addLog("A letter from a friendly neighbor arrived on your porch.");
+		return true;
+	};
+
+	const maybeRollNpcGiftLetterForNewDay = () => {
+		trySpawnNpcGiftLetter(true);
+	};
+
 	const nextDay = () => {
+		maybeRollNpcGiftLetterForNewDay();
 		runNextDayEngine({
 			endFishing,
 			day,
@@ -7874,7 +8218,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	useEffect(() => {
 		if (player.map !== "farm") return;
 		if (pendingUpgradeScenes.length === 0) return;
-		if (dayTransition || modal || isSaveLoadMenuOpen) return;
+		if (dayTransition || modal || isSaveLoadMenuOpen || isStatsDebugOverlayOpen)
+			return;
 		if (directorRunningRef.current) return;
 
 		directorRunningRef.current = true;
@@ -7965,6 +8310,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		dayTransition,
 		modal,
 		isSaveLoadMenuOpen,
+		isStatsDebugOverlayOpen,
 		barnTier,
 	]);
 
@@ -7972,7 +8318,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (!hasWardrobe) return;
 		if (clothingShopOpeningAnnounced) return;
 		if (player.map !== "town") return;
-		if (dayTransition || modal || isSaveLoadMenuOpen) return;
+		if (dayTransition || modal || isSaveLoadMenuOpen || isStatsDebugOverlayOpen)
+			return;
 		if (directorRunningRef.current) return;
 		const clothingDoor = mapDoors.town.find(
 			(door) => door.target.map === "clothing_shop",
@@ -8038,13 +8385,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		dayTransition,
 		modal,
 		isSaveLoadMenuOpen,
+		isStatsDebugOverlayOpen,
 		mapDoors,
 	]);
 
 	useEffect(() => {
 		if (townTourSeen) return;
 		if (player.map !== "town") return;
-		if (dayTransition || modal || isSaveLoadMenuOpen) return;
+		if (dayTransition || modal || isSaveLoadMenuOpen || isStatsDebugOverlayOpen)
+			return;
 		if (directorRunningRef.current) return;
 
 		const townTourShots: Array<{
@@ -8205,7 +8554,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			restoreTownTourAmbientMute();
 			setCloudOverlayVisible(true);
 		};
-	}, [townTourSeen, player.map, dayTransition, modal, isSaveLoadMenuOpen]);
+	}, [
+		townTourSeen,
+		player.map,
+		dayTransition,
+		modal,
+		isSaveLoadMenuOpen,
+		isStatsDebugOverlayOpen,
+	]);
 
 	const stopBathing = (line?: string) => {
 		if (!isBathing) return;
@@ -8271,6 +8627,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		openCaveBonusChestRewardEngine({
 			updateInventory,
 			openRewardPopup,
+			onGemFound: incrementGemFoundStatistic,
 		});
 	};
 
@@ -8551,6 +8908,68 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			);
 			return;
 		}
+		if (
+			player.map === "farm" &&
+			friendGiftLetterVisible &&
+			npcGiftLetter &&
+			tx === FRIEND_GIFT_LETTER_POS.x &&
+			ty === FRIEND_GIFT_LETTER_POS.y
+		) {
+			const algorithmStoneNameById = Object.fromEntries(
+				progressAlgorithmStones.map((stone) => [stone.id, stone.name]),
+			) as Record<string, string>;
+			const targetStoneNameById = Object.fromEntries(
+				progressTargetStones.map((stone) => [stone.id, stone.name]),
+			) as Record<string, string>;
+			const rewardLabel =
+				npcGiftLetter.reward.kind === "item"
+					? `${itemNames[npcGiftLetter.reward.itemId]}`
+					: npcGiftLetter.reward.kind === "algorithm"
+						? algorithmStoneNameById[npcGiftLetter.reward.stoneId] ??
+							npcGiftLetter.reward.stoneId
+						: targetStoneNameById[npcGiftLetter.reward.stoneId] ??
+							npcGiftLetter.reward.stoneId;
+			const attachmentLine =
+				npcGiftLetter.reward.kind === "item"
+					? `${GLYPH.paperclip}${npcGiftLetter.reward.amount}x ${rewardLabel}`
+					: `${GLYPH.paperclip}1x ${rewardLabel}`;
+			const senderGlyph =
+				townNpcGlyphs[npcGiftLetter.senderNpcKey] ?? GLYPH.person;
+			setFriendPostcardUnlockAtMs(Date.now() + 2000);
+			lockInputForMs(2000);
+			openMenu(
+				`[friendPostcard:${npcGiftLetter.senderName}|${senderGlyph}]`,
+				[npcGiftLetter.body, attachmentLine],
+				[
+					{
+						label: "CLOSE",
+						onSelect: () => {
+							if (npcGiftLetter.reward.kind === "item") {
+								updateInventory(
+									npcGiftLetter.reward.itemId,
+									npcGiftLetter.reward.amount,
+								);
+							} else if (npcGiftLetter.reward.kind === "algorithm") {
+								grantProgressStone(
+									"algorithm",
+									npcGiftLetter.reward.stoneId,
+									rewardLabel,
+									{ suppressLog: true },
+								);
+							} else {
+								grantProgressStone("target", npcGiftLetter.reward.stoneId, rewardLabel, {
+									suppressLog: true,
+								});
+							}
+							setNpcGiftLetter(null);
+							setFriendPostcardUnlockAtMs(0);
+							closeMenu();
+						},
+					},
+				],
+			);
+			return;
+		}
 		if (player.map === "bureaucracy_office") {
 			const targetCell = activeMapLayouts.bureaucracy_office?.[ty]?.[tx] ?? "";
 			if (
@@ -8627,7 +9046,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			beachBottlePos,
 			setBeachBottlePos,
 			playGotReward,
-			rollBeachBottleReward,
+			playFriendship,
+			rollBeachBottleRewardPlan,
 			randomInt,
 			stamina,
 			staminaMax,
@@ -8774,12 +9194,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			boatDialogArray,
 			townNpcTiles,
 			townNpcNames,
-			npcDailyAssignments,
-			generateDailyAssignmentsForNpcs,
+			townNpcInterests,
+			townNpcGlyphs,
 			npcTalkedToday,
-			townTips,
-			generateNpcGreetingLine,
-			generateNpcDialogLine,
 			setNpcTalkedToday,
 			DOCTOR_POS,
 			PET_VENDOR_POS,
@@ -8789,6 +9206,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			aquariumCuratorTile,
 			interactAquariumCurator,
 			onProgressEvent: emitProgressEvent,
+			lockInputForMs,
+			incrementStatistics,
+			getStatisticValue,
+			resolveItemDefaultMarketValue,
 			onManualCowMilked: maybeTriggerManualCowMilkingCutscene,
 			onManualSheepSheared: maybeTriggerManualSheepShearingCutscene,
 			onManualGrassHoed: maybeTriggerManualGrassHoeCutscene,
@@ -8912,6 +9333,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		isNewspaperOpen: isNewspaperPopupOpen,
 		closeNewspaperPopup,
 		openCutsceneDebugMenu,
+		toggleDebugToolsPanel,
+		closeDebugToolsPanel,
+		isDebugToolsPanelOpen,
+		runDebugGrantResources,
+		runDebugSpawnBarnAnimals,
+		toggleStatsDebugOverlay,
 		sideViewCutsceneActive: !!sideViewCutscene,
 		sideViewCutsceneInputUnlockAtMs: sideViewCutscene?.inputUnlockAtMs ?? 0,
 		sideViewCutsceneContentDone: sideViewCutscene?.contentDone ?? false,
@@ -9242,6 +9669,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			STARTER_CHEST_POS,
 			headlampLetterVisible,
 			HEADLAMP_LETTER_POS,
+			friendGiftLetterVisible,
+			FRIEND_GIFT_LETTER_POS,
 			farmNewspaperPos,
 			plots,
 			cropDefs,
@@ -9298,6 +9727,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		fishing,
 		starterChestOpened,
 		headlampLetterVisible,
+		friendGiftLetterVisible,
 		farmNewspaperPos,
 		forestChest,
 		forestBonusChests,
@@ -9359,6 +9789,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		playerName,
 		player,
 		townNpcTiles,
+		townNpcGlyphs,
 		forestEnemies,
 		caveEnemies,
 		animalsMap,
@@ -9464,13 +9895,26 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		continueAfterSleep,
 		dayTransitionPrompt,
 		isSaveLoadMenuOpen,
+		isStatsDebugOverlayOpen,
+		isDebugToolsPanelOpen,
+		friendPostcardUnlockAtMs,
+		statisticsRows,
 		controlMode,
 		canSaveGame,
 		saveDisabledMessage,
 		saveLoadStatus,
 		toggleSaveLoadMenu,
+		toggleStatsDebugOverlay,
+		toggleDebugToolsPanel,
 		toggleControlMode,
 		closeSaveLoadMenu,
+		closeStatsDebugOverlay,
+		closeDebugToolsPanel,
+		runDebugGrantResources,
+		runDebugSpawnBarnAnimals,
+		runDebugSpawnTownBeachBottle,
+		runDebugAdvanceAllNpcFriendshipTiers,
+		runDebugSpawnFriendshipLetter,
 		saveGameToFile,
 		loadGameFromFilePicker,
 		mobileMoveJoystickAnchor,

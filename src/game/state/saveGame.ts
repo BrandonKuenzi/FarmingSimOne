@@ -1,8 +1,11 @@
 import type { GameState } from "./gameState";
+import { assignUniqueNpcInterests } from "../content/npcDialog";
 import { makeEmptyProgressAlgorithmCounts } from "../progression/progressStonesAlgorithmic";
 import { makeEmptyProgressTargetCounts } from "../progression/progressStonesTarget";
 import { makeEmptyProgressLoadoutRows } from "../progression/progressMonitor";
-import { defaultTownNpcNames } from "../world/npcs";
+import { makeEmptyStatisticsState } from "../statistics/statistics";
+import { randomRoll } from "../shared/random";
+import { assignTownNpcGlyphs, defaultTownNpcNames } from "../world/npcs";
 
 export const SAVE_GAME_VERSION = 2;
 
@@ -25,6 +28,10 @@ export const toSaveGameData = (gameState: GameState): SaveGameData => {
 
 export const fromSaveGameData = (save: SaveGameData): GameState => {
 	const state = save.gameState as Partial<GameState>;
+	const migratedTownNpcNames = {
+		...defaultTownNpcNames,
+		...(state.townNpcNames ?? {}),
+	};
 	const migrated = {
 		...state,
 		playerName: state.playerName?.trim() || "Player",
@@ -32,10 +39,17 @@ export const fromSaveGameData = (save: SaveGameData): GameState => {
 			typeof state.newGameDate === "string" && /^\d{6}$/.test(state.newGameDate)
 				? state.newGameDate
 				: formatNewGameDate(new Date()),
-		townNpcNames: {
-			...defaultTownNpcNames,
-			...(state.townNpcNames ?? {}),
-		},
+		townNpcNames: migratedTownNpcNames,
+		townNpcInterests:
+			state.townNpcInterests ??
+			assignUniqueNpcInterests(
+				Object.keys(migratedTownNpcNames),
+				randomRoll,
+			),
+		townNpcGlyphs:
+			state.townNpcGlyphs ??
+			assignTownNpcGlyphs(Object.keys(migratedTownNpcNames), randomRoll),
+		npcGiftLetter: state.npcGiftLetter ?? null,
 		progressPercent: Math.max(0, Math.min(1000, state.progressPercent ?? 0)),
 		progressWon: state.progressWon ?? false,
 		progressWinPopupShown: state.progressWinPopupShown ?? false,
@@ -51,6 +65,7 @@ export const fromSaveGameData = (save: SaveGameData): GameState => {
 		townTourSeen: state.townTourSeen ?? false,
 		highestForestLevelReached: Math.max(1, state.highestForestLevelReached ?? state.forestLevel ?? 1),
 		highestCaveLevelReached: Math.max(1, state.highestCaveLevelReached ?? state.caveLevel ?? 1),
+		statistics: state.statistics ?? makeEmptyStatisticsState(),
 	};
 	return migrated as GameState;
 };

@@ -10,6 +10,39 @@ export const defaultTownNpcNames: Record<string, string> = {
 	neighbor_4: "Gus",
 };
 
+export const townNeighborNpcKeys = Object.keys(defaultTownNpcNames);
+
+export const townNpcGlyphOptions: string[] = [
+	GLYPH.personRedHair,
+	GLYPH.beard,
+	GLYPH.woman,
+	GLYPH.personBlond,
+	GLYPH.personCurlyHair,
+	GLYPH.personWhiteHair,
+	GLYPH.personBald,
+	GLYPH.olderPerson,
+	GLYPH.womanRedHair,
+	GLYPH.womanCurlyHair,
+	GLYPH.womanWhiteHair,
+	GLYPH.womanBald,
+];
+
+export const assignTownNpcGlyphs = (
+	npcKeys: string[],
+	rng: () => number = Math.random,
+): Record<string, string> => {
+	const glyphPool = [...townNpcGlyphOptions];
+	for (let i = glyphPool.length - 1; i > 0; i -= 1) {
+		const j = Math.floor(rng() * (i + 1));
+		[glyphPool[i], glyphPool[j]] = [glyphPool[j]!, glyphPool[i]!];
+	}
+	const out: Record<string, string> = {};
+	npcKeys.forEach((key, index) => {
+		out[key] = glyphPool[index % glyphPool.length] ?? GLYPH.person;
+	});
+	return out;
+};
+
 export const createGeneratedTownNpcNames = (
 	rng: () => number = Math.random,
 ): Record<string, string> => {

@@ -16,6 +16,8 @@ type RenderedMapContext = {
 	STARTER_CHEST_POS: { x: number; y: number };
 	headlampLetterVisible: boolean;
 	HEADLAMP_LETTER_POS: { x: number; y: number };
+	friendGiftLetterVisible: boolean;
+	FRIEND_GIFT_LETTER_POS: { x: number; y: number };
 	farmNewspaperPos: { x: number; y: number } | null;
 	plots: Record<string, Plot>;
 	cropDefs: Record<string, { growDays: number }>;
@@ -77,6 +79,8 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		STARTER_CHEST_POS,
 		headlampLetterVisible,
 		HEADLAMP_LETTER_POS,
+		friendGiftLetterVisible,
+		FRIEND_GIFT_LETTER_POS,
 		farmNewspaperPos,
 		plots,
 		cropDefs,
@@ -137,6 +141,9 @@ export const buildRenderedMapGrid = (ctx: RenderedMapContext): string[][] => {
 		}
 		if (headlampLetterVisible) {
 			base[HEADLAMP_LETTER_POS.y]![HEADLAMP_LETTER_POS.x] = "\\";
+		}
+		if (friendGiftLetterVisible) {
+			base[FRIEND_GIFT_LETTER_POS.y]![FRIEND_GIFT_LETTER_POS.x] = "\\";
 		}
 		if (farmNewspaperPos && base[farmNewspaperPos.y]?.[farmNewspaperPos.x]) {
 			base[farmNewspaperPos.y]![farmNewspaperPos.x] = GLYPH.newspaper;

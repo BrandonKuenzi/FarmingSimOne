@@ -133,6 +133,12 @@ export type GameKeyDownContext = {
 	isNewspaperOpen: boolean;
 	closeNewspaperPopup: () => void;
 	openCutsceneDebugMenu: () => void;
+	toggleDebugToolsPanel: () => void;
+	closeDebugToolsPanel: () => void;
+	isDebugToolsPanelOpen: boolean;
+	runDebugGrantResources: () => void;
+	runDebugSpawnBarnAnimals: () => void;
+	toggleStatsDebugOverlay: () => void;
 	sideViewCutsceneActive: boolean;
 	sideViewCutsceneInputUnlockAtMs: number;
 	sideViewCutsceneContentDone: boolean;
@@ -181,28 +187,17 @@ export const handleGameInputCommand = (
 	}
 
 	if (command === "DEBUG_GRANT_RESOURCES") {
-		ctx.applyMoneyDelta(10000);
-		ctx.updateInventory("iron", 100);
-		ctx.updateInventory("ruby", 10);
-		ctx.updateInventory("diamond", 10);
-		ctx.updateInventory("emerald", 10);
-		ctx.debugGrantAllProgressStones();
+		ctx.runDebugGrantResources();
 		return consume();
 	}
 
 	if (command === "DEBUG_SPAWN_BARN_ANIMALS") {
-		const animalsToSpawn: AnimalType[] = ["cow", "chicken", "sheep"];
-		let spawned = 0;
-		animalsToSpawn.forEach((type) => {
-			if (ctx.spawnAnimalInBarn(type)) spawned += 1;
-		});
-		if (spawned > 0) {
-			ctx.addLog(
-				`Debug barn boost: +${spawned} animal${spawned === 1 ? "" : "s"} (cow, chicken, sheep as space allows).`,
-			);
-		} else {
-			ctx.addLog("Debug barn boost failed: no room in the barn.");
-		}
+		ctx.runDebugSpawnBarnAnimals();
+		return consume();
+	}
+
+	if (command === "DEBUG_OPEN_TOOLS_PANEL") {
+		if (!meta.repeat) ctx.toggleDebugToolsPanel();
 		return consume();
 	}
 
@@ -216,8 +211,20 @@ export const handleGameInputCommand = (
 		return consume();
 	}
 
+	if (command === "TOGGLE_STATS_DEBUG_OVERLAY") {
+		if (!meta.repeat) ctx.toggleStatsDebugOverlay();
+		return consume();
+	}
+
 	if (ctx.directorDialogOpen && command === "OK") {
 		ctx.confirmDirectorDialog();
+		return consume();
+	}
+
+	if (ctx.isDebugToolsPanelOpen) {
+		if (command === "CANCEL" || command === "OK") {
+			ctx.closeDebugToolsPanel();
+		}
 		return consume();
 	}
 
@@ -249,6 +256,14 @@ export const handleGameInputCommand = (
 	}
 
 	if (ctx.inputLocked) {
+		return consume();
+	}
+
+	if (
+		ctx.modal &&
+		ctx.modal.title.startsWith("[friendPostcard:") &&
+		command === "CANCEL"
+	) {
 		return consume();
 	}
 

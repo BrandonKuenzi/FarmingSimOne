@@ -72,6 +72,7 @@ export const GLYPH = {
 	palm: "\u{1F334}", // 🌴 U+1F334
 	bat: "\u{1F987}", // 🦇 U+1F987
 	envelope: "\u{2709}\u{FE0F}", // ✉️ U+2709 U+FE0F
+	paperclip: "\u{1F4CE}", // 📎 U+1F4CE
 	fire: "\u{1F525}", // 🔥 U+1F525
 	satelliteAntenna: "\u{1F4E1}", // 📡 U+1F4E1
 	plateWithCutlery: "\u{1F37D}\u{FE0F}", // 🍽️ U+1F37D U+FE0F

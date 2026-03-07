@@ -1,10 +1,4 @@
 import {
-	generateDailyAssignmentsForNpcs,
-	generateNpcDialogLine,
-	generateNpcGreetingLine,
-	type NpcDailyAssignment,
-} from "../../npcDialogue";
-import {
 	boatDialogArray,
 	cowHarvestTtsLines,
 	doctorFinishedTodayLine,
@@ -14,16 +8,29 @@ import {
 	sheepHarvestTtsLines,
 	sketchyMerchantIntro,
 	sketchyVendorSales,
-	townTips,
 	traderAfterSaleLines,
 	traderBoxLines,
 	traderHeliLines,
 	traderIntroLines,
 	traderSoldOutLines,
 } from "../content/dialog";
+import {
+	countFriendshipHeartsForUniqueTalks,
+	getDialogPoolForLevel,
+	NPCInterestTitles,
+	generatedNPCDialog,
+	possibleNPCInterests,
+	type FriendshipLevel,
+	type NPCInterest,
+} from "../content/npcDialog";
 import { animalDefs, isCowLikeAnimal, itemNames } from "../content/catalog";
 import { progressAlgorithmStones } from "../progression/progressStonesAlgorithmic";
 import { GLYPH } from "../config/glyphs";
+import {
+	PLAYER_STAT_KEYS,
+	TRADER_ALGORITHM_STONE_DEFAULT_VALUE_BY_RARITY,
+	makeTownNpcUniqueTalkKey,
+} from "../statistics/statistics";
 import {
 	DOCTOR_POS,
 	PET_VENDOR_POS,
@@ -57,7 +64,6 @@ import type {
 
 export type InteractionsContext = {
 	playerEmoji: string;
-	playerName: string;
 	playerMap: MapId;
 	tx: number;
 	ty: number;
@@ -83,7 +89,8 @@ export type InteractionsContext = {
 	boatTiles: Record<string, Point>;
 	townNpcTiles: Record<string, Point>;
 	townNpcNames: Record<string, string>;
-	npcDailyAssignments: Record<string, NpcDailyAssignment>;
+	townNpcInterests: Record<string, NPCInterest>;
+	townNpcGlyphs: Record<string, string>;
 	npcTalkedToday: Record<string, boolean>;
 	petVendorActive: boolean;
 	ownedPet: string | null;
@@ -96,6 +103,8 @@ export type InteractionsContext = {
 	playBad: () => void;
 	playMunch: () => void;
 	playChaChing: () => void;
+	playFriendship?: () => void;
+	lockInputForMs?: (ms: number) => void;
 	speakNpcLine: (line: string) => void;
 	addLog: (line: string) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
@@ -128,12 +137,16 @@ export type InteractionsContext = {
 	randomInt: (min: number, max: number) => number;
 	tileFx: TileFxApi;
 	onProgressEvent?: (event: ProgressEventPayload) => void;
+	incrementStatistics?: (key: string, amount?: number) => void;
+	getStatisticValue?: (key: string) => number;
+	resolveItemDefaultMarketValue?: (itemId: ItemId) => number;
 	onManualCowMilked?: () => void;
 	onManualSheepSheared?: () => void;
 	grantProgressStone?: (
 		kind: "target" | "algorithm",
 		stoneId: ProgressTargetId | ProgressAlgorithmId,
 		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
 	) => void;
 };
 
@@ -142,7 +155,6 @@ export const handleLateInteractionBlocks = (
 ): boolean => {
 	const {
 		playerEmoji,
-		playerName,
 		playerMap,
 		tx,
 		ty,
@@ -166,7 +178,8 @@ export const handleLateInteractionBlocks = (
 		boatTiles,
 		townNpcTiles,
 		townNpcNames,
-		npcDailyAssignments,
+		townNpcInterests,
+		townNpcGlyphs,
 		npcTalkedToday,
 		petVendorActive,
 		ownedPet,
@@ -179,6 +192,8 @@ export const handleLateInteractionBlocks = (
 		playBad,
 		playMunch,
 		playChaChing,
+		playFriendship,
+		lockInputForMs,
 		speakNpcLine,
 		addLog,
 		updateInventory,
@@ -199,6 +214,9 @@ export const handleLateInteractionBlocks = (
 		randomInt,
 		tileFx,
 		onProgressEvent,
+		incrementStatistics,
+		getStatisticValue,
+		resolveItemDefaultMarketValue,
 		onManualCowMilked,
 		onManualSheepSheared,
 		grantProgressStone,
@@ -206,6 +224,9 @@ export const handleLateInteractionBlocks = (
 	const algorithmStoneNameById = Object.fromEntries(
 		progressAlgorithmStones.map((stone) => [stone.id, stone.name]),
 	) as Record<string, string>;
+	const algorithmStoneRarityById = Object.fromEntries(
+		progressAlgorithmStones.map((stone) => [stone.id, stone.rarity]),
+	) as Record<string, "common" | "uncommon" | "rare" | "legendary">;
 
 	const copSketchyLines = [
 		"Hi officer. I was just leaving.",
@@ -241,12 +262,21 @@ export const handleLateInteractionBlocks = (
 			if (eggCount > 0) updateInventory("egg", eggCount);
 			if (milkCount > 0) {
 				onProgressEvent?.({ type: "milk_collected", quantity: milkCount });
+				incrementStatistics?.(
+					PLAYER_STAT_KEYS.cowMilkingInteractions,
+					milkCount,
+				);
 			}
 			if (woolCount > 0) {
 				onProgressEvent?.({ type: "wool_collected", quantity: woolCount });
+				incrementStatistics?.(
+					PLAYER_STAT_KEYS.sheepShearingInteractions,
+					woolCount,
+				);
 			}
 			if (eggCount > 0) {
 				onProgressEvent?.({ type: "egg_collected", quantity: eggCount });
+				incrementStatistics?.(PLAYER_STAT_KEYS.eggsPickedTotal, eggCount);
 			}
 			setFarmEggDrops(() => ({}));
 			setAnimals((prev) =>
@@ -329,6 +359,7 @@ export const handleLateInteractionBlocks = (
 			playPluck();
 			updateInventory("egg", 1);
 			onProgressEvent?.({ type: "egg_collected", quantity: 1 });
+			incrementStatistics?.(PLAYER_STAT_KEYS.eggsPickedTotal, 1);
 			return true;
 		}
 		const nearAnimals = animals
@@ -350,9 +381,11 @@ export const handleLateInteractionBlocks = (
 				updateInventory(product, produced);
 				if (product === "milk") {
 					onProgressEvent?.({ type: "milk_collected", quantity: produced });
+					incrementStatistics?.(PLAYER_STAT_KEYS.cowMilkingInteractions, 1);
 					onManualCowMilked?.();
 				} else if (product === "wool") {
 					onProgressEvent?.({ type: "wool_collected", quantity: produced });
+					incrementStatistics?.(PLAYER_STAT_KEYS.sheepShearingInteractions, 1);
 					onManualSheepSheared?.();
 				}
 				tileFx.actor(`animal-${animal.id}`).streatch(1.35, 220);
@@ -566,6 +599,20 @@ export const handleLateInteractionBlocks = (
 									unitPrice: 0,
 									onConfirm: (quantity) => {
 										updateInventory(trade.wantItem, -quantity);
+										const wantDefaultValue =
+											resolveItemDefaultMarketValue?.(trade.wantItem) ?? 0;
+										const giveDefaultValue = trade.giveAlgorithmStoneId
+											? TRADER_ALGORITHM_STONE_DEFAULT_VALUE_BY_RARITY[
+													algorithmStoneRarityById[trade.giveAlgorithmStoneId] ??
+														"common"
+												]
+											: resolveItemDefaultMarketValue?.(trade.giveItem) ?? 0;
+										const perUnitAverage =
+											(wantDefaultValue + giveDefaultValue) / 2;
+										incrementStatistics?.(
+											PLAYER_STAT_KEYS.traderExchangeValueTotal,
+											Math.round(perUnitAverage * quantity),
+										);
 										if (trade.giveAlgorithmStoneId) {
 											const stoneLabel =
 												algorithmStoneNameById[trade.giveAlgorithmStoneId] ??
@@ -712,6 +759,10 @@ export const handleLateInteractionBlocks = (
 									unitPrice: entry.price,
 									onConfirm: (quantity) => {
 										applyMoneyDelta(-entry.price * quantity);
+										incrementStatistics?.(
+											PLAYER_STAT_KEYS.shadyMerchantDollarsSpent,
+											entry.price * quantity,
+										);
 										if (entry.giveAlgorithmStoneId) {
 											for (let i = 0; i < quantity; i += 1) {
 												grantProgressStone?.(
@@ -781,26 +832,57 @@ export const handleLateInteractionBlocks = (
 
 		const key = on[0];
 		if (townNpcNames[key]) {
-			const assignment =
-				npcDailyAssignments[key] ?? generateDailyAssignmentsForNpcs([key])[key];
 			const firstTalkToday = !npcTalkedToday[key];
-			const tipText = townTips[randomInt(0, townTips.length - 1)]!;
-			const isTip = !firstTalkToday && randomRoll() < 0.5;
-			const line = firstTalkToday
-				? generateNpcGreetingLine(assignment, playerName)
-				: isTip
-					? `TIP: ${tipText}`
-					: generateNpcDialogLine(assignment);
+			if (firstTalkToday) {
+				incrementStatistics?.(PLAYER_STAT_KEYS.townNpcUniqueTalksTotal, 1);
+				incrementStatistics?.(makeTownNpcUniqueTalkKey(key), 1);
+			}
+			const npcTalkStatKey = makeTownNpcUniqueTalkKey(key);
+			const existingUniqueTalkCount = getStatisticValue?.(npcTalkStatKey) ?? 0;
+			const uniqueTalkCount = existingUniqueTalkCount + (firstTalkToday ? 1 : 0);
+			const previousHearts =
+				countFriendshipHeartsForUniqueTalks(existingUniqueTalkCount);
+			const fullHearts = countFriendshipHeartsForUniqueTalks(uniqueTalkCount);
+			const friendshipLevel = Math.max(
+				0,
+				Math.min(5, fullHearts),
+			) as FriendshipLevel;
+			const assignedInterest =
+				townNpcInterests[key] ?? possibleNPCInterests[0] ?? "finger_painting";
+			const dialogPool = getDialogPoolForLevel(assignedInterest, friendshipLevel);
+			const line =
+				dialogPool[randomInt(0, dialogPool.length - 1)] ??
+				generatedNPCDialog.allLevelZero[0] ??
+				"Hi.";
+			const leveledUpFriendship = fullHearts > previousHearts;
+			const npcInterestTitle =
+				friendshipLevel <= 0
+					? "?????"
+					: (NPCInterestTitles[assignedInterest]?.[friendshipLevel] ?? "?????");
+			const openNpcDialog = () => {
+				emoteTownTarget(tx, ty, true);
+				speakNpcLine(line);
+				toastTownSpeech(tx, ty, line);
+				const npcPortraitGlyph = townNpcGlyphs[key] ?? GLYPH.person;
+				openMenu(
+					`[npcPortrait:${npcPortraitGlyph}]\n${townNpcNames[key]} ${heartsText}\n${npcInterestTitle}`,
+					[line],
+					[{ label: "Bye", onSelect: closeMenu }],
+				);
+			};
+			const emptyHearts = 5 - fullHearts;
+			const heartsText = `${"\u2665".repeat(fullHearts)}${"\u2661".repeat(emptyHearts)}`;
 			setNpcTalkedToday((prev) => ({ ...prev, [key]: true }));
-			emoteTownTarget(tx, ty, !isTip);
-			const spokenLine = isTip ? `Heres a tip: ${tipText}` : line;
-			speakNpcLine(spokenLine);
-			toastTownSpeech(tx, ty, spokenLine);
-			openMenu(
-				townNpcNames[key]!,
-				[line],
-				[{ label: "Bye", onSelect: closeMenu }],
-			);
+			if (leveledUpFriendship) {
+				lockInputForMs?.(2000);
+				playFriendship?.();
+				tileFx.actor(`town-npc-${key}`).toast("Friendship Increased!", 2000);
+				window.setTimeout(() => {
+					openNpcDialog();
+				}, 2000);
+				return true;
+			}
+			openNpcDialog();
 			return true;
 		}
 	}

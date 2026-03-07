@@ -60,6 +60,7 @@ export const openHighValueForestChestReward = (args: {
 export const openCaveBonusChestReward = (args: {
 	updateInventory: (item: ItemId, amount: number) => void;
 	openRewardPopup: (line: string) => void;
+	onGemFound?: (itemId: ItemId, amount?: number) => void;
 }): void => {
 	openCaveBonusChestRewardRule(args);
 };

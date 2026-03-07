@@ -403,6 +403,18 @@ export type TraderTradeEntry = {
 	remaining: number;
 };
 
+export type NpcGiftLetterReward =
+	| { kind: "item"; itemId: ItemId; amount: number }
+	| { kind: "algorithm"; stoneId: ProgressAlgorithmId }
+	| { kind: "target"; stoneId: ProgressTargetId };
+
+export type NpcGiftLetterState = {
+	senderNpcKey: string;
+	senderName: string;
+	body: string;
+	reward: NpcGiftLetterReward;
+};
+
 export type ForestEnemy = {
 	id: number;
 	type: ForestEnemyType;
