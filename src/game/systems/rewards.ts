@@ -151,35 +151,49 @@ export const openHighValueForestChestReward = (ctx: {
 export const openCaveBonusChestReward = (ctx: {
 	updateInventory: (item: ItemId, amount: number) => void;
 	openRewardPopup: (line: string) => void;
+	onGemFound?: (itemId: ItemId, amount?: number) => void;
 }): void => {
 	const roll = randomRoll() * 100;
 	let line = "";
 	if (roll < 15) {
 		ctx.updateInventory("diamond", 1);
+		ctx.onGemFound?.("diamond", 1);
 		line = "You found Diamond +1.";
 	} else if (roll < 35) {
 		ctx.updateInventory("emerald", 1);
+		ctx.onGemFound?.("emerald", 1);
 		line = "You found Emerald +1.";
 	} else if (roll < 60) {
 		ctx.updateInventory("ruby", 1);
+		ctx.onGemFound?.("ruby", 1);
 		line = "You found Ruby +1.";
 	} else if (roll < 75) {
 		ctx.updateInventory("emerald", 1);
 		ctx.updateInventory("ruby", 1);
+		ctx.onGemFound?.("emerald", 1);
+		ctx.onGemFound?.("ruby", 1);
 		line = "You found Emerald +1 and Ruby +1.";
 	} else if (roll < 90) {
 		ctx.updateInventory("emerald", 1);
 		ctx.updateInventory("diamond", 1);
+		ctx.onGemFound?.("emerald", 1);
+		ctx.onGemFound?.("diamond", 1);
 		line = "You found Emerald +1 and Diamond +1.";
 	} else if (roll < 97) {
 		ctx.updateInventory("diamond", 1);
 		ctx.updateInventory("emerald", 1);
 		ctx.updateInventory("ruby", 1);
+		ctx.onGemFound?.("diamond", 1);
+		ctx.onGemFound?.("emerald", 1);
+		ctx.onGemFound?.("ruby", 1);
 		line = "Jackpot! Diamond +1, Emerald +1, and Ruby +1.";
 	} else {
 		ctx.updateInventory("diamond", 2);
 		ctx.updateInventory("emerald", 2);
 		ctx.updateInventory("ruby", 2);
+		ctx.onGemFound?.("diamond", 2);
+		ctx.onGemFound?.("emerald", 2);
+		ctx.onGemFound?.("ruby", 2);
 		line = "Mega jackpot! Diamond x2, Emerald x2, and Ruby x2.";
 	}
 	ctx.openRewardPopup(line);
@@ -202,8 +216,36 @@ export const rollBeachBottleReward = (ctx: {
 		kind: "target" | "algorithm",
 		stoneId: ProgressTargetId | ProgressAlgorithmId,
 		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
 	) => void;
+	onGemFound?: (itemId: ItemId, amount?: number) => void;
 }): string => {
+	const plan = rollBeachBottleRewardPlan(ctx);
+	plan.apply();
+	return plan.rewardName;
+};
+
+export const rollBeachBottleRewardPlan = (ctx: {
+	randomInt: (min: number, max: number) => number;
+	stamina: number;
+	staminaMax: number;
+	animalsCount: number;
+	barnAnimalCap: number;
+	canSpawnAnimal: boolean;
+	ownedWardrobeLooks: string[];
+	applyMoneyDelta: (delta: number) => void;
+	updateInventory: (item: ItemId, amount: number) => void;
+	setStamina: (updater: (value: number) => number) => void;
+	setOwnedWardrobeLooks: (updater: (prev: string[]) => string[]) => void;
+	spawnAnimalInBarn: (type: AnimalType) => boolean;
+	grantProgressStone?: (
+		kind: "target" | "algorithm",
+		stoneId: ProgressTargetId | ProgressAlgorithmId,
+		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
+	) => void;
+	onGemFound?: (itemId: ItemId, amount?: number) => void;
+}): { rewardName: string; apply: () => void } => {
 	const canRewardFood = ctx.stamina < ctx.staminaMax;
 	const canGrantAnimalReward =
 		ctx.animalsCount < ctx.barnAnimalCap && ctx.canSpawnAnimal;
@@ -217,47 +259,86 @@ export const rollBeachBottleReward = (ctx: {
 	const roll = randomRoll() * maxRoll;
 	const gemRoll = randomRoll() * 100;
 	if (gemRoll < 1) {
-		ctx.updateInventory("diamond", 1);
-		return "Diamond";
+		return {
+			rewardName: "Diamond",
+			apply: () => {
+				ctx.updateInventory("diamond", 1);
+				ctx.onGemFound?.("diamond", 1);
+			},
+		};
 	}
 	if (gemRoll < 4) {
-		ctx.updateInventory("ruby", 1);
-		return "Ruby";
+		return {
+			rewardName: "Ruby",
+			apply: () => {
+				ctx.updateInventory("ruby", 1);
+				ctx.onGemFound?.("ruby", 1);
+			},
+		};
 	}
 	if (gemRoll < 6) {
-		ctx.updateInventory("emerald", 1);
-		return "Emerald";
+		return {
+			rewardName: "Emerald",
+			apply: () => {
+				ctx.updateInventory("emerald", 1);
+				ctx.onGemFound?.("emerald", 1);
+			},
+		};
 	}
 	const stoneRoll = randomRoll() * 100;
 	if (stoneRoll < 8) {
 		const stone =
 			progressTargetStones[ctx.randomInt(0, progressTargetStones.length - 1)]!;
-		ctx.grantProgressStone?.("target", stone.id, stone.name);
-		return `${stone.name} (Target Stone)`;
+		return {
+			rewardName: `${stone.name} (Target Stone)`,
+			apply: () => {
+				ctx.grantProgressStone?.("target", stone.id, stone.name, {
+					suppressLog: true,
+				});
+			},
+		};
 	}
 	if (stoneRoll < 14) {
 		const stone =
 			progressAlgorithmStones[
 				ctx.randomInt(0, progressAlgorithmStones.length - 1)
 			]!;
-		ctx.grantProgressStone?.("algorithm", stone.id, stone.name);
-		return `${stone.name} (Algorithm Stone)`;
+		return {
+			rewardName: `${stone.name} (Algorithm Stone)`,
+			apply: () => {
+				ctx.grantProgressStone?.("algorithm", stone.id, stone.name, {
+					suppressLog: true,
+				});
+			},
+		};
 	}
 	if (roll < 25) {
 		const amount = ctx.randomInt(100, 1000);
-		ctx.applyMoneyDelta(amount);
-		return `$${amount}`;
+		return {
+			rewardName: `$${amount}`,
+			apply: () => {
+				ctx.applyMoneyDelta(amount);
+			},
+		};
 	}
 	if (roll < 50) {
 		const iron = ctx.randomInt(1, 3);
-		ctx.updateInventory("iron", iron);
-		return `Iron x${iron}`;
+		return {
+			rewardName: `Iron x${iron}`,
+			apply: () => {
+				ctx.updateInventory("iron", iron);
+			},
+		};
 	}
 	if (canRewardFood && roll < 75) {
 		const foods = cafeMenuItems.filter((item) => item.name !== "Coffee");
 		const food = foods[ctx.randomInt(0, foods.length - 1)]!;
-		ctx.setStamina((s) => Math.min(ctx.staminaMax, s + food.stamina));
-		return food.name;
+		return {
+			rewardName: food.name,
+			apply: () => {
+				ctx.setStamina((s) => Math.min(ctx.staminaMax, s + food.stamina));
+			},
+		};
 	}
 	if (roll < (canRewardFood ? 90 : 65)) {
 		const lockedLooks = allWardrobeLooks.filter(
@@ -265,18 +346,28 @@ export const rollBeachBottleReward = (ctx: {
 		);
 		if (lockedLooks.length > 0) {
 			const look = lockedLooks[ctx.randomInt(0, lockedLooks.length - 1)]!;
-			ctx.setOwnedWardrobeLooks((prev) => [...prev, look]);
-			return `Outfit ${look}`;
+			return {
+				rewardName: `Outfit ${look}`,
+				apply: () => {
+					ctx.setOwnedWardrobeLooks((prev) => [...prev, look]);
+				},
+			};
 		}
-		ctx.applyMoneyDelta(2000);
-		return "$2000";
+		return {
+			rewardName: "$2000",
+			apply: () => {
+				ctx.applyMoneyDelta(2000);
+			},
+		};
 	}
 
 	const types: AnimalType[] = ["cow", "sheep", "chicken"];
 	const type = types[ctx.randomInt(0, types.length - 1)]!;
-	if (ctx.spawnAnimalInBarn(type)) {
-		return animalDefs[type].name;
-	}
-	ctx.applyMoneyDelta(2000);
-	return "$2000";
+	return {
+		rewardName: animalDefs[type].name,
+		apply: () => {
+			if (ctx.spawnAnimalInBarn(type)) return;
+			ctx.applyMoneyDelta(2000);
+		},
+	};
 };

@@ -775,12 +775,7 @@ export const buildNewGameRulesCutscene = (args: {
 							durationMs: 1000,
 							delayMs: 1500,
 						},
-						{
-							type: "toast",
-							targetActorId: "player",
-							message: "?",
-							durationMs: 3000,
-						},
+
 						{ type: "mapFade", opacity: 1, durationMs: 1000 },
 					],
 				},
@@ -837,6 +832,12 @@ export const buildNewGameRulesCutscene = (args: {
 							type: "animation",
 							targetActorId: "player",
 							animation: "bobbleLooping",
+						},
+						{
+							type: "toast",
+							targetActorId: "player",
+							message: "?",
+							durationMs: 3000,
 						},
 					],
 				},

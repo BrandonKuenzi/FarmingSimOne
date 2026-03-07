@@ -47,8 +47,7 @@ export const PC_KEYBOARD_PRESET: KeyboardInputPreset = {
 		escape: "CANCEL",
 		q: "ZOOM_OUT",
 		e: "ZOOM_IN",
-		p: "DEBUG_GRANT_RESOURCES",
-		o: "DEBUG_SPAWN_BARN_ANIMALS",
+		p: "DEBUG_OPEN_TOOLS_PANEL",
 		c: "DEBUG_OPEN_CUTSCENE_MENU",
 	},
 	keyToHeldMoveDirection: {

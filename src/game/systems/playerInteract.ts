@@ -1,8 +1,12 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { randomRoll } from "../shared/random";
 import { GLYPH } from "../config/glyphs";
-import type { NpcDailyAssignment } from "../../npcDialogue";
+import {
+	PLAYER_STAT_KEYS,
+	makeCropHarvestedKey,
+} from "../statistics/statistics";
 import type { InteractionsContext } from "./interactions";
+import type { NPCInterest } from "../content/npcDialog";
 import type {
 	Animal,
 	AnimalType,
@@ -133,7 +137,8 @@ export type PlayerInteractContext = {
 	itemNames: Record<ItemId, string>;
 	setBeachBottlePos: Dispatch<SetStateAction<Point | null>>;
 	playGotReward: () => void;
-	rollBeachBottleReward: (ctx: {
+	playFriendship?: () => void;
+	rollBeachBottleRewardPlan: (ctx: {
 		randomInt: (min: number, max: number) => number;
 		stamina: number;
 		staminaMax: number;
@@ -150,8 +155,10 @@ export type PlayerInteractContext = {
 			kind: "target" | "algorithm",
 			stoneId: ProgressTargetId | ProgressAlgorithmId,
 			label: string,
+			options?: { suppressLog?: boolean; suppressToast?: boolean },
 		) => void;
-	}) => string;
+		onGemFound?: (itemId: ItemId, amount?: number) => void;
+	}) => { rewardName: string; apply: () => void };
 	randomInt: (min: number, max: number) => number;
 	stamina: number;
 	staminaMax: number;
@@ -311,17 +318,9 @@ export type PlayerInteractContext = {
 	boatDialogArray: readonly string[];
 	townNpcTiles: Record<string, Point>;
 	townNpcNames: Record<string, string>;
-	npcDailyAssignments: Record<string, NpcDailyAssignment>;
-	generateDailyAssignmentsForNpcs: (
-		names: string[],
-	) => Record<string, NpcDailyAssignment>;
+	townNpcInterests: Record<string, NPCInterest>;
+	townNpcGlyphs: Record<string, string>;
 	npcTalkedToday: Record<string, boolean>;
-	townTips: readonly string[];
-	generateNpcGreetingLine: (assignment: NpcDailyAssignment) => string;
-	generateNpcDialogLine: (
-		assignment: NpcDailyAssignment,
-		type?: "Problem" | "RandomFact" | "Complement",
-	) => string;
 	setNpcTalkedToday: Dispatch<SetStateAction<Record<string, boolean>>>;
 	DOCTOR_POS: Point;
 	PET_VENDOR_POS: Point;
@@ -329,6 +328,7 @@ export type PlayerInteractContext = {
 	aquariumCuratorTile: Point | null;
 	interactAquariumCurator: () => void;
 	onProgressEvent?: (event: ProgressEventPayload) => void;
+	lockInputForMs?: (ms: number) => void;
 	onManualCowMilked?: () => void;
 	onManualSheepSheared?: () => void;
 	onManualGrassHoed?: () => void;
@@ -337,7 +337,11 @@ export type PlayerInteractContext = {
 		kind: "target" | "algorithm",
 		stoneId: ProgressTargetId | ProgressAlgorithmId,
 		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
 	) => void;
+	incrementStatistics?: (key: string, amount?: number) => void;
+	getStatisticValue?: (key: string) => number;
+	resolveItemDefaultMarketValue?: (itemId: ItemId) => number;
 };
 
 export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
@@ -398,7 +402,8 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		itemNames,
 		setBeachBottlePos,
 		playGotReward,
-		rollBeachBottleReward,
+		playFriendship,
+		rollBeachBottleRewardPlan,
 		randomInt,
 		stamina,
 		staminaMax,
@@ -534,12 +539,9 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		boatDialogArray,
 		townNpcTiles,
 		townNpcNames,
-		npcDailyAssignments,
-		generateDailyAssignmentsForNpcs,
+		townNpcInterests,
+		townNpcGlyphs,
 		npcTalkedToday,
-		townTips,
-		generateNpcGreetingLine,
-		generateNpcDialogLine,
 		setNpcTalkedToday,
 		DOCTOR_POS,
 		PET_VENDOR_POS,
@@ -552,6 +554,9 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		onManualGrassHoed,
 		maybeGrantChestProgressStone,
 		grantProgressStone,
+		incrementStatistics,
+		getStatisticValue,
+		resolveItemDefaultMarketValue,
 	} = ctx;
 	if (modal || fishing || isOrdering || isDoctorCompounding || isDrivingTractor)
 		return;
@@ -777,7 +782,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 	) {
 		setBeachBottlePos(null);
 		playGotReward();
-		const rewardName = rollBeachBottleReward({
+		const rewardPlan = rollBeachBottleRewardPlan({
 			randomInt,
 			stamina,
 			staminaMax,
@@ -791,14 +796,36 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			setOwnedWardrobeLooks,
 			spawnAnimalInBarn,
 			grantProgressStone,
+			onGemFound: (itemId, amount = 1) => {
+				if (itemId === "diamond") {
+					incrementStatistics?.(PLAYER_STAT_KEYS.diamondsFoundTotal, amount);
+					return;
+				}
+				if (itemId === "emerald") {
+					incrementStatistics?.(PLAYER_STAT_KEYS.emeraldsFoundTotal, amount);
+					return;
+				}
+				if (itemId === "ruby") {
+					incrementStatistics?.(PLAYER_STAT_KEYS.rubiesFoundTotal, amount);
+				}
+			},
 		});
+		const rewardName = rewardPlan.rewardName;
 		const garyMessage = makeGaryBottleMessage(rewardName, randomInt);
 		addLog(garyMessage);
 		playSeagulls();
 		openMenu(
-			"Message In A Bottle",
-			[garyMessage],
-			[{ label: "Take Reward", onSelect: closeMenu }],
+			`[friendPostcard:Message In A Bottle|${GLYPH.bottle}]`,
+			[garyMessage, `${GLYPH.paperclip}1x ${rewardName}`],
+			[
+				{
+					label: "Take Reward",
+					onSelect: () => {
+						rewardPlan.apply();
+						closeMenu();
+					},
+				},
+			],
 		);
 		return;
 	}
@@ -844,6 +871,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		if (gotFeed) {
 			updateInventory("feed", 1);
 			toastAtTarget(`+1 ${GLYPH.chicken}`);
+			incrementStatistics?.(PLAYER_STAT_KEYS.animalFeedFromGrassTotal, 1);
 		}
 		if (gotMoney) {
 			const amount = randomInt(1, 5);
@@ -956,6 +984,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			const lines: string[] = [];
 			if (gotFeed) {
 				updateInventory("feed", 1);
+				incrementStatistics?.(PLAYER_STAT_KEYS.animalFeedFromGrassTotal, 1);
 			}
 			if (gotMoney) {
 				const amount = randomInt(1, 5);
@@ -976,6 +1005,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			setForestObstacles((prev: ForestObstacle[]) =>
 				prev.filter((o: ForestObstacle) => o.id !== obstacle.id),
 			);
+			incrementStatistics?.(PLAYER_STAT_KEYS.woodObstaclesDestroyedTotal, 1);
 			playHoe();
 			const seedChance = getSmashAxeWoodSeedChance(smashAxeLevel);
 			if (randomRoll() < seedChance) {
@@ -1010,6 +1040,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				const interactionsLeft = Math.ceil(nextHitsRemaining / damage);
 				toastAtTarget(`${interactionsLeft} hits left`);
 			} else {
+				incrementStatistics?.(PLAYER_STAT_KEYS.rockObstaclesDestroyedTotal, 1);
 				if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 					updateInventory("iron", 1);
 					toastAtTarget(`+1 ${GLYPH.rock}`);
@@ -1081,19 +1112,23 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				const interactionsLeft = Math.ceil(nextHitsRemaining / damage);
 				toastAtTarget(`${interactionsLeft} hits left`);
 			} else {
+				incrementStatistics?.(PLAYER_STAT_KEYS.rockObstaclesDestroyedTotal, 1);
 				let foundGem = false;
 				if (caveLevel >= 10 && randomRoll() < 1 / 40) {
 					updateInventory("diamond", 1);
+					incrementStatistics?.(PLAYER_STAT_KEYS.diamondsFoundTotal, 1);
 					toastAtTarget(`+1 ${GLYPH.diamond}`);
 					playYaya();
 					foundGem = true;
 				} else if (caveLevel >= 5 && randomRoll() < 1 / 30) {
 					updateInventory("emerald", 1);
+					incrementStatistics?.(PLAYER_STAT_KEYS.emeraldsFoundTotal, 1);
 					toastAtTarget(`+1 ${GLYPH.greenCircle}`);
 					playYaya();
 					foundGem = true;
 				} else if (randomRoll() < 1 / 10) {
 					updateInventory("ruby", 1);
+					incrementStatistics?.(PLAYER_STAT_KEYS.rubiesFoundTotal, 1);
 					toastAtTarget(`+1 ${GLYPH.redCircle}`);
 					playYaya();
 					foundGem = true;
@@ -1131,6 +1166,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			...prev,
 			[blockerKey]: false,
 		}));
+		incrementStatistics?.(PLAYER_STAT_KEYS.woodObstaclesDestroyedTotal, 1);
 		playHoe();
 		const seedChance = getSmashAxeWoodSeedChance(smashAxeLevel);
 		if (randomRoll() < seedChance) {
@@ -1168,6 +1204,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			const interactionsLeft = Math.ceil(nextHitsRemaining / damage);
 			toastAtTarget(`${interactionsLeft} hits left`);
 		} else {
+			incrementStatistics?.(PLAYER_STAT_KEYS.rockObstaclesDestroyedTotal, 1);
 			if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
 				updateInventory("iron", 1);
 				toastAtTarget(`+1 ${GLYPH.rock}`);
@@ -1205,10 +1242,12 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				`You chip the gravestone. ${swingsLeft} swing${swingsLeft === 1 ? "" : "s"} left.`,
 			);
 		} else if (randomRoll() < getSmashAxeIronChance(smashAxeLevel)) {
+			incrementStatistics?.(PLAYER_STAT_KEYS.rockObstaclesDestroyedTotal, 1);
 			updateInventory("iron", 1);
 			playYaya();
 			addLog("You smashed the gravestone and found Iron +1.");
 		} else {
+			incrementStatistics?.(PLAYER_STAT_KEYS.rockObstaclesDestroyedTotal, 1);
 			addLog("You smashed the gravestone.");
 		}
 		return;
@@ -1374,6 +1413,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 				[plotKey]: { crop: null, growthDays: 0, watered: false },
 			}));
 			updateInventory(crop.harvestItem, 1);
+			incrementStatistics?.(makeCropHarvestedKey(plot.crop), 1);
 			onProgressEvent?.({
 				type: "crop_harvested",
 				quantity: 1,
@@ -1490,7 +1530,6 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 
 	if (
 		handleLateInteractionBlocks({
-			playerName,
 			playerMap: player.map,
 			tx,
 			ty,
@@ -1514,7 +1553,8 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			boatTiles,
 			townNpcTiles,
 			townNpcNames,
-			npcDailyAssignments,
+			townNpcInterests,
+			townNpcGlyphs,
 			npcTalkedToday,
 			petVendorActive,
 			ownedPet,
@@ -1528,6 +1568,8 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			playBad,
 			playMunch,
 			playChaChing,
+			playFriendship,
+			lockInputForMs: ctx.lockInputForMs,
 			speakNpcLine,
 			addLog,
 			updateInventory,
@@ -1548,6 +1590,9 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			randomInt,
 			tileFx,
 			onProgressEvent,
+			incrementStatistics,
+			getStatisticValue,
+			resolveItemDefaultMarketValue,
 			onManualCowMilked,
 			onManualSheepSheared,
 			grantProgressStone,

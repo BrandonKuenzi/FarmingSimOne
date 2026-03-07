@@ -33,6 +33,7 @@ type AudioSources = {
 	themeSongSrc: string;
 	spaceBgSrc: string;
 	gotRewardSoundSrc: string;
+	friendshipSoundSrc: string;
 	snakeSoundSrc: string;
 	bearSoundSrc: string;
 	pooSoundSrc: string;
@@ -73,6 +74,7 @@ type AudioRefs = {
 	yayaSoundRef: AudioRef;
 	tooTiredRef: AudioRef;
 	gotRewardRef: AudioRef;
+	friendshipRef: AudioRef;
 	snakeSoundRef: AudioRef;
 	bearSoundRef: AudioRef;
 	pooSoundRef: AudioRef;
@@ -155,6 +157,8 @@ export const initializeAudioEngine = ({
 	refs.tooTiredRef.current.preload = "auto";
 	refs.gotRewardRef.current = new Audio(sources.gotRewardSoundSrc);
 	refs.gotRewardRef.current.preload = "auto";
+	refs.friendshipRef.current = new Audio(sources.friendshipSoundSrc);
+	refs.friendshipRef.current.preload = "auto";
 	refs.snakeSoundRef.current = new Audio(sources.snakeSoundSrc);
 	refs.snakeSoundRef.current.preload = "auto";
 	refs.bearSoundRef.current = new Audio(sources.bearSoundSrc);
@@ -217,6 +221,7 @@ export const initializeAudioEngine = ({
 		refs.yayaSoundRef.current,
 		refs.tooTiredRef.current,
 		refs.gotRewardRef.current,
+		refs.friendshipRef.current,
 		refs.snakeSoundRef.current,
 		refs.bearSoundRef.current,
 		refs.pooSoundRef.current,
@@ -312,6 +317,10 @@ export const createAudioActions = ({
 
 	const playGotReward = () => {
 		playOneShot(refs.gotRewardRef.current);
+	};
+
+	const playFriendship = () => {
+		playOneShot(refs.friendshipRef.current);
 	};
 
 	const playSnakeSound = () => {
@@ -433,6 +442,7 @@ export const createAudioActions = ({
 		playWater,
 		playYaya,
 		playGotReward,
+		playFriendship,
 		playSnakeSound,
 		playBearSound,
 		playPooSound,
