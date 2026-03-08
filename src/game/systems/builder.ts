@@ -1,6 +1,6 @@
 import { BARN_MAX_TIER, getBarnAnimalCap, getBarnInteriorSizeByTier, getBarnUpgradeCost, getFarmBarnOuterRect, isBarnExternal } from "../world/layout";
 import { getToolTierName } from "./tools";
-import type { BarnTier, Inventory, ItemId } from "../shared/types";
+import type { BarnTier, IncomeSource, Inventory, ItemId } from "../shared/types";
 import { GLYPH } from "../config/glyphs";
 
 export const interactBuilderVendorMenu = (ctx: {
@@ -22,7 +22,11 @@ export const interactBuilderVendorMenu = (ctx: {
 	toastBuilderLine: (line: string, durationMs?: number) => void;
 	closeMenu: () => void;
 	openMenu: (title: string, body: string[], options: Array<{ label: string; onSelect: () => void; info?: string[] }>) => void;
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	setPendingBarnUpgrade: (value: boolean) => void;
 	setPendingBathInstall: (value: boolean) => void;

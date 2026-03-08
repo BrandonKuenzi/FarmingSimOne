@@ -16,6 +16,7 @@ export const isPassableChar = (c: string): boolean => {
 	if (c === "\u00A7") return false;
 	if (c === "\u00D7" || c === "\u00D8" || c === "\u00D9")
 		return false;
+	if (c === "\u00DB") return false;
 	if (c === "U" || c === "j" || c === "b") return false;
 	if (c === "R" || c === "W" || c === "g" || c === "Q" || c === "H" || c === "B")
 		return false;

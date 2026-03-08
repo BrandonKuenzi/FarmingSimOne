@@ -6,13 +6,23 @@ import type {
 	ProgressTargetId,
 	ToolId,
 } from "../shared/types";
+import {
+	countTotalTownNpcFriendshipHearts,
+	type StatisticsState,
+} from "../statistics/statistics";
 
-const PROGRESS_POINTS_TO_WIN = 1000;
+const PROGRESS_POINTS_TO_WIN = 10000;
 
 export type ProgressComputationState = {
 	progressPercent: number;
 	progressWon: boolean;
-	progressLoadoutRows: [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow];
+	day: number;
+	progressStoneAlgorithmCounts: Record<ProgressAlgorithmId, number>;
+	progressLoadoutRows: [
+		ProgressLoadoutRow,
+		ProgressLoadoutRow,
+		ProgressLoadoutRow,
+	];
 	inventory: Record<string, number>;
 	aquariumDonations: Record<string, boolean>;
 	animals: Array<{ type: AnimalType }>;
@@ -21,6 +31,7 @@ export type ProgressComputationState = {
 	barnTier: number;
 	highestForestLevelReached: number;
 	highestCaveLevelReached: number;
+	statistics: StatisticsState;
 };
 
 export const makeEmptyProgressLoadoutRows = (): [
@@ -61,8 +72,9 @@ const countOwnedAnimals = (
 	target: AnimalType,
 ): number => animals.filter((animal) => animal.type === target).length;
 
-const countPlantedCrops = (plots: Record<string, { crop: string | null }>): number =>
-	Object.values(plots).filter((plot) => !!plot.crop).length;
+const countPlantedCrops = (
+	plots: Record<string, { crop: string | null }>,
+): number => Object.values(plots).filter((plot) => !!plot.crop).length;
 
 const countTier5Tools = (tools: Record<ToolId, number>): number =>
 	(Object.values(tools) as number[]).filter((level) => level >= 5).length;
@@ -75,32 +87,48 @@ const applyAlgorithm = (
 	algorithmId: ProgressAlgorithmId,
 	state: ProgressComputationState,
 ): number => {
-	if (algorithmId === "add_1") return current + 1;
-	if (algorithmId === "add_2") return current + 2;
-	if (algorithmId === "add_3") return current + 3;
-	if (algorithmId === "add_5") return current + 5;
-	if (algorithmId === "add_diamond_count") return current + (state.inventory.diamond ?? 0);
-	if (algorithmId === "add_barn_tier") return current + state.barnTier;
-	if (algorithmId === "add_tier5_tools") return current + countTier5Tools(state.tools);
+	if (algorithmId === "add_1") return current + 10;
+	if (algorithmId === "add_3") return current + 20;
+	if (algorithmId === "add_5") return current + 30;
+	if (algorithmId === "add_diamond_count")
+		return current + 10 * (state.inventory.diamond ?? 0);
+	if (algorithmId === "add_barn_tier") return current + 10 * state.barnTier;
+	if (algorithmId === "add_tier5_tools")
+		return current + 10 * countTier5Tools(state.tools);
 	if (algorithmId === "mul_1_25") return current * 1.25;
 	if (algorithmId === "mul_1_5") return current * 1.5;
 	if (algorithmId === "mul_2") return current * 2;
+	if (algorithmId === "mul_10") return current * 10;
 	if (algorithmId === "mul_donated_fish_count") {
 		return current * countDonatedFish(state.aquariumDonations);
 	}
-	if (algorithmId === "add_cow_count") return current + countOwnedAnimals(state.animals, "cow");
+	if (algorithmId === "add_cow_count")
+		return current + countOwnedAnimals(state.animals, "cow");
 	if (algorithmId === "add_sheep_count") {
 		return current + countOwnedAnimals(state.animals, "sheep");
 	}
 	if (algorithmId === "add_chicken_count") {
 		return current + countOwnedAnimals(state.animals, "chicken");
 	}
-	if (algorithmId === "add_crop_count") return current + countPlantedCrops(state.plots);
+	if (algorithmId === "add_crop_count")
+		return current + countPlantedCrops(state.plots);
 	if (algorithmId === "add_highest_forest_level") {
-		return current + Math.max(0, state.highestForestLevelReached);
+		return current + Math.max(0, state.highestForestLevelReached) * 10;
 	}
 	if (algorithmId === "add_highest_cave_level") {
-		return current + Math.max(0, state.highestCaveLevelReached);
+		return current + Math.max(0, state.highestCaveLevelReached) * 10;
+	}
+	if (algorithmId === "add_friendship_hearts") {
+		return current + 20 * countTotalTownNpcFriendshipHearts(state.statistics);
+	}
+	if (algorithmId === "add_sleepyhead_day") {
+		return current + 5 * Math.max(0, state.day);
+	}
+	if (algorithmId === "add_stone_stone_stone") {
+		return (
+			current +
+			10 * (state.progressStoneAlgorithmCounts.add_stone_stone_stone ?? 0)
+		);
 	}
 	return current;
 };
@@ -145,7 +173,8 @@ export const applyProgressEventToState = (
 		PROGRESS_POINTS_TO_WIN,
 		Math.max(0, state.progressPercent + increment),
 	);
-	const reachedWinNow = !state.progressWon && nextProgress >= PROGRESS_POINTS_TO_WIN;
+	const reachedWinNow =
+		!state.progressWon && nextProgress >= PROGRESS_POINTS_TO_WIN;
 	return {
 		progressPercent: nextProgress,
 		progressWon: state.progressWon || reachedWinNow,

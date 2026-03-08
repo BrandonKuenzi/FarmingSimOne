@@ -36,6 +36,8 @@ import type {
 	ProgressEventPayload,
 	ProgressTargetId,
 	ProgressAlgorithmId,
+	IncomeSource,
+	MoneyStoneId,
 } from "../shared/types";
 
 type QuantityPromptConfig = {
@@ -146,7 +148,11 @@ export type PlayerInteractContext = {
 		barnAnimalCap: number;
 		canSpawnAnimal: boolean;
 		ownedWardrobeLooks: string[];
-		applyMoneyDelta: (delta: number) => void;
+		applyMoneyDelta: (
+			delta: number,
+			incomeSource?: IncomeSource,
+			transactionCount?: number,
+		) => void;
 		updateInventory: (item: ItemId, amount: number) => void;
 		setStamina: Dispatch<SetStateAction<number>>;
 		setOwnedWardrobeLooks: Dispatch<SetStateAction<string[]>>;
@@ -154,6 +160,11 @@ export type PlayerInteractContext = {
 		grantProgressStone?: (
 			kind: "target" | "algorithm",
 			stoneId: ProgressTargetId | ProgressAlgorithmId,
+			label: string,
+			options?: { suppressLog?: boolean; suppressToast?: boolean },
+		) => void;
+		grantMoneyStone?: (
+			stoneId: MoneyStoneId,
 			label: string,
 			options?: { suppressLog?: boolean; suppressToast?: boolean },
 		) => void;
@@ -182,7 +193,11 @@ export type PlayerInteractContext = {
 	starterChestOpened: boolean;
 	STARTER_CHEST_POS: Point;
 	setStarterChestOpened: Dispatch<SetStateAction<boolean>>;
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	openRewardPopup: (line: string) => void;
 	farmWeedObstacles: Record<string, boolean>;
@@ -336,6 +351,11 @@ export type PlayerInteractContext = {
 	grantProgressStone?: (
 		kind: "target" | "algorithm",
 		stoneId: ProgressTargetId | ProgressAlgorithmId,
+		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
+	) => void;
+	grantMoneyStone?: (
+		stoneId: MoneyStoneId,
 		label: string,
 		options?: { suppressLog?: boolean; suppressToast?: boolean },
 	) => void;
@@ -554,6 +574,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		onManualGrassHoed,
 		maybeGrantChestProgressStone,
 		grantProgressStone,
+		grantMoneyStone,
 		incrementStatistics,
 		getStatisticValue,
 		resolveItemDefaultMarketValue,
@@ -796,6 +817,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			setOwnedWardrobeLooks,
 			spawnAnimalInBarn,
 			grantProgressStone,
+			grantMoneyStone,
 			onGemFound: (itemId, amount = 1) => {
 				if (itemId === "diamond") {
 					incrementStatistics?.(PLAYER_STAT_KEYS.diamondsFoundTotal, amount);
@@ -850,7 +872,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		ty === STARTER_CHEST_POS.y
 	) {
 		setStarterChestOpened(true);
-		applyMoneyDelta(1200);
+		applyMoneyDelta(1200, "other");
 		updateInventory("turnip_seed", 5);
 		toastAtTarget(`+$1200 +5 ${GLYPH.seedling}`);
 		openRewardPopup("Starter chest reward: $1200 and Turnip Seeds x5.");
@@ -875,7 +897,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 		}
 		if (gotMoney) {
 			const amount = randomInt(1, 5);
-			applyMoneyDelta(amount);
+			applyMoneyDelta(amount, "grass_breaking_award");
 			toastAtTarget(`+$${amount}`);
 			lines.push(`Found $${amount}.`);
 		}
@@ -988,7 +1010,7 @@ export const runInteract = (ctx: PlayerInteractContext, dir: Dir): void => {
 			}
 			if (gotMoney) {
 				const amount = randomInt(1, 5);
-				applyMoneyDelta(amount);
+				applyMoneyDelta(amount, "grass_breaking_award");
 				lines.push(`Found $${amount}.`);
 			}
 			if (lines.length > 0) addLog(lines.join(" "));

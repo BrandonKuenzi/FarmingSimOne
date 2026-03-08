@@ -314,6 +314,7 @@ export const buildTownLayout = (): string[] => {
 		grid[y]![COMPUTER_LAB_TOWN_DOOR_POS.x] = "=";
 	}
 	grid[4][1] = "\u00D9";
+	grid[4][3] = "_";
 	grid[14][50] = "(";
 	grid[14][52] = "-";
 	grid[14][54] = '"';
@@ -734,11 +735,11 @@ export const buildBureaucracyOfficeLayout = (): string[] => {
 export const buildComputerLabLayout = (): string[] => [
 	"################",
 	"#..............#",
-	"#.xxxxx..xxxx..#",
+	"#.xxxxx..xxxxx.#",
 	"#..............#",
-	"#.xxxxx..xxxx..#",
+	"#.xxxxx..xxxxx.#",
 	"#..............#",
-	"#.xxxxx..xxxx..#",
+	"#.xxxxx..xxxxx.#",
 	"#..............#",
 	"#..............#",
 	"#..............#",
@@ -843,6 +844,8 @@ export const mapTiles: Record<MapId, Tile[][]> = Object.fromEntries(
 				if (c === "x") return { icon: "x", passable: false, label: "Counter" };
 				if (c === "\u00D9")
 					return { icon: c, passable: false, label: "Trophy Display" };
+				if (c === "\u00DB")
+					return { icon: c, passable: false, label: "Stone Trade Machine" };
 				if (c === "h") return { icon: "h", passable: false, label: "Chair" };
 				if (c === "j")
 					return { icon: "j", passable: false, label: "Shopkeeper" };

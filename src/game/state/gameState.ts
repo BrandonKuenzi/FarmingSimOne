@@ -27,6 +27,8 @@ import type {
 	Position,
 	PriceState,
 	PriceTrendState,
+	MoneyLoadoutRow,
+	MoneyStoneId,
 	ProgressAlgorithmId,
 	ProgressLoadoutRow,
 	ProgressTargetId,
@@ -163,6 +165,7 @@ export type GameState = {
 	isDoctorCompounding: boolean;
 	doctorObservation: string;
 	townTourSeen: boolean;
+	algorithmTradeMachineIntroSeen: boolean;
 	clouds: CloudSprite[];
 	grassWindBands: Array<{
 		id: number;
@@ -186,6 +189,8 @@ export type GameState = {
 	progressStoneTargetCounts: Record<ProgressTargetId, number>;
 	progressStoneAlgorithmCounts: Record<ProgressAlgorithmId, number>;
 	progressLoadoutRows: [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow];
+	moneyStoneCounts: Record<MoneyStoneId, number>;
+	moneyLoadoutRows: [MoneyLoadoutRow, MoneyLoadoutRow, MoneyLoadoutRow];
 	highestForestLevelReached: number;
 	highestCaveLevelReached: number;
 	statistics: StatisticsState;

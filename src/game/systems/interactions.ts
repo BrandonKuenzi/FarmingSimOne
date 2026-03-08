@@ -60,6 +60,7 @@ import type {
 	ProgressEventPayload,
 	ProgressAlgorithmId,
 	ProgressTargetId,
+	IncomeSource,
 } from "../shared/types";
 
 export type InteractionsContext = {
@@ -109,7 +110,11 @@ export type InteractionsContext = {
 	addLog: (line: string) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	canAfford: (value: number) => boolean;
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	setAnimals: (updater: (prev: Animal[]) => Animal[]) => void;
 	setPendingPet: (pet: PetEmoji | null) => void;
 	setTraderTrades: (

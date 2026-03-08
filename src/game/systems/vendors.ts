@@ -43,6 +43,7 @@ import type {
 	UnlockFlags,
 	VendorKey,
 	ProgressEventPayload,
+	IncomeSource,
 } from "../shared/types";
 
 type Point = { x: number; y: number };
@@ -64,7 +65,11 @@ type VendorContext = {
 	unlockFlags: UnlockFlags;
 	randomInt: (min: number, max: number) => number;
 	canAfford: (value: number) => boolean;
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	speakNpcLine: (line: string) => void;
 	addLog: (line: string) => void;
@@ -619,8 +624,22 @@ export const interactVendorMenu = (ctx: VendorContext): boolean => {
 							unitPrice,
 							onConfirm: (quantity) => {
 								updateInventory(id, -quantity);
-								applyMoneyDelta(unitPrice * quantity);
 								const fishIdSet = new Set(fishItemIds as ItemId[]);
+								const incomeSource: IncomeSource =
+									id === "milk"
+										? "milk_sales"
+										: id === "wool"
+											? "wool_sales"
+											: id === "egg"
+												? "egg_sales"
+											: id === "diamond" ||
+													  id === "emerald" ||
+													  id === "ruby"
+													? "gem_sales"
+														: fishIdSet.has(id)
+															? "fish_sales"
+															: "crop_sales";
+								applyMoneyDelta(unitPrice * quantity, incomeSource, quantity);
 								const animalProductSet = new Set<ItemId>(["milk", "wool", "egg"]);
 								const eventType = fishIdSet.has(id)
 									? "fish_sold"

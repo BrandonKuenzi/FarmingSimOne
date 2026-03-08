@@ -107,6 +107,8 @@ export const GLYPH = {
 	earth: "\u{1F30D}", // 🌍 U+1F30D
 	officeWorker: "\u{1F9D1}\u{200D}\u{1F4BC}", // 🧑‍💼 U+1F9D1 U+200D U+1F4BC
 	brownSquare: "\u{1F7EB}", // 🟫 U+1F7EB
+	purpleSquare: "\u{1F7EA}", // 🟪 U+1F7EA
+	greenSquare: "\u{1F7E9}", // 🟩 U+1F7E9
 	fishingPole: "\u{1F3A3}", // 🎣 U+1F3A3
 	anchor: "\u{2693}", // ⚓ U+2693
 	yawn: "\u{1F971}", // 🥱 U+1F971
@@ -152,6 +154,7 @@ export const GLYPH = {
 	run: "\u{1F3C3}", // 🏃 U+1F3C3
 	bulb: "\u{1F4A1}",
 	trophy: "\u{1F3C6}",
+	slotMachine: "\u{1F3B0}",
 	hole: "\u{1F573}\u{FE0F}",
 	desktopComputer: "\u{1F5A5}\u{FE0F}",
 	newspaper: "\u{1F4F0}",

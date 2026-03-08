@@ -406,7 +406,8 @@ export type TraderTradeEntry = {
 export type NpcGiftLetterReward =
 	| { kind: "item"; itemId: ItemId; amount: number }
 	| { kind: "algorithm"; stoneId: ProgressAlgorithmId }
-	| { kind: "target"; stoneId: ProgressTargetId };
+	| { kind: "target"; stoneId: ProgressTargetId }
+	| { kind: "money"; stoneId: MoneyStoneId };
 
 export type NpcGiftLetterState = {
 	senderNpcKey: string;
@@ -549,7 +550,6 @@ export type ProgressTargetId =
 
 export type ProgressAlgorithmId =
 	| "add_1"
-	| "add_2"
 	| "add_3"
 	| "add_5"
 	| "add_diamond_count"
@@ -558,13 +558,17 @@ export type ProgressAlgorithmId =
 	| "mul_1_25"
 	| "mul_1_5"
 	| "mul_2"
+	| "mul_10"
 	| "mul_donated_fish_count"
 	| "add_cow_count"
 	| "add_sheep_count"
 	| "add_chicken_count"
 	| "add_crop_count"
 	| "add_highest_forest_level"
-	| "add_highest_cave_level";
+	| "add_highest_cave_level"
+	| "add_friendship_hearts"
+	| "add_sleepyhead_day"
+	| "add_stone_stone_stone";
 
 export type ProgressEventType = ProgressTargetId;
 
@@ -597,6 +601,38 @@ export type ProgressAlgorithmStoneDef = {
 
 export type ProgressLoadoutRow = {
 	targetStoneId: ProgressTargetId | null;
+	algorithmStoneIds: [
+		ProgressAlgorithmId | null,
+		ProgressAlgorithmId | null,
+		ProgressAlgorithmId | null,
+	];
+};
+
+export type IncomeSource =
+	| "loot_box"
+	| "grass_breaking_award"
+	| "npc_gift"
+	| "milk_sales"
+	| "wool_sales"
+	| "egg_sales"
+	| "crop_sales"
+	| "gem_sales"
+	| "fish_sales"
+	| "other"
+	| "debug";
+
+export type MoneyStoneId = Exclude<IncomeSource, "other" | "debug">;
+
+export type MoneyStoneDef = {
+	id: MoneyStoneId;
+	name: string;
+	incomeSource: MoneyStoneId;
+	rarity: ProgressRarity;
+	description: string;
+};
+
+export type MoneyLoadoutRow = {
+	moneyStoneId: MoneyStoneId | null;
 	algorithmStoneIds: [
 		ProgressAlgorithmId | null,
 		ProgressAlgorithmId | null,

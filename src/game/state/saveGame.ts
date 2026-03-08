@@ -1,6 +1,10 @@
 import type { GameState } from "./gameState";
 import { assignUniqueNpcInterests } from "../content/npcDialog";
 import { makeEmptyProgressAlgorithmCounts } from "../progression/progressStonesAlgorithmic";
+import {
+	makeEmptyMoneyLoadoutRows,
+	makeEmptyMoneyStoneCounts,
+} from "../progression/progressStonesMoney";
 import { makeEmptyProgressTargetCounts } from "../progression/progressStonesTarget";
 import { makeEmptyProgressLoadoutRows } from "../progression/progressMonitor";
 import { makeEmptyStatisticsState } from "../statistics/statistics";
@@ -62,7 +66,14 @@ export const fromSaveGameData = (save: SaveGameData): GameState => {
 			...(state.progressStoneAlgorithmCounts ?? {}),
 		},
 		progressLoadoutRows: state.progressLoadoutRows ?? makeEmptyProgressLoadoutRows(),
+		moneyStoneCounts: {
+			...makeEmptyMoneyStoneCounts(),
+			...(state.moneyStoneCounts ?? {}),
+		},
+		moneyLoadoutRows: state.moneyLoadoutRows ?? makeEmptyMoneyLoadoutRows(),
 		townTourSeen: state.townTourSeen ?? false,
+		algorithmTradeMachineIntroSeen:
+			state.algorithmTradeMachineIntroSeen ?? false,
 		highestForestLevelReached: Math.max(1, state.highestForestLevelReached ?? state.forestLevel ?? 1),
 		highestCaveLevelReached: Math.max(1, state.highestCaveLevelReached ?? state.caveLevel ?? 1),
 		statistics: state.statistics ?? makeEmptyStatisticsState(),

@@ -7,27 +7,33 @@ import type {
 } from "react";
 import type { DayTransitionStar } from "../content/dayTransition";
 import type {
+	AquariumDonationInventory,
 	CloudSprite,
 	DayTransitionState,
 	Dir,
 	FishingState,
 	Animal,
 	ForestEnemy,
+	ItemId,
 	MapId,
 	ModalState,
 	Plot,
 	Position,
 	PriceState,
+	ProgressAlgorithmId,
 	ProgressLoadoutRow,
+	MoneyLoadoutRow,
 	QuantityPromptState,
 	FishingPlayerMoveId,
 	FishingMoveUnlocks,
 	FishingProgressState,
+	ToolLevels,
 	WeatherId,
 	TileFxApi,
 } from "../shared/types";
 import type { TileFxBus } from "./tileFxBus";
 import type { SideViewSceneRuntime } from "../cutscenes";
+import type { StatisticsState } from "../statistics/statistics";
 
 type DealBadge = {
 	label: string;
@@ -56,10 +62,19 @@ export type GameRuntimeViewModel = {
 	progressPercent: number;
 	progressWon: boolean;
 	progressLoadoutRows: [ProgressLoadoutRow, ProgressLoadoutRow, ProgressLoadoutRow];
+	moneyLoadoutRows: [MoneyLoadoutRow, MoneyLoadoutRow, MoneyLoadoutRow];
 	stamina: number;
 	staminaMax: number;
 	waterLevel: number;
+	inventory: Record<ItemId, number>;
 	inventoryRows: Array<{ id: string; icon: string; name: string; amount: number }>;
+	tools: ToolLevels;
+	progressStoneAlgorithmCounts: Record<ProgressAlgorithmId, number>;
+	aquariumDonations: AquariumDonationInventory;
+	barnTier: number;
+	highestForestLevelReached: number;
+	highestCaveLevelReached: number;
+	statistics: StatisticsState;
 	activeMapLayouts: Record<string, string[]>;
 	isWindSlashOn: (x: number, y: number) => boolean;
 	renderedMap: string[][];
@@ -187,6 +202,7 @@ export type GameRuntimeViewModel = {
 	closeStatsDebugOverlay: () => void;
 	closeDebugToolsPanel: () => void;
 	runDebugGrantResources: () => void;
+	runDebugGrantAllStones: () => void;
 	runDebugSpawnBarnAnimals: () => void;
 	runDebugSpawnTownBeachBottle: () => void;
 	runDebugAdvanceAllNpcFriendshipTiers: () => void;

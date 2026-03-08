@@ -246,6 +246,12 @@ export const buildNewGameRulesCutscene = (args: {
 		ALGO_STONE_NAME: "+1 Stone",
 		ALGO_STONE_ID: "add_1",
 		ALGO_STONE_RARITY_LABEL: "common",
+		ALGO_STONE_NAME_2: "+20 Stone",
+		ALGO_STONE_ID_2: "add_3",
+		ALGO_STONE_RARITY_LABEL_2: "common",
+		MONEY_STONE_NAME: "Milk Money Stone",
+		MONEY_STONE_ID: "milk_sales",
+		MONEY_STONE_RARITY_LABEL: "common",
 		COSTUME_NAME: GLYPH_PLAYER,
 		COSTUME_LOOK: GLYPH_PLAYER,
 	},
@@ -393,7 +399,7 @@ export const buildNewGameRulesCutscene = (args: {
 					durationMs: 4500,
 					autoProgress: true,
 					storyText:
-						"Well {{PLAYER_NAME}}, the NPCs are going to pick a starting occupation for you! They will gift you 2 stones!",
+						"Well {{PLAYER_NAME}}, the NPCs are going to pick a starting occupation for you! They will gift you 4 stones!",
 					actions: [
 						{
 							type: "animation",
@@ -486,7 +492,7 @@ export const buildNewGameRulesCutscene = (args: {
 					durationMs: 5000,
 					autoProgress: true,
 					storyText:
-						"They gave you: \n \n{{TARGET_STONE_NAME}}\n \n{{ALGO_STONE_NAME}} ({{ALGO_STONE_RARITY_LABEL}})",
+						"They gave you: \n \n{{TARGET_STONE_NAME}}\n{{MONEY_STONE_NAME}}\n{{ALGO_STONE_NAME}} ({{ALGO_STONE_RARITY_LABEL}})\n{{ALGO_STONE_NAME_2}} ({{ALGO_STONE_RARITY_LABEL_2}})",
 					actions: [
 						{
 							type: "grantProgressStone",
@@ -496,9 +502,21 @@ export const buildNewGameRulesCutscene = (args: {
 						},
 						{
 							type: "grantProgressStone",
+							kind: "money",
+							stoneId: "{{MONEY_STONE_ID}}",
+							label: "{{MONEY_STONE_NAME}}",
+						},
+						{
+							type: "grantProgressStone",
 							kind: "algorithm",
 							stoneId: "{{ALGO_STONE_ID}}",
 							label: "{{ALGO_STONE_NAME}}",
+						},
+						{
+							type: "grantProgressStone",
+							kind: "algorithm",
+							stoneId: "{{ALGO_STONE_ID_2}}",
+							label: "{{ALGO_STONE_NAME_2}}",
 						},
 						{
 							type: "toast",

@@ -12,6 +12,9 @@ import progressLongSoundSrc from "../../assets/progressLong.mp3";
 import type { GameRuntimeViewModel } from "./viewModel";
 import { BUREAUCRACY_EXIT_POS } from "../world/layout";
 import { GLYPH } from "../config/glyphs";
+import { fishItemIds } from "../content/catalog";
+import { getBonusDelta } from "../economy/moneyBonus";
+import type { IncomeSource, ItemId } from "../shared/types";
 import { AnimatedEmojiTile } from "./AnimatedEmojiTile";
 import { CurrentMarket } from "./CurrentMarket";
 import { SideViewCutsceneOverlay } from "./SideViewCutsceneOverlay";
@@ -38,6 +41,17 @@ const MODAL_TITLES_WITH_MARKET = new Set([
 	"Sketchy Merchant",
 	"Trader",
 ]);
+const fishItemIdSet = new Set<ItemId>(fishItemIds as ItemId[]);
+const toIncomeSourceForMarketSale = (itemId: ItemId): IncomeSource => {
+	if (itemId === "milk") return "milk_sales";
+	if (itemId === "wool") return "wool_sales";
+	if (itemId === "egg") return "egg_sales";
+	if (itemId === "diamond" || itemId === "emerald" || itemId === "ruby") {
+		return "gem_sales";
+	}
+	if (fishItemIdSet.has(itemId)) return "fish_sales";
+	return "crop_sales";
+};
 const newspaperPictureScale = (
 	emoji: string,
 	index: number,
@@ -269,6 +283,7 @@ type MapViewportCtx = Pick<
 	| "toVisual"
 	| "spriteTilesNeedingGround"
 	| "progressLoadoutRows"
+	| "moneyLoadoutRows"
 	| "petFacing"
 	| "tractorFacing"
 	| "showForestHit"
@@ -327,6 +342,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 		toVisual,
 		spriteTilesNeedingGround,
 		progressLoadoutRows,
+		moneyLoadoutRows,
 		petFacing,
 		tractorFacing,
 		showForestHit,
@@ -687,6 +703,13 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 											className: groundClass ?? visual.className,
 										}
 									: visual;
+						const withCounterPalette =
+							player.map === "computer_lab" && effectiveCell === "x"
+								? {
+										...withGround,
+										glyph: x <= 7 ? GLYPH.purpleSquare : GLYPH.greenSquare,
+									}
+								: withGround;
 						const isPetGlyphCell =
 							effectiveCell === "@" ||
 							effectiveCell === "%" ||
@@ -694,18 +717,24 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 							effectiveCell === "?";
 						const labPcRowIndex: 0 | 1 | 2 | -1 =
 							y === 2 ? 0 : y === 4 ? 1 : y === 6 ? 2 : -1;
-						const isLabPcActive =
+						const isLabProgressPcActive =
 							player.map === "computer_lab" &&
 							x === 2 &&
 							effectiveCell === "x" &&
 							labPcRowIndex >= 0 &&
 							!!progressLoadoutRows[labPcRowIndex as 0 | 1 | 2].targetStoneId;
+						const isLabMoneyPcActive =
+							player.map === "computer_lab" &&
+							x === 9 &&
+							effectiveCell === "x" &&
+							labPcRowIndex >= 0 &&
+							!!moneyLoadoutRows[labPcRowIndex as 0 | 1 | 2].moneyStoneId;
 						const shouldFlipGlyph = isPetGlyphCell && petFacing < 0;
 						const glyphClassName = [
 							"emoji-glyph",
 							player.map === "forest" ? "forest-emoji-glyph" : "",
 							player.map === "cave" ? "cave-emoji-glyph" : "",
-							withGround.className === "tile-cave-next-ladder"
+							withCounterPalette.className === "tile-cave-next-ladder"
 								? "cave-ladder-hole-glyph"
 								: "",
 							player.map === unfedAnimalMap && unfedAnimalTileKeys[tileKey]
@@ -723,45 +752,65 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 							transformOrigin: shouldFlipGlyph ? "center center" : undefined,
 						};
 						const shouldWrapFxTile =
-							withGround.glyph.trim().length > 0 &&
-							(withGround.glyph === GLYPH.newspaper ||
-								(withGround.className !== "tile-grass" &&
-									withGround.className !== "tile-water" &&
-									withGround.className !== "tile-forest-grass"));
+							withCounterPalette.glyph.trim().length > 0 &&
+							(withCounterPalette.glyph === GLYPH.newspaper ||
+								(withCounterPalette.className !== "tile-grass" &&
+									withCounterPalette.className !== "tile-water" &&
+									withCounterPalette.className !== "tile-forest-grass"));
 						const labRowIndex: 0 | 1 | 2 | -1 =
 							y === 2 ? 0 : y === 4 ? 1 : y === 6 ? 2 : -1;
 						let stoneOverlay: JSX.Element | null = null;
 						if (
 							player.map === "computer_lab" &&
 							labRowIndex >= 0 &&
-							(x === 3 || x === 4 || x === 5 || x === 6)
+							(x === 3 ||
+								x === 4 ||
+								x === 5 ||
+								x === 6 ||
+								x === 10 ||
+								x === 11 ||
+								x === 12 ||
+								x === 13)
 						) {
 							const rowSlotIndex = labRowIndex as 0 | 1 | 2;
 							const rowLoadout = progressLoadoutRows[rowSlotIndex];
-							stoneOverlay =
-								x === 3 ? (
-									<StoneUI
-										kind='target'
-										row={rowLoadout}
-									/>
-								) : (
-									<StoneUI
-										kind='algorithm'
-										row={rowLoadout}
-										algorithmIndex={(x - 4) as 0 | 1 | 2}
-									/>
-								);
+							const moneyRowLoadout = moneyLoadoutRows[rowSlotIndex];
+							stoneOverlay = x === 3 ? (
+								<StoneUI
+									kind='target'
+									row={rowLoadout}
+								/>
+							) : x >= 4 && x <= 6 ? (
+								<StoneUI
+									kind='algorithm'
+									row={rowLoadout}
+									algorithmIndex={(x - 4) as 0 | 1 | 2}
+								/>
+							) : x === 10 ? (
+								<StoneUI
+									kind='money'
+									row={moneyRowLoadout}
+								/>
+							) : (
+								<StoneUI
+									kind='money_algorithm'
+									row={moneyRowLoadout}
+									algorithmIndex={(x - 11) as 0 | 1 | 2}
+								/>
+							);
 						}
 						const terminalOverlay =
 							player.map === "computer_lab" &&
 							labRowIndex >= 0 &&
-							x === 2 &&
+							(x === 2 || x === 9) &&
 							effectiveCell === "x" ? (
 								<span className='stone-ui-overlay'>
 									<span
 										className={[
 											"computer-lab-terminal-overlay-glyph",
-											isLabPcActive ? "stone-ui-pc-active" : "",
+											isLabProgressPcActive || isLabMoneyPcActive
+												? "stone-ui-pc-active"
+												: "",
 										]
 											.filter(Boolean)
 											.join(" ")}
@@ -775,13 +824,13 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 								key={`${x}-${y}`}
 								className={[
 									"tile",
-									withGround.className ?? "",
+									withCounterPalette.className ?? "",
 									shouldWrapFxTile ? "tile-fx-host" : "",
 								]
 									.filter(Boolean)
 									.join(" ")}
 								title={`${x},${y}`}
-								data-overlay={withGround.overlayGlyph ?? ""}
+								data-overlay={withCounterPalette.overlayGlyph ?? ""}
 							>
 								{shouldWrapFxTile ? (
 									<AnimatedEmojiTile
@@ -792,7 +841,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 											}
 											tileFxBus.unregisterMapTile(player.map, x, y);
 										}}
-										glyph={withGround.glyph}
+										glyph={withCounterPalette.glyph}
 										glyphClassName={glyphClassName}
 										glyphStyle={glyphStyle}
 									/>
@@ -801,7 +850,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 										className={glyphClassName}
 										style={glyphStyle}
 									>
-										{withGround.glyph}
+										{withCounterPalette.glyph}
 									</span>
 								)}
 								{terminalOverlay}
@@ -834,6 +883,7 @@ const MapViewport = ({ ctx }: { ctx: MapViewportCtx }) => {
 			toVisual,
 			spriteTilesNeedingGround,
 			progressLoadoutRows,
+			moneyLoadoutRows,
 			petFacing,
 			unfedAnimalMap,
 			unfedAnimalTileKeys,
@@ -1404,6 +1454,8 @@ const MemoMapViewport = React.memo(
 		prev.ctx.waterRipplePhase === next.ctx.waterRipplePhase &&
 		prev.ctx.caveLadderPos === next.ctx.caveLadderPos &&
 		prev.ctx.caveRubble === next.ctx.caveRubble &&
+		prev.ctx.progressLoadoutRows === next.ctx.progressLoadoutRows &&
+		prev.ctx.moneyLoadoutRows === next.ctx.moneyLoadoutRows &&
 		prev.ctx.petFacing === next.ctx.petFacing &&
 		prev.ctx.tractorFacing === next.ctx.tractorFacing &&
 		prev.ctx.showForestHit === next.ctx.showForestHit &&
@@ -1441,10 +1493,19 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		progressPercent,
 		progressWon,
 		progressLoadoutRows,
+		moneyLoadoutRows,
 		stamina,
 		staminaMax,
 		waterLevel,
+		inventory,
 		inventoryRows,
+		tools,
+		progressStoneAlgorithmCounts,
+		aquariumDonations,
+		barnTier,
+		highestForestLevelReached,
+		highestCaveLevelReached,
+		statistics,
 		activeMapLayouts,
 		isWindSlashOn,
 		renderedMap,
@@ -1546,6 +1607,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 		closeStatsDebugOverlay,
 		closeDebugToolsPanel,
 		runDebugGrantResources,
+		runDebugGrantAllStones,
 		runDebugSpawnBarnAnimals,
 		runDebugSpawnTownBeachBottle,
 		runDebugAdvanceAllNpcFriendshipTiers,
@@ -1790,6 +1852,13 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 						<button
 							type='button'
 							className='save-load-action'
+							onClick={runDebugGrantAllStones}
+						>
+							Grant All Stones
+						</button>
+						<button
+							type='button'
+							className='save-load-action'
 							onClick={runDebugSpawnBarnAnimals}
 						>
 							Spawn Barn Animals
@@ -2009,6 +2078,7 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 							toVisual,
 							spriteTilesNeedingGround,
 							progressLoadoutRows,
+							moneyLoadoutRows,
 							petFacing,
 							tractorFacing,
 							showForestHit,
@@ -2530,6 +2600,10 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 							const isBottlePostcard =
 								friendPostcardSender === "Message In A Bottle";
 							const friendPostcardReady = Date.now() >= friendPostcardUnlockAtMs;
+							const simpleMessageMatch = modal.title.match(
+								/^\[simpleMessage\]\n?/,
+							);
+							const isSimpleMessageModal = !!simpleMessageMatch;
 							const portraitMatch = modal.title.match(/^\[npcPortrait:(.+?)\]\n?/);
 							const modalPortraitGlyph = portraitMatch?.[1] ?? null;
 							const modalDisplayTitle = portraitMatch
@@ -2544,6 +2618,54 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 										dealMeta.baseUnitPrice ?? initialPrices[dealMeta.itemId],
 									)
 								: undefined;
+							const selectedSellIncomeSource: IncomeSource | null =
+								modal.title === "Supermarket" &&
+								dealMeta?.mode === "sell" &&
+								dealMeta.itemId
+									? toIncomeSourceForMarketSale(dealMeta.itemId)
+									: null;
+							const selectedSellUnitPrice =
+								dealMeta?.mode === "sell"
+									? (dealMeta.unitPrice ?? prices[dealMeta.itemId])
+									: 0;
+							const selectedSellBonusPerUnit =
+								selectedSellIncomeSource && selectedSellUnitPrice > 0
+									? getBonusDelta(
+											selectedSellUnitPrice,
+											selectedSellIncomeSource,
+											1,
+											{
+												moneyLoadoutRows,
+												day,
+												progressStoneAlgorithmCounts,
+												inventory,
+												aquariumDonations,
+												animals,
+												plots,
+												tools,
+												barnTier,
+												highestForestLevelReached,
+												highestCaveLevelReached,
+												statistics,
+											},
+									  )
+									: 0;
+							if (isSimpleMessageModal) {
+								return (
+									<div
+										style={{
+											minHeight: 140,
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "center",
+											textAlign: "center",
+											padding: "0 14px",
+										}}
+									>
+										<div>{modal.body[0] ?? ""}</div>
+									</div>
+								);
+							}
 							if (isFriendPostcard) {
 								return (
 									<div className='friend-postcard'>
@@ -2699,14 +2821,27 @@ export const renderGameRuntimeView = (ctx: GameRuntimeViewModel) => {
 												: (modal.options[modalIndex]?.info ?? [
 														"Use W/S to highlight an option.",
 													])
-											).map((line, i) => (
-												<div
-													key={`${line}-${i}`}
-													className='small'
-												>
-													{line}
-												</div>
-											))}
+											).map((line, i) => {
+												const shouldShowSellBonus =
+													!quantityPrompt &&
+													selectedSellBonusPerUnit > 0 &&
+													line.startsWith("Sell Price: $") &&
+													line.endsWith(" each");
+												return (
+													<div
+														key={`${line}-${i}`}
+														className='small'
+													>
+														{line}
+														{shouldShowSellBonus ? (
+															<span style={{ color: "#2f9e44" }}>
+																{" "}
+																+${selectedSellBonusPerUnit}
+															</span>
+														) : null}
+													</div>
+												);
+											})}
 											{!quantityPrompt && dealBadge && (
 												<motion.div
 													className='deal-badge'

@@ -92,7 +92,7 @@ export type SideViewFrameAction =
 	  }
 	| {
 			type: "grantProgressStone";
-			kind: "target" | "algorithm";
+			kind: "target" | "algorithm" | "money";
 			stoneId: string;
 			label?: string;
 	  }
