@@ -10,6 +10,7 @@ import type {
 	ModalState,
 	QuantityPromptState,
 	TractorImplement,
+	IncomeSource,
 } from "../shared/types";
 import type {
 	GameInputCommand,
@@ -78,7 +79,11 @@ export const selectModalOption = (ctx: {
 };
 
 export type GameKeyDownContext = {
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	debugGrantAllProgressStones: () => void;
 	spawnAnimalInBarn: (type: AnimalType) => boolean;

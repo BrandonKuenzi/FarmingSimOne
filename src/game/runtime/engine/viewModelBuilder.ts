@@ -63,8 +63,10 @@ export const buildGameRuntimeViewModel = (
 	return {
 		...rest,
 		prices,
+		inventory,
 		inventoryRows,
 		marketRows,
+		tools,
 		toolRows,
 	};
 };

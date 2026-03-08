@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type {
 	AnimalType,
+	IncomeSource,
 	ItemId,
 	ModalOption,
 	ToolLevels,
@@ -27,7 +28,11 @@ export const openRewardPopup = (args: {
 export const grantBonusChestRewardSet = (
 	args: {
 		randomInt: (min: number, max: number) => number;
-		applyMoneyDelta: (delta: number) => void;
+		applyMoneyDelta: (
+			delta: number,
+			incomeSource?: IncomeSource,
+			transactionCount?: number,
+		) => void;
 		updateInventory: (item: ItemId, amount: number) => void;
 		setStamina: Dispatch<SetStateAction<number>>;
 		staminaMax: number;
@@ -40,7 +45,11 @@ export const grantBonusChestRewardSet = (
 
 export const openHighValueForestChestReward = (args: {
 	randomInt: (min: number, max: number) => number;
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	setStamina: Dispatch<SetStateAction<number>>;
 	staminaMax: number;

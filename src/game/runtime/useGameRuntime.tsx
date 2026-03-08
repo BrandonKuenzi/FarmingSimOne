@@ -335,6 +335,12 @@ import {
 	makeEmptyProgressTargetCounts,
 	progressTargetStones,
 } from "../progression/progressStonesTarget";
+import {
+	makeEmptyMoneyLoadoutRows,
+	makeEmptyMoneyStoneCounts,
+	progressMoneyStones,
+} from "../progression/progressStonesMoney";
+import { getBonusDelta } from "../economy/moneyBonus";
 import type {
 	Animal,
 	AnimalDef,
@@ -374,6 +380,9 @@ import type {
 	PlayerPerTurnStatModifier,
 	PriceState,
 	PriceTrendState,
+	IncomeSource,
+	MoneyLoadoutRow,
+	MoneyStoneId,
 	ProgressAlgorithmId,
 	ProgressEventPayload,
 	ProgressLoadoutRow,
@@ -491,6 +500,11 @@ const detectDefaultControlMode = (): "pc" | "mobile" => {
 const HEADLAMP_LETTER_POS = { x: 7, y: 8 } as const;
 const FRIEND_GIFT_LETTER_POS = { x: 7, y: 9 } as const;
 const FARM_NEWSPAPER_POS = { x: 6, y: 8 } as const;
+const ALGORITHM_TRADE_MACHINE_POS = { x: 3, y: 4 } as const;
+const ALGORITHM_TRADE_MACHINE_TILE = "\u00DB";
+const ALGORITHM_TRADE_MACHINE_MODAL_TITLE =
+	"Welcome to the Algorithmic Stone Trade In Machine!";
+const SIMPLE_MESSAGE_MODAL_PREFIX = "[simpleMessage]";
 const DAY_ONE_NEWSPAPER_TEXT =
 	"Welcome to the farm! Press WASD to move. Press the Up Down Left Right arrows to interact with the world around you! Check your newspaper daily to learn whats happening in the world around you!";
 const savarioLines = [
@@ -527,7 +541,8 @@ type PendingFishingBonusReward =
 	| { kind: "item"; itemId: ItemId }
 	| { kind: "money"; amount: number }
 	| { kind: "algorithm"; stoneId: ProgressAlgorithmId; label: string }
-	| { kind: "target"; stoneId: ProgressTargetId; label: string };
+	| { kind: "target"; stoneId: ProgressTargetId; label: string }
+	| { kind: "money_stone"; stoneId: MoneyStoneId; label: string };
 
 export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const bootSaveJson = options?.bootSaveJson ?? null;
@@ -852,6 +867,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				isDoctorCompounding: false,
 				doctorObservation: "",
 				townTourSeen: false,
+				algorithmTradeMachineIntroSeen: false,
 				clouds: [],
 				grassWindBands: [],
 				animalTiles: {},
@@ -875,6 +891,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				progressStoneTargetCounts: makeEmptyProgressTargetCounts(),
 				progressStoneAlgorithmCounts: makeEmptyProgressAlgorithmCounts(),
 				progressLoadoutRows: makeEmptyProgressLoadoutRows(),
+				moneyStoneCounts: makeEmptyMoneyStoneCounts(),
+				moneyLoadoutRows: makeEmptyMoneyLoadoutRows(),
 				highestForestLevelReached: 1,
 				highestCaveLevelReached: 1,
 				statistics: makeEmptyStatisticsState(),
@@ -1064,6 +1082,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		isDoctorCompounding,
 		doctorObservation,
 		townTourSeen,
+		algorithmTradeMachineIntroSeen,
 		clouds,
 		grassWindBands,
 		animalTiles,
@@ -1081,6 +1100,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		progressStoneTargetCounts,
 		progressStoneAlgorithmCounts,
 		progressLoadoutRows,
+		moneyStoneCounts,
+		moneyLoadoutRows,
 		highestForestLevelReached,
 		highestCaveLevelReached,
 		statistics,
@@ -1283,6 +1304,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const setIsDoctorCompounding = setForKey("isDoctorCompounding");
 	const setDoctorObservation = setForKey("doctorObservation");
 	const setTownTourSeen = setForKey("townTourSeen");
+	const setAlgorithmTradeMachineIntroSeen = setForKey(
+		"algorithmTradeMachineIntroSeen",
+	);
 	const setClouds = setForKey("clouds");
 	const setGrassWindBands = setForKey("grassWindBands");
 	const setAnimalTiles = setForKey("animalTiles");
@@ -1302,16 +1326,39 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		"progressStoneAlgorithmCounts",
 	);
 	const setProgressLoadoutRows = setForKey("progressLoadoutRows");
+	const setMoneyStoneCounts = setForKey("moneyStoneCounts");
+	const setMoneyLoadoutRows = setForKey("moneyLoadoutRows");
 	const setHighestForestLevelReached = setForKey("highestForestLevelReached");
 	const setHighestCaveLevelReached = setForKey("highestCaveLevelReached");
 	const setStatistics = setForKey("statistics");
-	const activeMapLayouts = useMemo(
-		() => ({
+	const totalOwnedAlgorithmStones = useMemo(
+		() =>
+			progressAlgorithmStones.reduce(
+				(total, stone) =>
+					total + Math.max(0, progressStoneAlgorithmCounts[stone.id] ?? 0),
+				0,
+			),
+		[progressStoneAlgorithmCounts],
+	);
+	const hasAlgorithmTradeMachineUnlocked = totalOwnedAlgorithmStones >= 5;
+	const activeMapLayouts = useMemo(() => {
+		const baseTownRows = !hasWardrobe
+			? mapLayouts.town.map((row) => row.split("c").join("H"))
+			: mapLayouts.town;
+		const tradeTileY = ALGORITHM_TRADE_MACHINE_POS.y;
+		const tradeTileX = ALGORITHM_TRADE_MACHINE_POS.x;
+		const townRows = baseTownRows.map((row, rowIndex) => {
+			if (rowIndex !== tradeTileY) return row;
+			if (tradeTileX < 0 || tradeTileX >= row.length) return row;
+			const nextTile = hasAlgorithmTradeMachineUnlocked
+				? ALGORITHM_TRADE_MACHINE_TILE
+				: "_";
+			return `${row.slice(0, tradeTileX)}${nextTile}${row.slice(tradeTileX + 1)}`;
+		});
+		return {
 			...mapLayouts,
 			farm: buildFarmLayout(barnTier),
-			town: !hasWardrobe
-				? mapLayouts.town.map((row) => row.split("c").join("H"))
-				: mapLayouts.town,
+			town: townRows,
 			house: mapLayouts.house.map((row) => {
 				let nextRow = row;
 				if (!hasBath) nextRow = nextRow.split("U").join(".");
@@ -1321,9 +1368,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			barn: buildBarnLayout(barnTier),
 			forest: forestLayout,
 			cave: caveLayout,
-		}),
-		[barnTier, hasBath, hasWardrobe, forestLayout, caveLayout],
-	);
+		};
+	}, [
+		barnTier,
+		hasBath,
+		hasWardrobe,
+		forestLayout,
+		caveLayout,
+		hasAlgorithmTradeMachineUnlocked,
+	]);
 
 	const activeMapRows = activeMapLayouts[player.map];
 	const width = activeMapRows[0]?.length ?? 0;
@@ -1970,7 +2023,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (pendingFishingBonusReward) {
 			window.setTimeout(() => {
 				if (pendingFishingBonusReward.kind === "money") {
-					applyMoneyDelta(pendingFishingBonusReward.amount);
+					applyMoneyDelta(pendingFishingBonusReward.amount, "other");
 					return;
 				}
 				if (pendingFishingBonusReward.kind === "item") {
@@ -1981,6 +2034,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				if (pendingFishingBonusReward.kind === "algorithm") {
 					grantProgressStone(
 						"algorithm",
+						pendingFishingBonusReward.stoneId,
+						pendingFishingBonusReward.label,
+					);
+					return;
+				}
+				if (pendingFishingBonusReward.kind === "money_stone") {
+					grantMoneyStone(
 						pendingFishingBonusReward.stoneId,
 						pendingFishingBonusReward.label,
 					);
@@ -2097,6 +2157,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				kind: "algorithm",
 				stoneId: stone.id,
 				label: stone.name,
+			};
+		}
+		const awardMoneyStone = randomRoll() < 0.5;
+		if (awardMoneyStone) {
+			const moneyStone =
+				progressMoneyStones[randomInt(0, progressMoneyStones.length - 1)]!;
+			return {
+				kind: "money_stone",
+				stoneId: moneyStone.id,
+				label: moneyStone.name,
 			};
 		}
 		const targetStone =
@@ -4232,7 +4302,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const roll = randomRoll();
 		if (roll < 0.5) {
 			const amount = randomInt(100, 500);
-			applyMoneyDelta(amount);
+			applyMoneyDelta(amount, "loot_box");
 			addLog(`Found $${amount} in the mess.`);
 			return;
 		}
@@ -5123,7 +5193,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			progressLoadoutRows:
 				(rawState as Partial<GameState>).progressLoadoutRows ??
 				makeEmptyProgressLoadoutRows(),
+			moneyStoneCounts: {
+				...makeEmptyMoneyStoneCounts(),
+				...((rawState as Partial<GameState>).moneyStoneCounts ?? {}),
+			},
+			moneyLoadoutRows:
+				(rawState as Partial<GameState>).moneyLoadoutRows ??
+				makeEmptyMoneyLoadoutRows(),
 			townTourSeen: (rawState as Partial<GameState>).townTourSeen ?? false,
+			algorithmTradeMachineIntroSeen:
+				(rawState as Partial<GameState>).algorithmTradeMachineIntroSeen ?? false,
 			highestForestLevelReached: Math.max(
 				rawState.forestLevel,
 				(rawState as Partial<GameState>).highestForestLevelReached ??
@@ -5135,7 +5214,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					rawState.caveLevel,
 			),
 			statistics:
-				(rawState as Partial<GameState>).statistics ?? makeEmptyStatisticsState(),
+				(rawState as Partial<GameState>).statistics ??
+				makeEmptyStatisticsState(),
 			inventory: (() => {
 				const defaultInventory = makeEmptyInventory();
 				const rawInventory = (rawState as Partial<GameState>).inventory as
@@ -5706,7 +5786,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					incrementStatistics(PLAYER_STAT_KEYS.animalFeedFromGrassTotal, 1);
 				}
 				if (randomRoll() < 0.02) {
-					applyMoneyDelta(randomInt(1, 5));
+					applyMoneyDelta(randomInt(1, 5), "grass_breaking_award");
 				}
 			}
 			const baseTile = activeMapLayouts.farm[y]?.[x];
@@ -5767,7 +5847,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				}
 				if (gotMoney) {
 					const amount = randomInt(1, 5);
-					applyMoneyDelta(amount);
+					applyMoneyDelta(amount, "grass_breaking_award");
 					lines.push(`Found $${amount}.`);
 				}
 				if (lines.length > 0) addLog(lines.join(" "));
@@ -6014,6 +6094,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			{
 				progressPercent: state.progressPercent,
 				progressWon: state.progressWon,
+				day: state.day,
+				progressStoneAlgorithmCounts: state.progressStoneAlgorithmCounts,
 				progressLoadoutRows: state.progressLoadoutRows,
 				inventory: state.inventory,
 				aquariumDonations: state.aquariumDonations,
@@ -6023,6 +6105,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				barnTier: state.barnTier,
 				highestForestLevelReached: state.highestForestLevelReached,
 				highestCaveLevelReached: state.highestCaveLevelReached,
+				statistics: state.statistics,
 			},
 			event,
 		);
@@ -6084,16 +6167,61 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 	};
 
+	type MoneyDeltaOptions = { suppressToast?: boolean };
 	const applyMoneyDelta = (
 		delta: number,
-		options?: { suppressToast?: boolean },
+		incomeSourceOrOptions?: IncomeSource | MoneyDeltaOptions,
+		transactionCountOrUndefined?: number,
+		optionsOrUndefined?: MoneyDeltaOptions,
 	) => {
-		applyMoneyDeltaState(setMoney, setCurrentDayEarned, setTotalEarned, delta);
+		const incomeSource =
+			typeof incomeSourceOrOptions === "string"
+				? incomeSourceOrOptions
+				: undefined;
+		const transactionCount =
+			typeof transactionCountOrUndefined === "number"
+				? Math.max(1, Math.floor(transactionCountOrUndefined))
+				: 1;
+		const options =
+			typeof incomeSourceOrOptions === "object" && incomeSourceOrOptions
+				? incomeSourceOrOptions
+				: optionsOrUndefined;
+		let bonusDelta = 0;
+		if (delta > 0 && incomeSource) {
+			bonusDelta = getBonusDelta(delta, incomeSource, transactionCount, {
+				moneyLoadoutRows: gameStateRef.current.moneyLoadoutRows,
+				day: gameStateRef.current.day,
+				progressStoneAlgorithmCounts:
+					gameStateRef.current.progressStoneAlgorithmCounts,
+				inventory: gameStateRef.current.inventory,
+				aquariumDonations: gameStateRef.current.aquariumDonations,
+				animals: gameStateRef.current.animals,
+				plots: gameStateRef.current.plots,
+				tools: gameStateRef.current.tools,
+				barnTier: gameStateRef.current.barnTier,
+				highestForestLevelReached:
+					gameStateRef.current.highestForestLevelReached,
+				highestCaveLevelReached: gameStateRef.current.highestCaveLevelReached,
+				statistics: gameStateRef.current.statistics,
+			});
+		}
+		const totalDelta = delta + bonusDelta;
+		applyMoneyDeltaState(
+			setMoney,
+			setCurrentDayEarned,
+			setTotalEarned,
+			totalDelta,
+		);
 		if (delta > 0) {
 			if (!options?.suppressToast) {
 				tileFxBusRef.current.api.actor("player").toast(`+$${delta}`);
+				if (bonusDelta > 0) {
+					tileFxBusRef.current.api
+						.actor("player")
+						.toast(`+$${bonusDelta} Bonus`);
+				}
 			}
-			emitProgressEvent({ type: "money_gained", moneyDelta: delta });
+			emitProgressEvent({ type: "money_gained", moneyDelta: totalDelta });
 		}
 	};
 
@@ -6177,7 +6305,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				return;
 			}
 			if (reward.kind === "money") {
-				applyMoneyDelta(reward.amount, { suppressToast: true });
+				applyMoneyDelta(reward.amount, "npc_gift", 1, {
+					suppressToast: true,
+				});
 				lines.push(formatSideViewRewardLine(reward));
 				return;
 			}
@@ -6357,6 +6487,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						);
 						if (!stone) return;
 						grantProgressStone("target", stone.id, grant.label || stone.name);
+						return;
+					}
+					if (grant.kind === "money") {
+						const stone = progressMoneyStones.find(
+							(entry) => entry.id === grant.stoneId,
+						);
+						if (!stone) return;
+						grantMoneyStone(stone.id, grant.label || stone.name);
 						return;
 					}
 					const stone = progressAlgorithmStones.find(
@@ -6562,14 +6700,6 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			ruleLineA: "Daily prices shift and weather matters.",
 			ruleLineB: "Depth and progress stones shape your run.",
 		});
-		scene.onCompleteRewards = [
-			{
-				kind: "item",
-				itemId: starterItemId,
-				amount: 2,
-				label: `+2 ${starterItemGlyph} ${starterItemName}`,
-			},
-		];
 		enqueueSideViewCutscene(scene, {
 			PLAYER_NAME: randomPlayerName,
 			TARGET_STONE_NAME: targetStone?.name ?? "Profit Stone",
@@ -6656,6 +6786,29 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			tileFxBusRef.current.api.actor("player").toast(`+1 ${label}`, 5000);
 		}
 	};
+	const grantMoneyStone = (
+		stoneId: MoneyStoneId,
+		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
+	) => {
+		setMoneyStoneCounts((prev) => ({
+			...prev,
+			[stoneId]: (prev[stoneId] ?? 0) + 1,
+		}));
+		gameStateRef.current = {
+			...gameStateRef.current,
+			moneyStoneCounts: {
+				...gameStateRef.current.moneyStoneCounts,
+				[stoneId]: (gameStateRef.current.moneyStoneCounts[stoneId] ?? 0) + 1,
+			},
+		};
+		if (!options?.suppressLog) {
+			addLog(`Found money stone: ${label}.`);
+		}
+		if (!options?.suppressToast) {
+			tileFxBusRef.current.api.actor("player").toast(`+1 ${label}`, 5000);
+		}
+	};
 	const rollCowMilkingCutsceneReward = (): PendingFishingBonusReward => {
 		const roll = randomInt(0, 7);
 		if (roll === 0) return { kind: "money", amount: 500 };
@@ -6678,6 +6831,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				kind: "algorithm",
 				stoneId: stone.id,
 				label: stone.name,
+			};
+		}
+		const awardMoneyStone = randomRoll() < 0.5;
+		if (awardMoneyStone) {
+			const moneyStone =
+				progressMoneyStones[randomInt(0, progressMoneyStones.length - 1)]!;
+			return {
+				kind: "money_stone",
+				stoneId: moneyStone.id,
+				label: moneyStone.name,
 			};
 		}
 		const targetStone =
@@ -6730,7 +6893,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		pendingCowMilkingCutsceneRewardRef.current = null;
 		if (!reward) return;
 		if (reward.kind === "money") {
-			applyMoneyDelta(reward.amount);
+			applyMoneyDelta(reward.amount, "npc_gift");
 			return;
 		}
 		if (reward.kind === "item") {
@@ -6739,6 +6902,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		if (reward.kind === "algorithm") {
 			grantProgressStone("algorithm", reward.stoneId, reward.label, {
+				suppressLog: true,
+			});
+			return;
+		}
+		if (reward.kind === "money_stone") {
+			grantMoneyStone(reward.stoneId, reward.label, {
 				suppressLog: true,
 			});
 			return;
@@ -6752,7 +6921,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		pendingSheepShearingCutsceneRewardRef.current = null;
 		if (!reward) return;
 		if (reward.kind === "money") {
-			applyMoneyDelta(reward.amount);
+			applyMoneyDelta(reward.amount, "npc_gift");
 			return;
 		}
 		if (reward.kind === "item") {
@@ -6761,6 +6930,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		if (reward.kind === "algorithm") {
 			grantProgressStone("algorithm", reward.stoneId, reward.label);
+			return;
+		}
+		if (reward.kind === "money_stone") {
+			grantMoneyStone(reward.stoneId, reward.label);
 			return;
 		}
 		grantProgressStone("target", reward.stoneId, reward.label);
@@ -6770,7 +6943,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		pendingHoeGrassCutsceneRewardRef.current = null;
 		if (!reward) return;
 		if (reward.kind === "money") {
-			applyMoneyDelta(reward.amount);
+			applyMoneyDelta(reward.amount, "grass_breaking_award");
 			return;
 		}
 		if (reward.kind === "item") {
@@ -6779,6 +6952,10 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 		if (reward.kind === "algorithm") {
 			grantProgressStone("algorithm", reward.stoneId, reward.label);
+			return;
+		}
+		if (reward.kind === "money_stone") {
+			grantMoneyStone(reward.stoneId, reward.label);
 			return;
 		}
 		grantProgressStone("target", reward.stoneId, reward.label);
@@ -6831,6 +7008,13 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			}
 			return next;
 		});
+		setMoneyStoneCounts((prev) => {
+			const next = { ...prev };
+			for (const stone of progressMoneyStones) {
+				next[stone.id] = (next[stone.id] ?? 0) + 1;
+			}
+			return next;
+		});
 		const nextTargetCounts = {
 			...gameStateRef.current.progressStoneTargetCounts,
 		};
@@ -6843,22 +7027,32 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		for (const stone of progressAlgorithmStones) {
 			nextAlgorithmCounts[stone.id] = (nextAlgorithmCounts[stone.id] ?? 0) + 1;
 		}
+		const nextMoneyCounts = {
+			...gameStateRef.current.moneyStoneCounts,
+		};
+		for (const stone of progressMoneyStones) {
+			nextMoneyCounts[stone.id] = (nextMoneyCounts[stone.id] ?? 0) + 1;
+		}
 		gameStateRef.current = {
 			...gameStateRef.current,
 			progressStoneTargetCounts: nextTargetCounts,
 			progressStoneAlgorithmCounts: nextAlgorithmCounts,
+			moneyStoneCounts: nextMoneyCounts,
 		};
-		addLog("Debug grant: +1 of every progress stone.");
+		addLog("Debug grant: +1 of every progress and money stone.");
 		tileFxBusRef.current.api
 			.actor("player")
-			.toast("+1 all progress stones", 4500);
+			.toast("+1 all progress/money stones", 4500);
 	};
 	const runDebugGrantResources = () => {
-		applyMoneyDelta(10000);
+		applyMoneyDelta(10000, "debug");
 		updateInventory("iron", 100);
 		updateInventory("ruby", 10);
 		updateInventory("diamond", 10);
 		updateInventory("emerald", 10);
+		debugGrantAllProgressStones();
+	};
+	const runDebugGrantAllStones = () => {
 		debugGrantAllProgressStones();
 	};
 	const runDebugSpawnBarnAnimals = () => {
@@ -6960,13 +7154,25 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const targetPool = progressTargetStones.filter((stone) =>
 			targetRarities.includes(stone.rarity),
 		);
+		const moneyPool = progressMoneyStones.filter((stone) =>
+			targetRarities.includes(stone.rarity),
+		);
 		const algoPool = progressAlgorithmStones.filter((stone) =>
 			algoRarities.includes(stone.rarity),
 		);
-		if (targetPool.length <= 0 && algoPool.length <= 0) return;
+		if (targetPool.length <= 0 && moneyPool.length <= 0 && algoPool.length <= 0)
+			return;
 		const pickTarget =
-			targetPool.length > 0 && (algoPool.length === 0 || randomRoll() < 0.5);
+			(targetPool.length > 0 || moneyPool.length > 0) &&
+			(algoPool.length === 0 || randomRoll() < 0.5);
 		if (pickTarget) {
+			const pickMoney =
+				moneyPool.length > 0 && (targetPool.length === 0 || randomRoll() < 0.5);
+			if (pickMoney) {
+				const stone = moneyPool[randomInt(0, moneyPool.length - 1)]!;
+				grantMoneyStone(stone.id, stone.name);
+				return;
+			}
 			const stone = targetPool[randomInt(0, targetPool.length - 1)]!;
 			grantProgressStone("target", stone.id, stone.name);
 			return;
@@ -6980,8 +7186,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 
 	const countUsedTargetStone = (stoneId: ProgressTargetId): number =>
 		progressLoadoutRows.filter((row) => row.targetStoneId === stoneId).length;
+	const countUsedMoneyStone = (stoneId: MoneyStoneId): number =>
+		moneyLoadoutRows.filter((row) => row.moneyStoneId === stoneId).length;
 	const countUsedAlgorithmStone = (stoneId: ProgressAlgorithmId): number =>
 		progressLoadoutRows.reduce(
+			(total, row) =>
+				total + row.algorithmStoneIds.filter((id) => id === stoneId).length,
+			0,
+		) +
+		moneyLoadoutRows.reduce(
 			(total, row) =>
 				total + row.algorithmStoneIds.filter((id) => id === stoneId).length,
 			0,
@@ -7010,6 +7223,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			{
 				progressPercent: previewState.progressPercent,
 				progressWon: previewState.progressWon,
+				day: previewState.day,
+				progressStoneAlgorithmCounts: previewState.progressStoneAlgorithmCounts,
 				progressLoadoutRows: [row, emptyRows[1], emptyRows[2]],
 				inventory: previewState.inventory,
 				aquariumDonations: previewState.aquariumDonations,
@@ -7019,13 +7234,55 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				barnTier: previewState.barnTier,
 				highestForestLevelReached: previewState.highestForestLevelReached,
 				highestCaveLevelReached: previewState.highestCaveLevelReached,
+				statistics: previewState.statistics,
 			},
 			event,
 		);
 		return Math.max(0, Math.floor(result.increment));
 	};
+	const previewBonusDeltaForMoneyRow = (
+		row: MoneyLoadoutRow,
+	): { bonusDelta: number; totalDelta: number } => {
+		if (!row.moneyStoneId) return { bonusDelta: 0, totalDelta: 100 };
+		const bonusDelta = getBonusDelta(100, row.moneyStoneId, 1, {
+			moneyLoadoutRows: [
+				row,
+				makeEmptyMoneyLoadoutRows()[1],
+				makeEmptyMoneyLoadoutRows()[2],
+			],
+			day,
+			progressStoneAlgorithmCounts,
+			inventory,
+			aquariumDonations,
+			animals,
+			plots,
+			tools,
+			barnTier,
+			highestForestLevelReached,
+			highestCaveLevelReached,
+			statistics,
+		});
+		return { bonusDelta, totalDelta: 100 + bonusDelta };
+	};
 	const describeLoadoutRowChain = (row: ProgressLoadoutRow): string => {
 		const parts = row.algorithmStoneIds
+			.map(
+				(id) =>
+					progressAlgorithmStones.find((stone) => stone.id === id)?.name ??
+					null,
+			)
+			.filter((name): name is string => !!name);
+		if (parts.length <= 0) return "(none)";
+		return parts.join(" -> ");
+	};
+	const describeAlgorithmChain = (
+		algorithmStoneIds: [
+			ProgressAlgorithmId | null,
+			ProgressAlgorithmId | null,
+			ProgressAlgorithmId | null,
+		],
+	): string => {
+		const parts = algorithmStoneIds
 			.map(
 				(id) =>
 					progressAlgorithmStones.find((stone) => stone.id === id)?.name ??
@@ -7053,21 +7310,32 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (targetId === "fish_sold") return "When you sell fish";
 		return "When you donate to the aquarium";
 	};
+	const moneyStoneToastText = (moneyStoneId: MoneyStoneId): string => {
+		if (moneyStoneId === "loot_box") return "Exploration loot money";
+		if (moneyStoneId === "grass_breaking_award") return "Grass/weed cash finds";
+		if (moneyStoneId === "npc_gift") return "NPC gift money";
+		if (moneyStoneId === "milk_sales") return "Milk sales";
+		if (moneyStoneId === "wool_sales") return "Wool sales";
+		if (moneyStoneId === "egg_sales") return "Egg sales";
+		if (moneyStoneId === "crop_sales") return "Crop sales";
+		if (moneyStoneId === "gem_sales") return "Gem sales";
+		return "Fish sales";
+	};
 	const algorithmStoneToastText = (
 		algorithmId: ProgressAlgorithmId,
 	): string => {
-		if (algorithmId === "add_1") return "Adds 1";
-		if (algorithmId === "add_2") return "Adds 2";
-		if (algorithmId === "add_3") return "Adds 3";
-		if (algorithmId === "add_5") return "Adds 5";
+		if (algorithmId === "add_1") return "Adds 10";
+		if (algorithmId === "add_3") return "Adds 20";
+		if (algorithmId === "add_5") return "Adds 30";
 		if (algorithmId === "add_diamond_count")
-			return "Adds however many diamonds you own";
-		if (algorithmId === "add_barn_tier") return "Adds your barn tier";
+			return "Adds 10 times however many diamonds you own";
+		if (algorithmId === "add_barn_tier") return "Adds 10 times your barn tier";
 		if (algorithmId === "add_tier5_tools")
-			return "Adds however many tier 5 tools you unlocked";
+			return "Adds 10 times how many tier 5 tools you unlocked";
 		if (algorithmId === "mul_1_25") return "Multiplys by 1.25";
 		if (algorithmId === "mul_1_5") return "Multiplys by 1.5";
 		if (algorithmId === "mul_2") return "Multiplys by 2";
+		if (algorithmId === "mul_10") return "Multiplys by 10";
 		if (algorithmId === "mul_donated_fish_count")
 			return "Multiplys by however many fish you donated";
 		if (algorithmId === "add_cow_count")
@@ -7079,8 +7347,14 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		if (algorithmId === "add_crop_count")
 			return "Adds however many crops are currently on your farm";
 		if (algorithmId === "add_highest_forest_level")
-			return "Adds your highest forest level reached";
-		return "Adds your highest cave level reached";
+			return "Adds 10 times your highest forest level reached";
+		if (algorithmId === "add_friendship_hearts")
+			return "Adds 20 times total NPC friendship hearts";
+		if (algorithmId === "add_sleepyhead_day")
+			return "Adds 5 times current day number";
+		if (algorithmId === "add_stone_stone_stone")
+			return "Adds 10 times how many Stone Stone Stone stones you own";
+		return "Adds 10 times your highest cave level reached";
 	};
 	const maybeToastComputerLabStoneHints = (nextPos: {
 		map: MapId;
@@ -7091,18 +7365,38 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		const rowIndex: 0 | 1 | 2 | -1 =
 			nextPos.y === 3 ? 0 : nextPos.y === 5 ? 1 : nextPos.y === 7 ? 2 : -1;
 		if (rowIndex < 0) return;
-		if (nextPos.x < 3 || nextPos.x > 6) return;
-		const row = gameStateRef.current.progressLoadoutRows[rowIndex as 0 | 1 | 2];
+		if ((nextPos.x < 3 || nextPos.x > 6) && (nextPos.x < 10 || nextPos.x > 13))
+			return;
+		const progressRow =
+			gameStateRef.current.progressLoadoutRows[rowIndex as 0 | 1 | 2];
+		const moneyRow =
+			gameStateRef.current.moneyLoadoutRows[rowIndex as 0 | 1 | 2];
 		const counterY = nextPos.y - 1;
 		if (nextPos.x === 3) {
-			if (!row.targetStoneId) return;
+			if (!progressRow.targetStoneId) return;
 			tileFxBusRef.current.api
 				.at({ map: "computer_lab", x: 3, y: counterY })
-				.toast(targetStoneToastText(row.targetStoneId), 5000);
+				.toast(targetStoneToastText(progressRow.targetStoneId), 5000);
 			return;
 		}
-		const algoIndex = (nextPos.x - 4) as 0 | 1 | 2;
-		const algorithmStoneId = row.algorithmStoneIds[algoIndex];
+		if (nextPos.x === 10) {
+			if (!moneyRow.moneyStoneId) return;
+			tileFxBusRef.current.api
+				.at({ map: "computer_lab", x: 10, y: counterY })
+				.toast(moneyStoneToastText(moneyRow.moneyStoneId), 5000);
+			return;
+		}
+		if (nextPos.x >= 4 && nextPos.x <= 6) {
+			const algoIndex = (nextPos.x - 4) as 0 | 1 | 2;
+			const algorithmStoneId = progressRow.algorithmStoneIds[algoIndex];
+			if (!algorithmStoneId) return;
+			tileFxBusRef.current.api
+				.at({ map: "computer_lab", x: nextPos.x, y: counterY })
+				.toast(algorithmStoneToastText(algorithmStoneId), 5000);
+			return;
+		}
+		const algoIndex = (nextPos.x - 11) as 0 | 1 | 2;
+		const algorithmStoneId = moneyRow.algorithmStoneIds[algoIndex];
 		if (!algorithmStoneId) return;
 		tileFxBusRef.current.api
 			.at({ map: "computer_lab", x: nextPos.x, y: counterY })
@@ -7142,8 +7436,212 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			return [prev[0], { ...row, algorithmStoneIds }, prev[2]];
 		return [prev[0], prev[1], { ...row, algorithmStoneIds }];
 	};
+	const setRowMoneyStoneId = (
+		prev: [MoneyLoadoutRow, MoneyLoadoutRow, MoneyLoadoutRow],
+		rowIndex: 0 | 1 | 2,
+		moneyStoneId: MoneyStoneId | null,
+	): [MoneyLoadoutRow, MoneyLoadoutRow, MoneyLoadoutRow] => {
+		if (rowIndex === 0) return [{ ...prev[0], moneyStoneId }, prev[1], prev[2]];
+		if (rowIndex === 1) return [prev[0], { ...prev[1], moneyStoneId }, prev[2]];
+		return [prev[0], prev[1], { ...prev[2], moneyStoneId }];
+	};
+	const setMoneyAlgorithmSlot = (
+		prev: [MoneyLoadoutRow, MoneyLoadoutRow, MoneyLoadoutRow],
+		rowIndex: 0 | 1 | 2,
+		algoIndex: 0 | 1 | 2,
+		stoneId: ProgressAlgorithmId | null,
+	): [MoneyLoadoutRow, MoneyLoadoutRow, MoneyLoadoutRow] => {
+		const row = prev[rowIndex];
+		const algorithmStoneIds: [
+			ProgressAlgorithmId | null,
+			ProgressAlgorithmId | null,
+			ProgressAlgorithmId | null,
+		] =
+			algoIndex === 0
+				? [stoneId, row.algorithmStoneIds[1], row.algorithmStoneIds[2]]
+				: algoIndex === 1
+					? [row.algorithmStoneIds[0], stoneId, row.algorithmStoneIds[2]]
+					: [row.algorithmStoneIds[0], row.algorithmStoneIds[1], stoneId];
+		if (rowIndex === 0)
+			return [{ ...row, algorithmStoneIds }, prev[1], prev[2]];
+		if (rowIndex === 1)
+			return [prev[0], { ...row, algorithmStoneIds }, prev[2]];
+		return [prev[0], prev[1], { ...row, algorithmStoneIds }];
+	};
+	const raritySortRank: Record<ProgressRarity, number> = {
+		common: 0,
+		uncommon: 1,
+		rare: 2,
+		legendary: 3,
+	};
+	const sortByRarityThenName = <
+		T extends { rarity: ProgressRarity; name: string },
+	>(
+		a: T,
+		b: T,
+	): number => {
+		const rankDiff = raritySortRank[a.rarity] - raritySortRank[b.rarity];
+		if (rankDiff !== 0) return rankDiff;
+		return a.name.localeCompare(b.name);
+	};
 
 	const canAfford = (value: number) => money >= value;
+	const getNextRarityForTradeIn = (
+		rarity: ProgressRarity,
+	): ProgressRarity | null => {
+		if (rarity === "common") return "uncommon";
+		if (rarity === "uncommon") return "rare";
+		if (rarity === "rare") return "legendary";
+		return null;
+	};
+	const getAvailableAlgorithmStonesForTrade = () =>
+		progressAlgorithmStones
+			.map((stone) => {
+				const owned = progressStoneAlgorithmCounts[stone.id] ?? 0;
+				const used = countUsedAlgorithmStone(stone.id);
+				const available = Math.max(0, owned - used);
+				return { stone, available };
+			})
+			.filter(
+				(entry) => entry.stone.rarity !== "legendary" && entry.available > 0,
+			);
+	const openAlgorithmTradeMachineMenu = () => {
+		const availableEntries = getAvailableAlgorithmStonesForTrade();
+		const canStartTradeByStoneId = new Map<ProgressAlgorithmId, boolean>();
+		availableEntries.forEach((entry) => {
+			const hasPair = availableEntries.some(
+				(candidate) =>
+					candidate.stone.id !== entry.stone.id &&
+					candidate.stone.rarity === entry.stone.rarity &&
+					candidate.available > 0,
+			);
+			canStartTradeByStoneId.set(entry.stone.id, hasPair);
+		});
+		const firstPickEntries = availableEntries
+			.filter((entry) => canStartTradeByStoneId.get(entry.stone.id))
+			.sort((a, b) => sortByRarityThenName(a.stone, b.stone));
+		if (firstPickEntries.length <= 0) {
+			openMenu(
+				ALGORITHM_TRADE_MACHINE_MODAL_TITLE,
+				[
+					"You currently dont have 2 algorithmic stones of the same rarity level. When you do, come back here if you want to trade them in for a higher tier stone",
+				],
+				[{ label: "Close", onSelect: closeMenu }],
+			);
+			return;
+		}
+		const beginSecondStonePrompt = (
+			firstStoneId: ProgressAlgorithmId,
+			firstStoneName: string,
+			firstStoneRarity: ProgressRarity,
+		) => {
+			const secondPickEntries = getAvailableAlgorithmStonesForTrade()
+				.filter(
+					(entry) =>
+						entry.stone.rarity === firstStoneRarity &&
+						entry.stone.id !== firstStoneId,
+				)
+				.sort((a, b) => sortByRarityThenName(a.stone, b.stone));
+			if (secondPickEntries.length <= 0) {
+				playBad();
+				openMenu(
+					ALGORITHM_TRADE_MACHINE_MODAL_TITLE,
+					[
+						"You currently dont have 2 algorithmic stones of the same rarity level. When you do, come back here if you want to trade them in for a higher tier stone",
+					],
+					[{ label: "Close", onSelect: closeMenu }],
+				);
+				return;
+			}
+			openMenu(
+				ALGORITHM_TRADE_MACHINE_MODAL_TITLE,
+				["Insert the second stone you would like to trade in."],
+				[
+					...secondPickEntries.map((entry) => ({
+						label: `${entry.stone.name} (${entry.available})`,
+						info: [
+							`First stone: ${firstStoneName}`,
+							`Rarity: ${entry.stone.rarity}`,
+							entry.stone.description,
+						],
+						onSelect: () => {
+							const nextRarity = getNextRarityForTradeIn(firstStoneRarity);
+							if (!nextRarity) {
+								playBad();
+								closeMenu();
+								return;
+							}
+							const rewardPool = progressAlgorithmStones.filter(
+								(stone) => stone.rarity === nextRarity,
+							);
+							if (rewardPool.length <= 0) {
+								playBad();
+								closeMenu();
+								return;
+							}
+							const rewardedStone =
+								rewardPool[randomInt(0, rewardPool.length - 1)]!;
+							setDirectorInputLocked(true);
+							openMenu(
+								SIMPLE_MESSAGE_MODAL_PREFIX,
+								[
+									`Choosing your ${nextRarity.toUpperCase()} stone... one moment`,
+								],
+								[{ label: "...", onSelect: () => undefined }],
+							);
+							playMunch();
+							void (async () => {
+								await waitDirector(2000);
+								setProgressStoneAlgorithmCounts((prev) => ({
+									...prev,
+									[firstStoneId]: Math.max(0, (prev[firstStoneId] ?? 0) - 1),
+									[entry.stone.id]: Math.max(
+										0,
+										(prev[entry.stone.id] ?? 0) - 1,
+									),
+								}));
+								openMenu(
+									SIMPLE_MESSAGE_MODAL_PREFIX,
+									[`You got a ${rewardedStone.name} stone`],
+									[{ label: "...", onSelect: () => undefined }],
+								);
+								playGotReward();
+								await waitDirector(2000);
+								setDirectorInputLocked(false);
+								closeMenu();
+								grantProgressStone(
+									"algorithm",
+									rewardedStone.id,
+									rewardedStone.name,
+								);
+							})().catch(() => {
+								setDirectorInputLocked(false);
+								closeMenu();
+							});
+						},
+					})),
+					{ label: "Cancel", onSelect: closeMenu },
+				],
+			);
+		};
+		openMenu(
+			ALGORITHM_TRADE_MACHINE_MODAL_TITLE,
+			["Insert the first stone you would like to trade in."],
+			[
+				...firstPickEntries.map((entry) => ({
+					label: `${entry.stone.name} (${entry.available})`,
+					info: [`Rarity: ${entry.stone.rarity}`, entry.stone.description],
+					onSelect: () =>
+						beginSecondStonePrompt(
+							entry.stone.id,
+							entry.stone.name,
+							entry.stone.rarity,
+						),
+				})),
+				{ label: "Cancel", onSelect: closeMenu },
+			],
+		);
+	};
 
 	const openAquariumCategoryCompletePopup = (
 		category: "freshwater" | "saltwater" | "cavewater",
@@ -7976,7 +8474,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	};
 
 	const pickRandomAlgorithmStoneByRarity = (rarity: ProgressRarity) => {
-		const pool = progressAlgorithmStones.filter((stone) => stone.rarity === rarity);
+		const pool = progressAlgorithmStones.filter(
+			(stone) => stone.rarity === rarity,
+		);
 		if (pool.length > 0) {
 			return pool[randomInt(0, pool.length - 1)]!;
 		}
@@ -7986,7 +8486,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 	const rollNpcGiftLetterRewardForLevel = (friendshipLevel: number) => {
 		if (friendshipLevel >= 5) {
 			const pick = randomInt(0, 3);
-			if (pick === 0) return { kind: "item" as const, itemId: "diamond" as const, amount: 1 };
+			if (pick === 0)
+				return { kind: "item" as const, itemId: "diamond" as const, amount: 1 };
 			if (pick === 1) {
 				const stone = pickRandomAlgorithmStoneByRarity("rare");
 				return { kind: "algorithm" as const, stoneId: stone.id };
@@ -7995,14 +8496,22 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				const stone = pickRandomAlgorithmStoneByRarity("legendary");
 				return { kind: "algorithm" as const, stoneId: stone.id };
 			}
-			const targetStone = progressTargetStones[randomInt(0, progressTargetStones.length - 1)]!;
+			if (randomRoll() < 0.5) {
+				const moneyStone =
+					progressMoneyStones[randomInt(0, progressMoneyStones.length - 1)]!;
+				return { kind: "money" as const, stoneId: moneyStone.id };
+			}
+			const targetStone =
+				progressTargetStones[randomInt(0, progressTargetStones.length - 1)]!;
 			return { kind: "target" as const, stoneId: targetStone.id };
 		}
 
 		if (friendshipLevel >= 4) {
 			const pick = randomInt(0, 4);
-			if (pick === 0) return { kind: "item" as const, itemId: "ruby" as const, amount: 1 };
-			if (pick === 1) return { kind: "item" as const, itemId: "emerald" as const, amount: 1 };
+			if (pick === 0)
+				return { kind: "item" as const, itemId: "ruby" as const, amount: 1 };
+			if (pick === 1)
+				return { kind: "item" as const, itemId: "emerald" as const, amount: 1 };
 			if (pick === 2) {
 				const stone = pickRandomAlgorithmStoneByRarity("common");
 				return { kind: "algorithm" as const, stoneId: stone.id };
@@ -8016,12 +8525,18 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		}
 
 		const pick = randomInt(0, 6);
-		if (pick === 0) return { kind: "item" as const, itemId: "iron" as const, amount: 5 };
-		if (pick === 1) return { kind: "item" as const, itemId: "ruby" as const, amount: 1 };
-		if (pick === 2) return { kind: "item" as const, itemId: "emerald" as const, amount: 1 };
-		if (pick === 3) return { kind: "item" as const, itemId: "milk" as const, amount: 5 };
-		if (pick === 4) return { kind: "item" as const, itemId: "wool" as const, amount: 5 };
-		if (pick === 5) return { kind: "item" as const, itemId: "feed" as const, amount: 20 };
+		if (pick === 0)
+			return { kind: "item" as const, itemId: "iron" as const, amount: 5 };
+		if (pick === 1)
+			return { kind: "item" as const, itemId: "ruby" as const, amount: 1 };
+		if (pick === 2)
+			return { kind: "item" as const, itemId: "emerald" as const, amount: 1 };
+		if (pick === 3)
+			return { kind: "item" as const, itemId: "milk" as const, amount: 5 };
+		if (pick === 4)
+			return { kind: "item" as const, itemId: "wool" as const, amount: 5 };
+		if (pick === 5)
+			return { kind: "item" as const, itemId: "feed" as const, amount: 20 };
 		const stone = pickRandomAlgorithmStoneByRarity("common");
 		return { kind: "algorithm" as const, stoneId: stone.id };
 	};
@@ -8035,7 +8550,8 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				gameStateRef.current.statistics,
 				makeTownNpcUniqueTalkKey(npcKey),
 			);
-			const friendshipLevel = countFriendshipHeartsForUniqueTalks(uniqueTalkCount);
+			const friendshipLevel =
+				countFriendshipHeartsForUniqueTalks(uniqueTalkCount);
 			return { npcKey, friendshipLevel };
 		});
 		const chancePoints = friendshipByNpc.reduce(
@@ -8045,7 +8561,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		);
 		if (chancePoints <= 0) return false;
 		if (respectChance && randomRoll() >= chancePoints / 100) return false;
-		const eligible = friendshipByNpc.filter((entry) => entry.friendshipLevel >= 3);
+		const eligible = friendshipByNpc.filter(
+			(entry) => entry.friendshipLevel >= 3,
+		);
 		if (eligible.length <= 0) return false;
 		const selected = eligible[randomInt(0, eligible.length - 1)]!;
 		const selectedInterest = townNpcInterests[selected.npcKey];
@@ -8562,6 +9080,77 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		isSaveLoadMenuOpen,
 		isStatsDebugOverlayOpen,
 	]);
+	useEffect(() => {
+		if (algorithmTradeMachineIntroSeen) return;
+		if (!hasAlgorithmTradeMachineUnlocked) return;
+		if (player.map !== "town") return;
+		if (dayTransition || modal || isSaveLoadMenuOpen || isStatsDebugOverlayOpen)
+			return;
+		if (directorRunningRef.current) return;
+
+		directorRunningRef.current = true;
+		let cancelled = false;
+		void (async () => {
+			setPauseGame(true);
+			setDirectorInputLocked(true);
+			setCloudOverlayVisible(false);
+			setMapZoom(clampDirectorZoom(8));
+			setCameraTarget({
+				map: "town",
+				x: 2,
+				y: 3,
+				smooth: true,
+				durationMs: DIRECTOR_NAV_DURATION_MS,
+			});
+			await waitDirector(DIRECTOR_NAV_DURATION_MS);
+			if (cancelled) return;
+			await awaitDirectorPopupConfirm(
+				"The computer lab just got an upgrade! You can now trade your algorithmic stones!",
+			);
+			if (cancelled) return;
+			const playerNow = playerRef.current;
+			setMapZoom(DEFAULT_MAP_ZOOM);
+			setCameraTarget({
+				map: playerNow.map,
+				x: playerNow.x,
+				y: playerNow.y,
+				smooth: true,
+				durationMs: DIRECTOR_RETURN_DURATION_MS,
+			});
+			await waitDirector(DIRECTOR_RETURN_DURATION_MS);
+			if (cancelled) return;
+			await waitDirector(DIRECTOR_RETURN_SETTLE_MS);
+			if (cancelled) return;
+			setCameraTarget(null);
+			setDirectorPopup(null);
+			setDirectorInputLocked(false);
+			setCloudOverlayVisible(true);
+			setPauseGame(false);
+			setAlgorithmTradeMachineIntroSeen(true);
+			directorRunningRef.current = false;
+		})().catch(() => {
+			setDirectorPopup(null);
+			setDirectorInputLocked(false);
+			setCloudOverlayVisible(true);
+			setCameraTarget(null);
+			setMapZoom(DEFAULT_MAP_ZOOM);
+			setPauseGame(false);
+			directorRunningRef.current = false;
+		});
+
+		return () => {
+			cancelled = true;
+			setCloudOverlayVisible(true);
+		};
+	}, [
+		algorithmTradeMachineIntroSeen,
+		hasAlgorithmTradeMachineUnlocked,
+		player.map,
+		dayTransition,
+		modal,
+		isSaveLoadMenuOpen,
+		isStatsDebugOverlayOpen,
+	]);
 
 	const stopBathing = (line?: string) => {
 		if (!isBathing) return;
@@ -8639,18 +9228,23 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			const targetCell = activeMapLayouts.computer_lab?.[ty]?.[tx] ?? "";
 			const rowIndex: 0 | 1 | 2 | -1 =
 				ty === 2 ? 0 : ty === 4 ? 1 : ty === 6 ? 2 : -1;
-			const algoIndex: 0 | 1 | 2 | -1 =
+			const progressAlgoIndex: 0 | 1 | 2 | -1 =
 				tx === 4 ? 0 : tx === 5 ? 1 : tx === 6 ? 2 : -1;
-			const isTargetSlot = tx === 3;
+			const moneyAlgoIndex: 0 | 1 | 2 | -1 =
+				tx === 11 ? 0 : tx === 12 ? 1 : tx === 13 ? 2 : -1;
+			const isProgressTargetSlot = tx === 3;
+			const isMoneyTargetSlot = tx === 10;
 			if (targetCell === "x" && tx === 2 && rowIndex >= 0) {
 				const rowSlotIndex = rowIndex as 0 | 1 | 2;
-				const row = progressLoadoutRows[rowSlotIndex];
-				const targetStone = row.targetStoneId
-					? progressTargetStones.find((stone) => stone.id === row.targetStoneId)
+				const progressRow = progressLoadoutRows[rowSlotIndex];
+				const targetStone = progressRow.targetStoneId
+					? progressTargetStones.find(
+							(stone) => stone.id === progressRow.targetStoneId,
+						)
 					: null;
 				if (!targetStone) {
 					openMenu(
-						`Row ${rowIndex + 1} Terminal`,
+						`Row ${rowIndex + 1} Progress Terminal`,
 						[
 							"No target stone is installed in this row.",
 							"Install a target stone and algorithms to activate this chain.",
@@ -8659,19 +9253,46 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					);
 					return;
 				}
-				const previewIncrement = previewIncrementForLoadoutRow(row);
-				const baseHint =
-					targetStone.id === "money_gained"
-						? "Preview base uses $100 gained."
-						: "Preview base uses quantity 1 trigger.";
+				const progressPreview = previewIncrementForLoadoutRow(progressRow);
 				openMenu(
-					`Row ${rowIndex + 1} Terminal`,
+					`Row ${rowIndex + 1} Progress Terminal`,
 					[
 						`Target mechanic: ${targetStone.name}`,
 						targetStone.description,
-						`Algorithm chain: ${describeLoadoutRowChain(row)}`,
-						`Current reward preview: +${previewIncrement} progress per trigger.`,
-						baseHint,
+						`Progress algorithm chain: ${describeLoadoutRowChain(progressRow)}`,
+						`Progress preview: +${progressPreview} per trigger.`,
+					],
+					[{ label: "Back", onSelect: closeMenu }],
+				);
+				return;
+			}
+			if (targetCell === "x" && tx === 9 && rowIndex >= 0) {
+				const rowSlotIndex = rowIndex as 0 | 1 | 2;
+				const moneyRow = moneyLoadoutRows[rowSlotIndex];
+				const moneyStone = moneyRow.moneyStoneId
+					? progressMoneyStones.find(
+							(stone) => stone.id === moneyRow.moneyStoneId,
+						)
+					: null;
+				if (!moneyStone) {
+					openMenu(
+						`Row ${rowIndex + 1} Money Terminal`,
+						[
+							"No money stone is installed in this row.",
+							"Install a money stone and algorithms to activate this chain.",
+						],
+						[{ label: "Back", onSelect: closeMenu }],
+					);
+					return;
+				}
+				const moneyPreview = previewBonusDeltaForMoneyRow(moneyRow);
+				openMenu(
+					`Row ${rowIndex + 1} Money Terminal`,
+					[
+						`Money mechanic: ${moneyStone.name}`,
+						moneyStone.description,
+						`Money algorithm chain: ${describeAlgorithmChain(moneyRow.algorithmStoneIds)}`,
+						`Money preview on $100 base: +$${moneyPreview.bonusDelta} bonus ($${moneyPreview.totalDelta} total).`,
 					],
 					[{ label: "Back", onSelect: closeMenu }],
 				);
@@ -8680,12 +9301,16 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			if (
 				targetCell === "x" &&
 				rowIndex >= 0 &&
-				(isTargetSlot || algoIndex >= 0)
+				(isProgressTargetSlot ||
+					progressAlgoIndex >= 0 ||
+					isMoneyTargetSlot ||
+					moneyAlgoIndex >= 0)
 			) {
 				const rowSlotIndex = rowIndex as 0 | 1 | 2;
-				const row = progressLoadoutRows[rowSlotIndex];
-				if (isTargetSlot) {
-					const currentTargetStoneId = row.targetStoneId;
+				const progressRow = progressLoadoutRows[rowSlotIndex];
+				const moneyRow = moneyLoadoutRows[rowSlotIndex];
+				if (isProgressTargetSlot) {
+					const currentTargetStoneId = progressRow.targetStoneId;
 					if (currentTargetStoneId) {
 						const installedTargetStone = progressTargetStones.find(
 							(stone) => stone.id === currentTargetStoneId,
@@ -8719,8 +9344,9 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 						);
 						return;
 					}
-					const targetOptions = progressTargetStones.reduce<ModalOption[]>(
-						(options, stone) => {
+					const targetOptions = [...progressTargetStones]
+						.sort(sortByRarityThenName)
+						.reduce<ModalOption[]>((options, stone) => {
 							const used = countUsedTargetStone(stone.id);
 							const owned = progressStoneTargetCounts[stone.id] ?? 0;
 							const available =
@@ -8743,9 +9369,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 								},
 							});
 							return options;
-						},
-						[],
-					);
+						}, []);
 					openMenu(
 						`Row ${rowIndex + 1} Target`,
 						targetOptions.length > 0
@@ -8755,15 +9379,83 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					);
 					return;
 				}
-				const algoSlotIndex: 0 | 1 | 2 = algoIndex === -1 ? 0 : algoIndex;
-				const currentAlgorithmStoneId = row.algorithmStoneIds[algoSlotIndex];
+				if (isMoneyTargetSlot) {
+					const currentMoneyStoneId = moneyRow.moneyStoneId;
+					if (currentMoneyStoneId) {
+						const installedMoneyStone = progressMoneyStones.find(
+							(stone) => stone.id === currentMoneyStoneId,
+						);
+						openMenu(
+							`Row ${rowIndex + 1} Money Stone`,
+							["Remove the currently installed money stone."],
+							[
+								{
+									label: "Remove",
+									info: [
+										`Installed: ${installedMoneyStone?.name ?? currentMoneyStoneId}`,
+										`Effect: ${installedMoneyStone?.description ?? "No description available."}`,
+									],
+									onSelect: () => {
+										setMoneyLoadoutRows((prev) =>
+											setRowMoneyStoneId(prev, rowSlotIndex, null),
+										);
+										closeMenu();
+									},
+								},
+								{ label: "Cancel", onSelect: closeMenu },
+							],
+						);
+						return;
+					}
+					const moneyOptions = [...progressMoneyStones]
+						.sort(sortByRarityThenName)
+						.reduce<ModalOption[]>((options, stone) => {
+							const used = countUsedMoneyStone(stone.id);
+							const owned = moneyStoneCounts[stone.id] ?? 0;
+							const available =
+								owned - used + (currentMoneyStoneId === stone.id ? 1 : 0);
+							if (available <= 0) return options;
+							options.push({
+								label: `${stone.name} (${owned})`,
+								info: [stone.description, `Rarity: ${stone.rarity}`],
+								onSelect: () => {
+									if (available <= 0 && currentMoneyStoneId !== stone.id) {
+										playBad();
+										addLog("You do not own an available copy of that stone.");
+										closeMenu();
+										return;
+									}
+									setMoneyLoadoutRows((prev) =>
+										setRowMoneyStoneId(prev, rowSlotIndex, stone.id),
+									);
+									closeMenu();
+								},
+							});
+							return options;
+						}, []);
+					openMenu(
+						`Row ${rowIndex + 1} Money Stone`,
+						moneyOptions.length > 0
+							? ["Install or remove a money stone."]
+							: ["You do not own any money stones yet."],
+						[...moneyOptions, { label: "Back", onSelect: closeMenu }],
+					);
+					return;
+				}
+				const isProgressAlgorithmSlot = progressAlgoIndex >= 0;
+				const algoSlotIndex = (
+					isProgressAlgorithmSlot ? progressAlgoIndex : moneyAlgoIndex
+				) as 0 | 1 | 2;
+				const currentAlgorithmStoneId = isProgressAlgorithmSlot
+					? progressRow.algorithmStoneIds[algoSlotIndex]
+					: moneyRow.algorithmStoneIds[algoSlotIndex];
 				if (currentAlgorithmStoneId) {
 					const installedAlgorithmStone = progressAlgorithmStones.find(
 						(stone) => stone.id === currentAlgorithmStoneId,
 					);
 					openMenu(
-						`Row ${rowIndex + 1} Algorithm ${algoIndex + 1}`,
-						["Remove the currently installed algorithmic progress stone."],
+						`Row ${rowIndex + 1} Algorithm ${algoSlotIndex + 1}`,
+						["Remove the currently installed algorithm stone."],
 						[
 							{
 								label: "Remove",
@@ -8772,14 +9464,20 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 									`Effect: ${installedAlgorithmStone?.description ?? "No description available."}`,
 								],
 								onSelect: () => {
-									setProgressLoadoutRows((prev) => {
-										return setAlgorithmSlot(
-											prev,
-											rowSlotIndex,
-											algoSlotIndex,
-											null,
+									if (isProgressAlgorithmSlot) {
+										setProgressLoadoutRows((prev) =>
+											setAlgorithmSlot(prev, rowSlotIndex, algoSlotIndex, null),
 										);
-									});
+									} else {
+										setMoneyLoadoutRows((prev) =>
+											setMoneyAlgorithmSlot(
+												prev,
+												rowSlotIndex,
+												algoSlotIndex,
+												null,
+											),
+										);
+									}
 									closeMenu();
 								},
 							},
@@ -8795,39 +9493,50 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 					);
 					return;
 				}
-				const visibleAlgorithmOptions = progressAlgorithmStones.reduce<
-					ModalOption[]
-				>((options, stone) => {
-					const used = countUsedAlgorithmStone(stone.id);
-					const owned = progressStoneAlgorithmCounts[stone.id] ?? 0;
-					const available =
-						owned - used + (currentAlgorithmStoneId === stone.id ? 1 : 0);
-					if (available <= 0) return options;
-					options.push({
-						label: `${stone.name} (${owned})`,
-						info: [stone.description, `Rarity: ${stone.rarity}`],
-						onSelect: () => {
-							if (available <= 0 && currentAlgorithmStoneId !== stone.id) {
-								playBad();
-								addLog("You do not own an available copy of that stone.");
+				const visibleAlgorithmOptions = [...progressAlgorithmStones]
+					.sort(sortByRarityThenName)
+					.reduce<ModalOption[]>((options, stone) => {
+						const used = countUsedAlgorithmStone(stone.id);
+						const owned = progressStoneAlgorithmCounts[stone.id] ?? 0;
+						const available =
+							owned - used + (currentAlgorithmStoneId === stone.id ? 1 : 0);
+						if (available <= 0) return options;
+						options.push({
+							label: `${stone.name} (${owned})`,
+							info: [stone.description, `Rarity: ${stone.rarity}`],
+							onSelect: () => {
+								if (available <= 0 && currentAlgorithmStoneId !== stone.id) {
+									playBad();
+									addLog("You do not own an available copy of that stone.");
+									closeMenu();
+									return;
+								}
+								if (isProgressAlgorithmSlot) {
+									setProgressLoadoutRows((prev) =>
+										setAlgorithmSlot(
+											prev,
+											rowSlotIndex,
+											algoSlotIndex,
+											stone.id,
+										),
+									);
+								} else {
+									setMoneyLoadoutRows((prev) =>
+										setMoneyAlgorithmSlot(
+											prev,
+											rowSlotIndex,
+											algoSlotIndex,
+											stone.id,
+										),
+									);
+								}
 								closeMenu();
-								return;
-							}
-							setProgressLoadoutRows((prev) => {
-								return setAlgorithmSlot(
-									prev,
-									rowSlotIndex,
-									algoSlotIndex,
-									stone.id,
-								);
-							});
-							closeMenu();
-						},
-					});
-					return options;
-				}, []);
+							},
+						});
+						return options;
+					}, []);
 				openMenu(
-					`Row ${rowIndex + 1} Algorithm ${algoIndex + 1}`,
+					`Row ${rowIndex + 1} Algorithm ${algoSlotIndex + 1}`,
 					visibleAlgorithmOptions.length > 0
 						? ["Install or remove an algorithmic progress stone."]
 						: ["You do not own any algorithm stones yet."],
@@ -8835,6 +9544,15 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 				);
 				return;
 			}
+		}
+		if (
+			player.map === "town" &&
+			hasAlgorithmTradeMachineUnlocked &&
+			tx === ALGORITHM_TRADE_MACHINE_POS.x &&
+			ty === ALGORITHM_TRADE_MACHINE_POS.y
+		) {
+			openAlgorithmTradeMachineMenu();
+			return;
 		}
 		if (player.map === "aquarium") {
 			const aquariumTile = activeMapLayouts.aquarium?.[ty]?.[tx] ?? "";
@@ -8921,14 +9639,20 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			const targetStoneNameById = Object.fromEntries(
 				progressTargetStones.map((stone) => [stone.id, stone.name]),
 			) as Record<string, string>;
+			const moneyStoneNameById = Object.fromEntries(
+				progressMoneyStones.map((stone) => [stone.id, stone.name]),
+			) as Record<string, string>;
 			const rewardLabel =
 				npcGiftLetter.reward.kind === "item"
 					? `${itemNames[npcGiftLetter.reward.itemId]}`
 					: npcGiftLetter.reward.kind === "algorithm"
-						? algorithmStoneNameById[npcGiftLetter.reward.stoneId] ??
-							npcGiftLetter.reward.stoneId
-						: targetStoneNameById[npcGiftLetter.reward.stoneId] ??
-							npcGiftLetter.reward.stoneId;
+						? (algorithmStoneNameById[npcGiftLetter.reward.stoneId] ??
+							npcGiftLetter.reward.stoneId)
+						: npcGiftLetter.reward.kind === "money"
+							? (moneyStoneNameById[npcGiftLetter.reward.stoneId] ??
+								npcGiftLetter.reward.stoneId)
+							: (targetStoneNameById[npcGiftLetter.reward.stoneId] ??
+								npcGiftLetter.reward.stoneId);
 			const attachmentLine =
 				npcGiftLetter.reward.kind === "item"
 					? `${GLYPH.paperclip}${npcGiftLetter.reward.amount}x ${rewardLabel}`
@@ -8956,10 +9680,19 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 									rewardLabel,
 									{ suppressLog: true },
 								);
-							} else {
-								grantProgressStone("target", npcGiftLetter.reward.stoneId, rewardLabel, {
+							} else if (npcGiftLetter.reward.kind === "money") {
+								grantMoneyStone(npcGiftLetter.reward.stoneId, rewardLabel, {
 									suppressLog: true,
 								});
+							} else {
+								grantProgressStone(
+									"target",
+									npcGiftLetter.reward.stoneId,
+									rewardLabel,
+									{
+										suppressLog: true,
+									},
+								);
 							}
 							setNpcGiftLetter(null);
 							setFriendPostcardUnlockAtMs(0);
@@ -9215,6 +9948,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 			onManualGrassHoed: maybeTriggerManualGrassHoeCutscene,
 			maybeGrantChestProgressStone,
 			grantProgressStone,
+			grantMoneyStone,
 		};
 		runInteract(interactCtx, dir);
 	};
@@ -9801,6 +10535,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		progressPercent,
 		progressWon,
 		progressLoadoutRows,
+		moneyLoadoutRows,
 		stamina,
 		staminaMax,
 		waterLevel,
@@ -9810,6 +10545,12 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		priceItems,
 		priceTrends,
 		tools,
+		progressStoneAlgorithmCounts,
+		aquariumDonations,
+		barnTier,
+		highestForestLevelReached,
+		highestCaveLevelReached,
+		statistics,
 		activeMapLayouts,
 		isWindSlashOn,
 		renderedMap,
@@ -9911,6 +10652,7 @@ export function useGameRuntime(options?: GameRuntimeBootOptions) {
 		closeStatsDebugOverlay,
 		closeDebugToolsPanel,
 		runDebugGrantResources,
+		runDebugGrantAllStones,
 		runDebugSpawnBarnAnimals,
 		runDebugSpawnTownBeachBottle,
 		runDebugAdvanceAllNpcFriendshipTiers,

@@ -53,6 +53,26 @@ export const makeCropHarvestedKey = (cropId: CropId): string =>
 export const makeTownNpcUniqueTalkKey = (npcKey: string): string =>
 	`town_npc_unique_talks:${npcKey}`;
 
+const TOWN_NPC_UNIQUE_TALKS_PREFIX = "town_npc_unique_talks:";
+const FRIENDSHIP_HEART_THRESHOLDS = [2, 5, 9, 14, 20] as const;
+
+export const countFriendshipHeartsForUniqueTalks = (count: number): number => {
+	if (count >= FRIENDSHIP_HEART_THRESHOLDS[4]) return 5;
+	if (count >= FRIENDSHIP_HEART_THRESHOLDS[3]) return 4;
+	if (count >= FRIENDSHIP_HEART_THRESHOLDS[2]) return 3;
+	if (count >= FRIENDSHIP_HEART_THRESHOLDS[1]) return 2;
+	if (count >= FRIENDSHIP_HEART_THRESHOLDS[0]) return 1;
+	return 0;
+};
+
+export const countTotalTownNpcFriendshipHearts = (
+	state: StatisticsState,
+): number =>
+	Object.entries(state.counters).reduce((total, [key, value]) => {
+		if (!key.startsWith(TOWN_NPC_UNIQUE_TALKS_PREFIX)) return total;
+		return total + countFriendshipHeartsForUniqueTalks(Math.max(0, value));
+	}, 0);
+
 export const resolveGemFoundStatKey = (itemId: ItemId): string | null => {
 	if (itemId === "diamond") return PLAYER_STAT_KEYS.diamondsFoundTotal;
 	if (itemId === "emerald") return PLAYER_STAT_KEYS.emeraldsFoundTotal;

@@ -69,7 +69,7 @@ export const applyFrameActionsToRuntime = (args: {
 	rewards: SideViewReward[];
 	playerName: string | null;
 	progressStoneGrants: Array<{
-		kind: "target" | "algorithm";
+		kind: "target" | "algorithm" | "money";
 		stoneId: string;
 		label?: string;
 	}>;
@@ -101,7 +101,7 @@ export const applyFrameActionsToRuntime = (args: {
 	const rewards: SideViewReward[] = [];
 	let playerName: string | null = null;
 	const progressStoneGrants: Array<{
-		kind: "target" | "algorithm";
+		kind: "target" | "algorithm" | "money";
 		stoneId: string;
 		label?: string;
 	}> = [];

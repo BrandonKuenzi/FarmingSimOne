@@ -75,6 +75,7 @@ const tileVisuals: Record<string, VisualCell> = {
 	"\u00D7": { glyph: "", className: "tile-computer-lab-roof-purple" },
 	"\u00D8": { glyph: "", className: "tile-computer-lab-roof-dark" },
 	"\u00D9": { glyph: GLYPH.trophy, className: "tile-gravel" },
+	"\u00DB": { glyph: GLYPH.slotMachine, className: "tile-gravel" },
 	x: { glyph: GLYPH.brownSquare },
 	h: { glyph: GLYPH.chair },
 	B: { glyph: "", className: "tile-barn-wall" },

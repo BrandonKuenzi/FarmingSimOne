@@ -6,12 +6,15 @@ import {
 	standardCropIds,
 } from "../content/catalog";
 import { progressAlgorithmStones } from "../progression/progressStonesAlgorithmic";
+import { progressMoneyStones } from "../progression/progressStonesMoney";
 import { progressTargetStones } from "../progression/progressStonesTarget";
 import { getRandomCropId, toolNames, TOOL_MAX_LEVEL } from "./tools";
 import { randomRoll } from "../shared/random";
 import type {
 	AnimalType,
+	IncomeSource,
 	ItemId,
+	MoneyStoneId,
 	ProgressAlgorithmId,
 	ProgressTargetId,
 	ToolId,
@@ -20,7 +23,11 @@ import type {
 
 type RewardContext = {
 	randomInt: (min: number, max: number) => number;
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	setStamina: (updater: (value: number) => number) => void;
 	staminaMax: number;
@@ -43,7 +50,7 @@ export const grantBonusChestRewardSet = (
 	}
 	if (types.includes("money")) {
 		const amount = ctx.randomInt(10, 50);
-		ctx.applyMoneyDelta(amount);
+		ctx.applyMoneyDelta(amount, "loot_box");
 		lines.push(`Found $${amount}.`);
 	}
 	if (types.includes("seeds")) {
@@ -61,7 +68,11 @@ export const grantBonusChestRewardSet = (
 
 export const openHighValueForestChestReward = (ctx: {
 	randomInt: (min: number, max: number) => number;
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	setStamina: (updater: (value: number) => number) => void;
 	staminaMax: number;
@@ -81,7 +92,7 @@ export const openHighValueForestChestReward = (ctx: {
 	let rewardLine = "";
 	if (roll < 40) {
 		const foundMoney = ctx.randomInt(50, 200);
-		ctx.applyMoneyDelta(foundMoney);
+		ctx.applyMoneyDelta(foundMoney, "loot_box");
 		rewardLine = `You found $${foundMoney} in the chest.`;
 		if (randomRoll() < 0.2) {
 			ctx.updateInventory("iron", 1);
@@ -100,7 +111,7 @@ export const openHighValueForestChestReward = (ctx: {
 		const foundMoney = ctx.randomInt(200, 500);
 		const pick = getRandomCropId(standardCropIds, ctx.randomInt);
 		const amount = ctx.randomInt(5, 15);
-		ctx.applyMoneyDelta(foundMoney);
+		ctx.applyMoneyDelta(foundMoney, "loot_box");
 		ctx.updateInventory(cropDefs[pick].seedItem, amount);
 		rewardLine = `Lucky chest! $${foundMoney} and ${cropDefs[pick].name} Seed x${amount}.`;
 		if (randomRoll() < 0.35) {
@@ -117,7 +128,7 @@ export const openHighValueForestChestReward = (ctx: {
 			rewardLine = `You unlocked a new outfit: ${look}.`;
 		} else {
 			const fallbackMoney = ctx.randomInt(500, 1500);
-			ctx.applyMoneyDelta(fallbackMoney);
+			ctx.applyMoneyDelta(fallbackMoney, "loot_box");
 			rewardLine = `You already own all the outfits! So instead, you found $${fallbackMoney} instead.`;
 		}
 	} else if (roll < 97 && canGrantAnimalReward) {
@@ -126,7 +137,7 @@ export const openHighValueForestChestReward = (ctx: {
 		if (ctx.spawnAnimalInBarn(type)) {
 			rewardLine = `The chest granted you a ${animalDefs[type].name}!`;
 		} else {
-			ctx.applyMoneyDelta(500);
+			ctx.applyMoneyDelta(500, "loot_box");
 			rewardLine = "The chest shifted and gave you $500 instead.";
 		}
 	} else {
@@ -141,7 +152,7 @@ export const openHighValueForestChestReward = (ctx: {
 			}));
 			rewardLine = `Treasure upgrade! ${toolNames[toolId]} improved.`;
 		} else {
-			ctx.applyMoneyDelta(500);
+			ctx.applyMoneyDelta(500, "loot_box");
 			rewardLine = "All tools maxed. The chest gave you $500.";
 		}
 	}
@@ -207,7 +218,11 @@ export const rollBeachBottleReward = (ctx: {
 	barnAnimalCap: number;
 	canSpawnAnimal: boolean;
 	ownedWardrobeLooks: string[];
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	setStamina: (updater: (value: number) => number) => void;
 	setOwnedWardrobeLooks: (updater: (prev: string[]) => string[]) => void;
@@ -215,6 +230,11 @@ export const rollBeachBottleReward = (ctx: {
 	grantProgressStone?: (
 		kind: "target" | "algorithm",
 		stoneId: ProgressTargetId | ProgressAlgorithmId,
+		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
+	) => void;
+	grantMoneyStone?: (
+		stoneId: MoneyStoneId,
 		label: string,
 		options?: { suppressLog?: boolean; suppressToast?: boolean },
 	) => void;
@@ -233,7 +253,11 @@ export const rollBeachBottleRewardPlan = (ctx: {
 	barnAnimalCap: number;
 	canSpawnAnimal: boolean;
 	ownedWardrobeLooks: string[];
-	applyMoneyDelta: (delta: number) => void;
+	applyMoneyDelta: (
+		delta: number,
+		incomeSource?: IncomeSource,
+		transactionCount?: number,
+	) => void;
 	updateInventory: (item: ItemId, amount: number) => void;
 	setStamina: (updater: (value: number) => number) => void;
 	setOwnedWardrobeLooks: (updater: (prev: string[]) => string[]) => void;
@@ -241,6 +265,11 @@ export const rollBeachBottleRewardPlan = (ctx: {
 	grantProgressStone?: (
 		kind: "target" | "algorithm",
 		stoneId: ProgressTargetId | ProgressAlgorithmId,
+		label: string,
+		options?: { suppressLog?: boolean; suppressToast?: boolean },
+	) => void;
+	grantMoneyStone?: (
+		stoneId: MoneyStoneId,
 		label: string,
 		options?: { suppressLog?: boolean; suppressToast?: boolean },
 	) => void;
@@ -287,14 +316,27 @@ export const rollBeachBottleRewardPlan = (ctx: {
 	}
 	const stoneRoll = randomRoll() * 100;
 	if (stoneRoll < 8) {
-		const stone =
-			progressTargetStones[ctx.randomInt(0, progressTargetStones.length - 1)]!;
+		const awardMoneyStone = randomRoll() < 0.5;
+		const stone = awardMoneyStone
+			? progressMoneyStones[ctx.randomInt(0, progressMoneyStones.length - 1)]!
+			: progressTargetStones[ctx.randomInt(0, progressTargetStones.length - 1)]!;
 		return {
-			rewardName: `${stone.name} (Target Stone)`,
+			rewardName: `${stone.name} (${awardMoneyStone ? "Money Stone" : "Target Stone"})`,
 			apply: () => {
-				ctx.grantProgressStone?.("target", stone.id, stone.name, {
-					suppressLog: true,
-				});
+				if (awardMoneyStone) {
+					ctx.grantMoneyStone?.(stone.id as MoneyStoneId, stone.name, {
+						suppressLog: true,
+					});
+					return;
+				}
+				ctx.grantProgressStone?.(
+					"target",
+					stone.id as ProgressTargetId,
+					stone.name,
+					{
+						suppressLog: true,
+					},
+				);
 			},
 		};
 	}
@@ -317,7 +359,7 @@ export const rollBeachBottleRewardPlan = (ctx: {
 		return {
 			rewardName: `$${amount}`,
 			apply: () => {
-				ctx.applyMoneyDelta(amount);
+				ctx.applyMoneyDelta(amount, "npc_gift");
 			},
 		};
 	}
@@ -356,7 +398,7 @@ export const rollBeachBottleRewardPlan = (ctx: {
 		return {
 			rewardName: "$2000",
 			apply: () => {
-				ctx.applyMoneyDelta(2000);
+				ctx.applyMoneyDelta(2000, "npc_gift");
 			},
 		};
 	}
@@ -367,7 +409,7 @@ export const rollBeachBottleRewardPlan = (ctx: {
 		rewardName: animalDefs[type].name,
 		apply: () => {
 			if (ctx.spawnAnimalInBarn(type)) return;
-			ctx.applyMoneyDelta(2000);
+			ctx.applyMoneyDelta(2000, "npc_gift");
 		},
 	};
 };
